@@ -25,3 +25,23 @@ class MedicationRead(BaseModel):
     safety_note: str | None
 
     model_config = {"from_attributes": True}
+
+
+class FacilityReportCreate(BaseModel):
+    facility_external_id: str = Field(..., min_length=1, max_length=80)
+    facility_name: str = Field(..., min_length=1, max_length=160)
+    report_type: str = Field(..., min_length=1, max_length=40)
+    description: str | None = None
+    reporter_contact: str | None = Field(default=None, max_length=120)
+
+
+class FacilityReportRead(BaseModel):
+    id: int
+    facility_external_id: str
+    facility_name: str
+    report_type: str
+    description: str | None
+    reporter_contact: str | None
+    status: str
+
+    model_config = {"from_attributes": True}

@@ -41,7 +41,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          title: "주변",
+          title: "약국병원",
           tabBarIcon: ({ color }) => <MaterialCommunityIcons name="map-marker-radius" size={tabIconSize} color={color} />
         }}
       />

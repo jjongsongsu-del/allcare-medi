@@ -18,6 +18,13 @@ export type MedicalFacility = {
   distanceKm: number;
   isOpen: boolean;
   hours: string;
+  operatingStatus: "open_expected" | "closed_expected" | "unknown";
+  closesAt?: string;
+  closingSoonMinutes?: number;
+  lastUpdated?: string;
+  holidayCare: boolean;
+  nightCare: boolean;
+  hasPhone: boolean;
   phone: string;
   address: string;
   tags: string[];

@@ -46,3 +46,16 @@ class MedicationSchedule(Base):
     notify_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     medication: Mapped["Medication"] = relationship(back_populates="schedules")
+
+
+class FacilityReport(Base):
+    __tablename__ = "facility_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    facility_external_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    facility_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    report_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reporter_contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

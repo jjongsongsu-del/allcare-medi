@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import health, medications
+from app.routers import facility_reports, health, medications
 
 app = FastAPI(
     title="AllCareMedi BFF",
@@ -26,3 +26,4 @@ def on_startup() -> None:
 
 app.include_router(health.router)
 app.include_router(medications.router)
+app.include_router(facility_reports.router)
