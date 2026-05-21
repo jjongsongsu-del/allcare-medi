@@ -39,7 +39,7 @@ src/
 ### 병·의원 및 약국 찾기
 
 - 화면: 상황 검색, 빠른 필터 칩, 지도/목록 전환, 마커 Bottom Sheet 상세, 최근 본 장소, 즐겨찾기
-- 서비스: `medicalFacilityService`
+- 서비스: `medicalFacilityService`, 서버 `/facilities/search`
 - 향후 구현: 국립중앙의료원 API, Kakao/Naver 지도 길찾기 딥링크, 정보 오류 신고 검수 흐름
 
 ### 건강백과
@@ -82,6 +82,16 @@ Mobile App
 - 파일: S3 호환 스토리지
 - 알림: Expo Push Notification, 추후 FCM/APNs 직접 연동
 - 인증: 휴대폰 본인인증 또는 OAuth, 가족 초대 토큰
+
+## 7. API 관리
+
+서버는 `doc/api`의 가이드 문서를 기준으로 공공 API 레지스트리를 관리합니다.
+
+- `GET /admin/apis`: 국립중앙의료원 병의원/약국/응급, 질병관리청 건강정보 등 앱 사용 API 목록
+- `GET /admin/apis/{endpoint_id}/test`: 인증키 설정과 엔드포인트 상태 점검
+- `GET /facilities/search`: 앱의 약국병원 화면에서 사용하는 병원·약국 통합 검색 프록시
+
+통합 인증키는 `server/.env`의 `PUBLIC_DATA_SERVICE_KEY`에만 저장하고, 앱 번들에는 포함하지 않습니다.
 
 ## 5. 데이터와 보안
 

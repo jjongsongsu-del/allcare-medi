@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { ActionButton } from "@/components/ActionButton";
@@ -57,6 +58,11 @@ export function HomeScreen() {
           <ActionButton label={largeText ? "큰 글자 켜짐" : "큰 글자"} icon="format-size" tone="secondary" onPress={toggleLargeText} />
           <ActionButton label={highContrast ? "고대비 켜짐" : "고대비"} icon="contrast-circle" tone="secondary" onPress={toggleHighContrast} />
         </View>
+      </KrdsCard>
+
+      <KrdsCard>
+        <SectionHeader title="관리자" description="공공 API 연결 상태와 문서 기준 엔드포인트를 확인합니다." />
+        <ActionButton label="API 관리자" icon="api" tone="secondary" onPress={() => router.push("/admin/apis")} />
       </KrdsCard>
     </AppScreen>
   );

@@ -45,3 +45,55 @@ class FacilityReportRead(BaseModel):
     status: str
 
     model_config = {"from_attributes": True}
+
+
+class ApiEndpointRead(BaseModel):
+    id: str
+    provider: str
+    name: str
+    category: str
+    method: str
+    url: str
+    operation: str
+    auth_type: str
+    enabled: bool
+    doc_file: str
+    description: str
+
+
+class ApiTestResult(BaseModel):
+    id: str
+    status: str
+    message: str
+    sample_url: str
+
+
+class FacilitySearchParams(BaseModel):
+    latitude: float | None = None
+    longitude: float | None = None
+    query: str | None = None
+    type: str | None = None
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=10, ge=1, le=50)
+
+
+class FacilitySearchResult(BaseModel):
+    id: str
+    name: str
+    type: str
+    department: str | None = None
+    distance_km: float | None = None
+    operating_status: str
+    hours: str
+    phone: str
+    address: str
+    latitude: float | None = None
+    longitude: float | None = None
+    last_updated: str | None = None
+    tags: list[str] = []
+
+
+class FacilitySearchResponse(BaseModel):
+    source: str
+    results: list[FacilitySearchResult]
+    message: str | None = None

@@ -23,3 +23,7 @@ npm run start
 ## 서버 DB
 
 서버는 기본적으로 SQLite를 사용합니다. 운영 환경 또는 다중 사용자 테스트에서는 `server/.env`의 `DATABASE_URL`을 PostgreSQL 주소로 바꾸면 됩니다.
+
+## API 관리자
+
+홈 화면의 `API 관리자`에서 서버가 관리하는 공공 API 목록을 확인할 수 있습니다. 서버는 `PUBLIC_DATA_SERVICE_KEY`를 이용해 공공데이터포털 API를 호출하고, 앱은 `/facilities/search`를 통해 병원·약국 검색 결과를 받습니다.

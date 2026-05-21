@@ -26,6 +26,16 @@ copy .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
+`.env`에는 공공데이터포털 통합 인증키를 `PUBLIC_DATA_SERVICE_KEY`로 저장합니다. 이 값은 모바일 앱에 포함하지 않고 서버에서만 사용합니다.
+
+## API 관리
+
+- `GET /admin/apis`: 앱에서 사용하는 공공 API 목록
+- `GET /admin/apis/{endpoint_id}/test`: 인증키 설정 여부와 엔드포인트 상태 확인
+- `GET /facilities/search?latitude=37.5665&longitude=126.978&type=pharmacy`: 병원·약국 검색 프록시
+
+관리 대상 API는 `doc/api`의 가이드 문서를 기준으로 `app/public_api_registry.py`에 등록합니다.
+
 ## 역할
 
 - 공공 API 키 보호와 응답 정규화

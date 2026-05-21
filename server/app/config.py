@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_env: str = "local"
     database_url: str = "sqlite:///./allcaremedi.db"
+    public_data_service_key: str = ""
     nmc_api_key: str = ""
     emergency_api_key: str = ""
     e_drug_api_key: str = ""
