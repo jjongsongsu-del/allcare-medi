@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "올케어메디",
+    "slug": "allcare-medi",
+    "scheme": "allcaremedi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./app_img/allcaremedi.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./app_img/heal-si10.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": [
+      "app_img/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "kr.allcaremedi.app"
+    },
+    "android": {
+      "package": "kr.allcaremedi.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./app_img/allcaremedi.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-camera",
+      "expo-location",
+      "expo-notifications"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
