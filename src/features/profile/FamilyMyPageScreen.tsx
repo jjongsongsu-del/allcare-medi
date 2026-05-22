@@ -206,11 +206,15 @@ export function FamilyMyPageScreen() {
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
-        <View style={styles.iconBox}>
-          <MaterialCommunityIcons name="view-grid-outline" size={36} color={colors.primary} />
+        <View style={styles.heroHeading}>
+          <View style={styles.iconBox}>
+            <MaterialCommunityIcons name="view-grid-outline" size={28} color={colors.primary} />
+          </View>
+          <View style={styles.heroTitleGroup}>
+            <Text style={styles.eyebrow}>전체 메뉴</Text>
+            <Text style={styles.title}>가족 · 마이데이터</Text>
+          </View>
         </View>
-        <Text style={styles.eyebrow}>전체 메뉴</Text>
-        <Text style={styles.title}>메뉴</Text>
         <Text style={styles.description}>
           마이데이터와 가족 관리를 분리해서 관리합니다. 저장 방식은 로그인 상태에 따라 서버 또는 기기 내부로 나뉩니다.
         </Text>
@@ -610,7 +614,7 @@ function SegmentButton({ label, active, onPress }: { label: string; active: bool
 function MenuTile({ title, description, icon, active = false, onPress }: { title: string; description: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; active?: boolean; onPress?: () => void }) {
   return (
     <Pressable onPress={onPress} style={[styles.tile, active && styles.tileActive]}>
-      <MaterialCommunityIcons name={icon} size={34} color={active ? "#FFFFFF" : colors.primary} />
+      <MaterialCommunityIcons name={icon} size={28} color={active ? "#FFFFFF" : colors.primary} />
       <Text style={[styles.tileTitle, active && styles.tileTitleActive]}>{title}</Text>
       <Text style={[styles.tileDescription, active && styles.tileDescriptionActive]}>{description}</Text>
     </Pressable>
@@ -665,28 +669,39 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
+  heroHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.xs
+  },
+  heroTitleGroup: {
+    flex: 1,
+    justifyContent: "center"
+  },
   iconBox: {
-    width: 68,
-    height: 68,
+    width: 54,
+    height: 54,
     borderRadius: 8,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md
+    justifyContent: "center"
   },
   eyebrow: {
-    ...typography.title,
+    ...typography.caption,
     color: colors.primary,
-    fontWeight: "800"
+    fontWeight: "800",
+    lineHeight: 22
   },
   title: {
-    ...typography.display,
-    color: colors.textStrong
+    ...typography.title,
+    color: colors.textStrong,
+    lineHeight: 32
   },
   description: {
-    ...typography.bodyLarge,
+    ...typography.body,
     color: colors.text,
-    lineHeight: 30
+    lineHeight: 23
   },
   notice: {
     minHeight: 104,

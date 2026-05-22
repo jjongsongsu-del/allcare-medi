@@ -96,58 +96,53 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: {
-    gap: 20,
+    gap: spacing.md,
     paddingHorizontal: 20,
     backgroundColor: colors.background
   },
   hero: {
-    minHeight: 250,
+    minHeight: 168,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: spacing.xl
+    paddingTop: spacing.lg
   },
   heroCopy: {
     flex: 1,
-    gap: 10
+    gap: 6
   },
   eyebrow: {
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: "900",
+    ...typography.caption,
+    fontWeight: "800",
     color: colors.primary
   },
   logoTitle: {
-    fontSize: 56,
-    lineHeight: 66,
-    fontWeight: "900",
+    ...typography.title,
     color: colors.textStrong
   },
   subtitle: {
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: "800",
+    ...typography.body,
     color: colors.text
   },
   mascot: {
-    width: 148,
-    height: 148
+    width: 96,
+    height: 96
   },
   profileCard: {
-    minHeight: 116,
+    minHeight: 84,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: "#CAD7EE",
     backgroundColor: "#F8FBFF",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.lg
+    gap: spacing.md
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.primary
   },
   profileText: {
@@ -155,15 +150,11 @@ const styles = StyleSheet.create({
     gap: 4
   },
   profileName: {
-    fontSize: 30,
-    lineHeight: 38,
-    fontWeight: "900",
+    ...typography.sectionTitle,
     color: colors.textStrong
   },
   profileMeta: {
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "800",
+    ...typography.caption,
     color: colors.textMuted
   },
   searchCard: {
@@ -171,23 +162,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#CAD7EE",
     backgroundColor: "#F8FBFF",
-    padding: spacing.xl,
-    gap: spacing.xl
+    padding: spacing.lg,
+    gap: spacing.md
   },
   cardTitle: {
-    fontSize: 34,
-    lineHeight: 42,
-    fontWeight: "900",
+    ...typography.sectionTitle,
     color: colors.textStrong
   },
   cardSubTitle: {
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "800",
+    ...typography.caption,
     color: colors.textMuted
   },
   searchBox: {
-    minHeight: 74,
+    minHeight: 58,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: "#CAD7EE",
@@ -197,22 +184,18 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    paddingHorizontal: spacing.xl,
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: "800",
+    paddingHorizontal: spacing.lg,
+    ...typography.body,
     color: colors.textStrong
   },
   searchButton: {
-    width: 150,
+    width: 104,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary
   },
   searchButtonText: {
-    fontSize: 25,
-    lineHeight: 32,
-    fontWeight: "900",
+    ...typography.button,
     color: colors.onPrimary
   },
   aiCard: {
@@ -220,27 +203,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#AAC7FF",
     backgroundColor: "#EAF2FF",
-    padding: spacing.xl,
-    gap: spacing.lg
+    padding: spacing.lg,
+    gap: spacing.md
   },
   aiText: {
-    fontSize: 25,
-    lineHeight: 36,
-    fontWeight: "800",
+    ...typography.body,
     color: colors.text
   },
   primarySmallButton: {
-    width: 170,
-    minHeight: 68,
+    width: 132,
+    minHeight: 52,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary
   },
   primarySmallButtonText: {
-    fontSize: 25,
-    lineHeight: 32,
-    fontWeight: "900",
+    ...typography.button,
     color: colors.onPrimary
   },
   medicationCard: {
@@ -248,8 +227,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#CAD7EE",
     backgroundColor: colors.surface,
-    padding: spacing.xl,
-    gap: spacing.xl
+    padding: spacing.lg,
+    gap: spacing.md
   },
   rowBetween: {
     flexDirection: "row",
@@ -258,8 +237,8 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   outlineMiniButton: {
-    minWidth: 96,
-    minHeight: 64,
+    minWidth: 76,
+    minHeight: 48,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: colors.primary,
@@ -267,9 +246,7 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   outlineMiniButtonText: {
-    fontSize: 22,
-    lineHeight: 30,
-    fontWeight: "900",
+    ...typography.button,
     color: colors.primary
   },
   emptyMedication: {
@@ -277,19 +254,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#DFE5EF",
     backgroundColor: "#F8FAFD",
-    padding: spacing.xl,
+    padding: spacing.lg,
     gap: spacing.sm
   },
   emptyTitle: {
-    fontSize: 26,
-    lineHeight: 34,
-    fontWeight: "900",
+    ...typography.sectionTitle,
     color: colors.textStrong
   },
   emptyText: {
-    fontSize: 22,
-    lineHeight: 32,
-    fontWeight: "800",
+    ...typography.body,
     color: colors.textMuted
   },
   medicationButtons: {
@@ -298,21 +271,19 @@ const styles = StyleSheet.create({
   },
   largePrimaryButton: {
     flex: 1,
-    minHeight: 72,
+    minHeight: 52,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary
   },
   largePrimaryButtonText: {
-    fontSize: 25,
-    lineHeight: 32,
-    fontWeight: "900",
+    ...typography.button,
     color: colors.onPrimary
   },
   largeOutlineButton: {
     flex: 1,
-    minHeight: 72,
+    minHeight: 52,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: colors.primary,
@@ -321,9 +292,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface
   },
   largeOutlineButtonText: {
-    fontSize: 25,
-    lineHeight: 32,
-    fontWeight: "900",
+    ...typography.button,
     color: colors.primary
   },
   secondaryGrid: {

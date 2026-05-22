@@ -34,11 +34,15 @@ export function EmergencyScreen() {
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
-        <View style={styles.alertIconBox}>
-          <MaterialCommunityIcons name="alert" size={28} color={emergencyRed} />
+        <View style={styles.heroHeading}>
+          <View style={styles.alertIconBox}>
+            <MaterialCommunityIcons name="alert" size={28} color={emergencyRed} />
+          </View>
+          <View style={styles.heroTitleGroup}>
+            <Text style={styles.eyebrow}>응급</Text>
+            <Text style={styles.title}>응급실 현황</Text>
+          </View>
         </View>
-        <Text style={styles.eyebrow}>응급의료</Text>
-        <Text style={styles.title}>응급실 현황</Text>
         <Text style={styles.description}>
           국립중앙의료원 응급의료정보를 기준으로 주변 응급실과 실시간 가용 병상, 주요 장비 상태를 확인합니다.
         </Text>
@@ -221,23 +225,34 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
+  heroHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.xs
+  },
+  heroTitleGroup: {
+    flex: 1,
+    justifyContent: "center"
+  },
   alertIconBox: {
     width: 54,
     height: 54,
     borderRadius: 8,
     backgroundColor: emergencyTint,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs
+    justifyContent: "center"
   },
   eyebrow: {
     ...typography.caption,
     color: emergencyRed,
-    fontWeight: "800"
+    fontWeight: "800",
+    lineHeight: 22
   },
   title: {
-    ...typography.display,
-    color: colors.textStrong
+    ...typography.title,
+    color: colors.textStrong,
+    lineHeight: 32
   },
   description: {
     ...typography.body,

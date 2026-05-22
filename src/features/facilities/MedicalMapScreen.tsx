@@ -102,11 +102,15 @@ export function MedicalMapScreen() {
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
-        <View style={styles.iconBox}>
-          <MaterialCommunityIcons name="map-outline" size={36} color={colors.primary} />
+        <View style={styles.heroHeading}>
+          <View style={styles.iconBox}>
+            <MaterialCommunityIcons name="map-outline" size={28} color={colors.primary} />
+          </View>
+          <View style={styles.heroTitleGroup}>
+            <Text style={styles.eyebrow}>병원약국</Text>
+            <Text style={styles.title}>지금 갈 수 있는 곳</Text>
+          </View>
         </View>
-        <Text style={styles.eyebrow}>지도</Text>
-        <Text style={styles.title}>지금 갈 수 있는 곳</Text>
         <Text style={styles.description}>병원과 약국 운영시간은 예상값이며 방문 전 전화 확인을 권장합니다.</Text>
       </View>
 
@@ -367,28 +371,39 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
+  heroHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.xs
+  },
+  heroTitleGroup: {
+    flex: 1,
+    justifyContent: "center"
+  },
   iconBox: {
-    width: 68,
-    height: 68,
+    width: 54,
+    height: 54,
     borderRadius: 8,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md
+    justifyContent: "center"
   },
   eyebrow: {
-    ...typography.title,
+    ...typography.caption,
     color: colors.primary,
-    fontWeight: "800"
+    fontWeight: "800",
+    lineHeight: 22
   },
   title: {
-    ...typography.display,
-    color: colors.textStrong
+    ...typography.title,
+    color: colors.textStrong,
+    lineHeight: 32
   },
   description: {
-    ...typography.bodyLarge,
+    ...typography.body,
     color: colors.text,
-    lineHeight: 30
+    lineHeight: 23
   },
   searchBox: {
     minHeight: 70,

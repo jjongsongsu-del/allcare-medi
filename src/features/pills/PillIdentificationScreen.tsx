@@ -362,11 +362,15 @@ export function PillIdentificationScreen() {
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
-        <View style={styles.iconBox}>
-          <MaterialCommunityIcons name="archive-outline" size={36} color={colors.primary} />
+        <View style={styles.heroHeading}>
+          <View style={styles.iconBox}>
+            <MaterialCommunityIcons name="archive-outline" size={28} color={colors.primary} />
+          </View>
+          <View style={styles.heroTitleGroup}>
+            <Text style={styles.eyebrow}>내 약통</Text>
+            <Text style={styles.title}>약관리</Text>
+          </View>
         </View>
-        <Text style={styles.eyebrow}>내 약통</Text>
-        <Text style={styles.title}>약관리</Text>
         <Text style={styles.description}>직접등록, 검색등록, 처방전등록, AI판독등록으로 약을 등록하고 복약 스케줄까지 이어서 설정합니다.</Text>
       </View>
 
@@ -902,28 +906,39 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
+  heroHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.xs
+  },
+  heroTitleGroup: {
+    flex: 1,
+    justifyContent: "center"
+  },
   iconBox: {
-    width: 68,
-    height: 68,
+    width: 54,
+    height: 54,
     borderRadius: 8,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md
+    justifyContent: "center"
   },
   eyebrow: {
-    ...typography.title,
+    ...typography.caption,
     color: colors.primary,
-    fontWeight: "800"
+    fontWeight: "800",
+    lineHeight: 22
   },
   title: {
-    ...typography.display,
-    color: colors.textStrong
+    ...typography.title,
+    color: colors.textStrong,
+    lineHeight: 32
   },
   description: {
-    ...typography.bodyLarge,
+    ...typography.body,
     color: colors.text,
-    lineHeight: 30
+    lineHeight: 23
   },
   notice: {
     minHeight: 104,

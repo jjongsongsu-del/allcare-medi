@@ -98,35 +98,41 @@ function LoginButton({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
     backgroundColor: colors.background,
-    gap: spacing.lg
+    gap: spacing.md
   },
   visualArea: {
-    minHeight: 300,
+    minHeight: 250,
     alignItems: "center",
     justifyContent: "flex-end"
   },
   heroImage: {
     width: "100%",
-    height: 260
+    height: 230
   },
   copyArea: {
     alignItems: "center",
     gap: spacing.sm
   },
   brand: {
-    ...typography.title,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "800",
     color: colors.primary
   },
   title: {
-    ...typography.display,
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: "800",
     color: colors.textStrong,
     textAlign: "center"
   },
   subtitle: {
-    ...typography.bodyLarge,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "500",
     color: colors.text,
     textAlign: "center"
   },
@@ -146,10 +152,10 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong
   },
   buttonGroup: {
-    gap: spacing.md
+    gap: spacing.sm
   },
   loginButton: {
-    minHeight: 64,
+    minHeight: 56,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center"
@@ -163,12 +169,14 @@ const styles = StyleSheet.create({
     borderWidth: 2
   },
   loginButtonText: {
-    fontSize: 22,
-    lineHeight: 30,
+    fontSize: 19,
+    lineHeight: 25,
     fontWeight: "800"
   },
   guestNotice: {
-    ...typography.body,
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: "500",
     color: colors.textMuted,
     textAlign: "center"
   },
