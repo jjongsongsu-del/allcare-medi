@@ -99,6 +99,28 @@ def search_e_drug_medicines(query: str, limit: int) -> list[MedicineSearchResult
     service_key = settings.e_drug_api_key or settings.public_data_service_key
     if not service_key:
         return []
+    for api_query in normalize_e_drug_queries(query):
+        results = fetch_e_drug_medicines(api_query, service_key, limit)
+        if results:
+            return results
+    return []
+
+
+def normalize_e_drug_queries(query: str) -> list[str]:
+    compact = re.sub(r"\s+", "", query.strip())
+    aliases = {
+        "tylenol": "타이레놀",
+        "aspirin": "아스피린",
+    }
+    candidates = [query.strip(), compact, aliases.get(compact.lower(), "")]
+    without_dose = re.sub(r"(\d+(?:\.\d+)?\s*(?:mg|mL|ml|밀리그램|그람|g))", "", compact, flags=re.IGNORECASE)
+    candidates.append(without_dose)
+    candidates.append(re.sub(r"(정|캡슐|산|시럽|액)$", "", without_dose))
+    seen: set[str] = set()
+    return [candidate for candidate in candidates if candidate and not (candidate in seen or seen.add(candidate))]
+
+
+def fetch_e_drug_medicines(query: str, service_key: str, limit: int) -> list[MedicineSearchResultRead]:
     try:
         response = httpx.get(
             "http://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList",
