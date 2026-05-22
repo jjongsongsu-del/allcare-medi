@@ -151,6 +151,7 @@ class FamilyProfileRead(BaseModel):
 
 class GuestDataMigrationRequest(BaseModel):
     guestId: str
+    userId: int | None = None
     favorites: list[dict] = []
     recentPlaces: list[dict] = []
     familyProfiles: list[dict] = []

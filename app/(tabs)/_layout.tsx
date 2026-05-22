@@ -59,6 +59,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialCommunityIcons name="hospital-box" size={tabIconSize} color={color} />
         }}
       />
+      <Tabs.Screen
+        name="family"
+        options={{
+          title: "가족/마이",
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="account-heart" size={tabIconSize} color={color} />
+        }}
+      />
     </Tabs>
   );
 }

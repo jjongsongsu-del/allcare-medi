@@ -35,3 +35,4 @@ npm run start
 - SNS 로그인: 서버 `/auth/social-login`에 로그인 정보를 저장하고 access token/refresh token을 발급합니다.
 - 비회원 시작: `guest_id`를 기기 로컬에 저장하고 최근 본 장소, 즐겨찾기 같은 데이터를 기기 안에서만 관리합니다.
 - 토큰 저장: refresh token은 `expo-secure-store` 기반 저장소를 사용합니다.
+- 가족/마이 탭: 가족 프로필, 즐겨찾기, 최근 본 장소, 비회원 데이터 병합, 약관/개인정보 동의를 관리합니다.

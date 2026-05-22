@@ -45,6 +45,8 @@ uvicorn app.main:app --reload --port 8000
 - `POST /api/family-profiles`: 회원 가족 프로필 생성
 - `POST /api/migration/guest-data`: 비회원 로컬 데이터 병합 접수
 
+`/api/migration/guest-data`는 `userId`가 전달되면 즐겨찾기, 최근 본 장소, 가족 프로필을 서버 테이블에 저장합니다.
+
 ## 역할
 
 - 공공 API 키 보호와 응답 정규화

@@ -6,6 +6,13 @@ import { ActionButton } from "@/components/ActionButton";
 import { KrdsCard } from "@/components/KrdsCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { findNearbyFacilities } from "@/services/medicalFacilityService";
+import {
+  getLocalFavoritePlaces,
+  getLocalRecentPlaces,
+  saveLocalFavoritePlace,
+  saveLocalRecentPlace,
+  StoredPlace
+} from "@/services/localUserData";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -13,9 +20,6 @@ import { MedicalFacility } from "@/types/domain";
 
 const filters = ["내 주변", "영업중", "약국", "병원", "응급", "야간", "휴일"];
 const sortOptions = ["거리순", "영업중 우선", "마감 임박 제외", "주말 운영 우선", "전화번호 우선"];
-const recentPlaces = ["아이 소아과", "야간에 열었던 약국", "우리집 근처 약국"];
-const favoritePlaces = ["우리집 근처 약국", "아이 소아과"];
-
 type ViewMode = "map" | "list";
 
 export function MedicalMapScreen() {
@@ -26,12 +30,16 @@ export function MedicalMapScreen() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState(sortOptions[0]);
   const [locationRequested, setLocationRequested] = useState(false);
+  const [favoritePlaces, setFavoritePlaces] = useState<StoredPlace[]>([]);
+  const [recentPlaces, setRecentPlaces] = useState<StoredPlace[]>([]);
 
   useEffect(() => {
     findNearbyFacilities().then((items) => {
       setFacilities(items);
       setSelectedFacility(items[0] ?? null);
     });
+    getLocalFavoritePlaces().then(setFavoritePlaces);
+    getLocalRecentPlaces().then(setRecentPlaces);
   }, []);
 
   const visibleFacilities = useMemo(() => {
@@ -63,6 +71,23 @@ export function MedicalMapScreen() {
   const toggleFilter = (filter: string) => {
     setActiveFilters((current) =>
       current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]
+    );
+  };
+
+  const selectFacility = async (facility: MedicalFacility) => {
+    setSelectedFacility(facility);
+    setRecentPlaces(await saveLocalRecentPlace(facility));
+  };
+
+  const addFavorite = async (facility: MedicalFacility) => {
+    setFavoritePlaces(
+      await saveLocalFavoritePlace({
+        placeId: facility.id,
+        placeName: facility.name,
+        placeType: facility.type,
+        address: facility.address,
+        phone: facility.phone
+      })
     );
   };
 
@@ -133,7 +158,7 @@ export function MedicalMapScreen() {
               key={facility.id}
               accessibilityRole="button"
               style={[styles.marker, markerPositions[index], facility.type === "pharmacy" ? styles.pharmacyMarker : styles.hospitalMarker]}
-              onPress={() => setSelectedFacility(facility)}
+              onPress={() => selectFacility(facility)}
             >
               <MaterialCommunityIcons name={facility.type === "pharmacy" ? "pill" : "hospital-building"} size={16} color={colors.onPrimary} />
             </Pressable>
@@ -163,18 +188,18 @@ export function MedicalMapScreen() {
 
       <SectionHeader title="가까운 영업중 장소" description="지도 조작 없이 바로 판단할 수 있는 3곳입니다." />
       {(viewMode === "map" ? topOpenFacilities : visibleFacilities).map((facility) => (
-        <FacilityCard key={facility.id} facility={facility} onSelect={() => setSelectedFacility(facility)} />
+        <FacilityCard key={facility.id} facility={facility} onSelect={() => selectFacility(facility)} />
       ))}
 
       <SectionHeader title="즐겨찾기와 최근 본 장소" />
       <KrdsCard>
         <Text style={styles.meta}>즐겨찾기</Text>
-        <Text style={styles.body}>{favoritePlaces.join(" · ")}</Text>
+        <Text style={styles.body}>{favoritePlaces.length ? favoritePlaces.map((item) => item.placeName).join(" · ") : "아직 저장한 장소가 없습니다."}</Text>
         <Text style={styles.meta}>최근 본 장소</Text>
-        <Text style={styles.body}>{recentPlaces.join(" · ")}</Text>
+        <Text style={styles.body}>{recentPlaces.length ? recentPlaces.map((item) => item.placeName).join(" · ") : "최근 본 장소가 없습니다."}</Text>
       </KrdsCard>
 
-      {selectedFacility ? <FacilityBottomSheet facility={selectedFacility} /> : null}
+      {selectedFacility ? <FacilityBottomSheet facility={selectedFacility} onFavorite={() => addFavorite(selectedFacility)} /> : null}
     </AppScreen>
   );
 }
@@ -194,7 +219,7 @@ function FacilityCard({ facility, onSelect }: { facility: MedicalFacility; onSel
   );
 }
 
-function FacilityBottomSheet({ facility }: { facility: MedicalFacility }) {
+function FacilityBottomSheet({ facility, onFavorite }: { facility: MedicalFacility; onFavorite: () => void }) {
   return (
     <View style={styles.bottomSheet}>
       <View style={styles.sheetHandle} />
@@ -210,7 +235,7 @@ function FacilityBottomSheet({ facility }: { facility: MedicalFacility }) {
         <ActionButton label="전화" icon="phone" />
         <ActionButton label="길찾기" icon="navigation-variant" tone="secondary" />
         <ActionButton label="공유" icon="share-variant" tone="secondary" />
-        <ActionButton label="즐겨찾기" icon="star-outline" tone="secondary" />
+        <ActionButton label="즐겨찾기" icon="star-outline" tone="secondary" onPress={onFavorite} />
       </View>
       <View style={styles.navigationApps}>
         <Text style={styles.meta}>길찾기 앱 선택</Text>

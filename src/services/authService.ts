@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { deleteSecureItem, getSecureItem, setSecureItem } from "@/services/authStorage";
-import { socialLogin } from "@/services/serverApi";
+import { logoutFromServer, refreshLogin, socialLogin } from "@/services/serverApi";
 
 export type LoginProvider = "NAVER" | "KAKAO" | "GOOGLE" | "GUEST";
 
@@ -10,6 +10,8 @@ export type AuthSession = {
   accessToken?: string;
   refreshToken?: string;
   guestId?: string;
+  userId?: number;
+  deviceUuid?: string;
   nickname?: string;
 };
 
@@ -20,6 +22,7 @@ const refreshTokenKey = "refreshToken";
 const accessTokenKey = "accessToken";
 const providerKey = "provider";
 const nicknameKey = "nickname";
+const userIdKey = "userId";
 
 export async function loadStoredSession(): Promise<AuthSession | null> {
   const mode = await AsyncStorage.getItem(sessionModeKey);
@@ -39,6 +42,8 @@ export async function loadStoredSession(): Promise<AuthSession | null> {
       provider: ((await getSecureItem(providerKey)) as LoginProvider) ?? ((recentProvider as LoginProvider) || "GOOGLE"),
       accessToken: (await getSecureItem(accessTokenKey)) ?? undefined,
       refreshToken,
+      userId: Number(await getSecureItem(userIdKey)) || undefined,
+      deviceUuid: (await AsyncStorage.getItem(guestIdKey)) ?? undefined,
       nickname: (await getSecureItem(nicknameKey)) ?? undefined
     };
   }
@@ -74,22 +79,52 @@ export async function startSocialSession(provider: Exclude<LoginProvider, "GUEST
   await setSecureItem(refreshTokenKey, response.refreshToken);
   await setSecureItem(providerKey, provider);
   await setSecureItem(nicknameKey, response.user.nickname);
+  await setSecureItem(userIdKey, String(response.user.userId));
 
   return {
     mode: "member",
     provider,
     accessToken: response.accessToken,
     refreshToken: response.refreshToken,
+    userId: response.user.userId,
+    deviceUuid,
     nickname: response.user.nickname
   };
 }
 
-export async function clearSession() {
+export async function refreshStoredSession(): Promise<AuthSession | null> {
+  const refreshToken = await getSecureItem(refreshTokenKey);
+  const deviceUuid = await AsyncStorage.getItem(guestIdKey);
+  const provider = ((await getSecureItem(providerKey)) as LoginProvider | null) ?? "GOOGLE";
+  if (!refreshToken || !deviceUuid || provider === "GUEST") return null;
+
+  const response = await refreshLogin({ refreshToken, deviceUuid });
+  await setSecureItem(accessTokenKey, response.accessToken);
+  await setSecureItem(refreshTokenKey, response.refreshToken);
+  await setSecureItem(nicknameKey, response.user.nickname);
+  await setSecureItem(userIdKey, String(response.user.userId));
+
+  return {
+    mode: "member",
+    provider,
+    accessToken: response.accessToken,
+    refreshToken: response.refreshToken,
+    userId: response.user.userId,
+    deviceUuid,
+    nickname: response.user.nickname
+  };
+}
+
+export async function clearSession(session?: AuthSession | null) {
+  if (session?.mode === "member" && session.refreshToken && session.deviceUuid) {
+    await logoutFromServer({ refreshToken: session.refreshToken, deviceUuid: session.deviceUuid }).catch(() => undefined);
+  }
   await AsyncStorage.removeItem(sessionModeKey);
   await deleteSecureItem(accessTokenKey);
   await deleteSecureItem(refreshTokenKey);
   await deleteSecureItem(providerKey);
   await deleteSecureItem(nicknameKey);
+  await deleteSecureItem(userIdKey);
 }
 
 function createGuestId() {

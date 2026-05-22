@@ -5,6 +5,7 @@ import {
   getRecentLoginProvider,
   loadStoredSession,
   LoginProvider,
+  refreshStoredSession,
   startGuestSession,
   startSocialSession
 } from "@/services/authService";
@@ -26,12 +27,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([loadStoredSession(), getRecentLoginProvider()])
-      .then(([storedSession, provider]) => {
-        setSession(storedSession);
+    async function bootstrapAuth() {
+      try {
+        const [storedSession, provider] = await Promise.all([loadStoredSession(), getRecentLoginProvider()]);
         setRecentProvider(provider);
-      })
-      .finally(() => setLoading(false));
+        if (storedSession?.mode === "member") {
+          setSession(await refreshStoredSession());
+          return;
+        }
+        setSession(storedSession);
+      } catch {
+        setSession(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    bootstrapAuth();
   }, []);
 
   const value = useMemo(
@@ -50,7 +62,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setRecentProvider(provider);
       },
       logout: async () => {
-        await clearSession();
+        await clearSession(session);
         setSession(null);
       }
     }),

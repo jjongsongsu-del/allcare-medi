@@ -26,6 +26,20 @@ export type SocialLoginResponse = {
   };
 };
 
+export type FamilyProfilePayload = {
+  profileName: string;
+  relationType?: string | null;
+  birthYear?: number | null;
+  birthMonth?: number | null;
+  gender?: string | null;
+  memo?: string | null;
+};
+
+export type FamilyProfileResponse = FamilyProfilePayload & {
+  profileId: number;
+  isDefault: boolean;
+};
+
 type FacilitySearchResult = {
   id: string;
   name: string;
@@ -73,6 +87,66 @@ export async function socialLogin(payload: {
     throw new Error("로그인 서버 연결에 실패했습니다.");
   }
   return response.json();
+}
+
+export async function refreshLogin(payload: {
+  refreshToken: string;
+  deviceUuid: string;
+}): Promise<SocialLoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("자동 로그인 갱신에 실패했습니다.");
+  }
+  return response.json();
+}
+
+export async function logoutFromServer(payload: { refreshToken: string; deviceUuid: string }): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchFamilyProfiles(userId: number): Promise<FamilyProfileResponse[]> {
+  const response = await fetch(`${API_BASE_URL}/api/family-profiles?user_id=${userId}`);
+  if (!response.ok) {
+    throw new Error("가족 프로필을 불러오지 못했습니다.");
+  }
+  return response.json();
+}
+
+export async function createFamilyProfile(userId: number, payload: FamilyProfilePayload): Promise<FamilyProfileResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/family-profiles?user_id=${userId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("가족 프로필 저장에 실패했습니다.");
+  }
+  return response.json();
+}
+
+export async function migrateGuestData(payload: {
+  guestId: string;
+  userId?: number;
+  favorites: unknown[];
+  recentPlaces: unknown[];
+  familyProfiles: unknown[];
+}): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/migration/guest-data`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("비회원 데이터 병합에 실패했습니다.");
+  }
 }
 
 export async function searchFacilitiesFromServer(params: {
