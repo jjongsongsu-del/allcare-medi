@@ -31,6 +31,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     if settings.database_url.startswith("sqlite"):
         _ensure_sqlite_user_columns()
+        _ensure_sqlite_medication_columns()
 
 
 def _ensure_sqlite_user_columns() -> None:
@@ -66,3 +67,53 @@ def _ensure_sqlite_user_columns() -> None:
         for name, ddl_type in family_profile_columns.items():
             if name not in existing_profiles:
                 connection.exec_driver_sql(f"ALTER TABLE family_profiles ADD COLUMN {name} {ddl_type}")
+
+
+def _ensure_sqlite_medication_columns() -> None:
+    medication_columns = {
+        "profile_id": "INTEGER",
+        "name": "VARCHAR(160) DEFAULT ''",
+        "alias": "VARCHAR(160)",
+        "dosage": "VARCHAR(80)",
+        "form": "VARCHAR(80)",
+        "color": "VARCHAR(80)",
+        "imprint": "VARCHAR(120)",
+        "image_url": "TEXT",
+        "purpose": "VARCHAR(160)",
+        "taking_method": "VARCHAR(40)",
+        "timing": "VARCHAR(40)",
+        "memo": "TEXT",
+        "caution": "TEXT",
+        "side_effects": "TEXT",
+        "storage_method": "TEXT",
+        "dur_warnings": "TEXT",
+        "status": "VARCHAR(20) DEFAULT 'taking'",
+        "favorite": "BOOLEAN DEFAULT 0",
+        "high_risk": "BOOLEAN DEFAULT 0",
+        "updated_at": "DATETIME",
+    }
+    schedule_columns = {
+        "profile_id": "INTEGER",
+        "dose_time": "VARCHAR(5) DEFAULT '08:00'",
+        "instruction": "VARCHAR(120) DEFAULT 'Take as directed'",
+        "dose_amount": "VARCHAR(80) DEFAULT '1 tablet'",
+        "dose_method": "VARCHAR(80) DEFAULT 'oral'",
+        "dose_timing": "VARCHAR(80) DEFAULT 'after meal'",
+        "purpose": "VARCHAR(160)",
+        "times_per_day": "INTEGER DEFAULT 1",
+        "dose_times": "TEXT DEFAULT '[]'",
+        "duration_days": "INTEGER",
+        "repeat_rule": "VARCHAR(30) DEFAULT 'daily'",
+        "notification_level": "VARCHAR(20) DEFAULT 'normal'",
+        "created_at": "DATETIME",
+        "updated_at": "DATETIME",
+    }
+    with engine.begin() as connection:
+        existing_medications = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(medications)").fetchall()}
+        for name, ddl_type in medication_columns.items():
+            if name not in existing_medications:
+                connection.exec_driver_sql(f"ALTER TABLE medications ADD COLUMN {name} {ddl_type}")
+        existing_schedules = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(medication_schedules)").fetchall()}
+        for name, ddl_type in schedule_columns.items():
+            if name not in existing_schedules:
+                connection.exec_driver_sql(f"ALTER TABLE medication_schedules ADD COLUMN {name} {ddl_type}")

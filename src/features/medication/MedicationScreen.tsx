@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { getRecommendedHealthContents } from "@/services/healthContentService";
+import { getLocalRegisteredMedicines } from "@/services/localUserData";
 import { getMedicationSchedules } from "@/services/medicationService";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
@@ -13,15 +15,34 @@ import { HealthContent, MedicationSchedule } from "@/types/domain";
 const statusFilters = ["오늘", "예정", "복용완료", "건너뜀", "중요약", "가족공유"];
 
 export function MedicationScreen() {
+  const { selectedProfile } = useFamilyProfile();
   const [schedules, setSchedules] = useState<MedicationSchedule[]>([]);
   const [contents, setContents] = useState<HealthContent[]>([]);
   const [searchText, setSearchText] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("오늘");
 
   useEffect(() => {
-    getMedicationSchedules().then(setSchedules);
+    loadSchedules();
     getRecommendedHealthContents().then(setContents);
-  }, []);
+  }, [selectedProfile?.profileId]);
+
+  const loadSchedules = async () => {
+    const [mockSchedules, registeredMedicines] = await Promise.all([
+      getMedicationSchedules(),
+      getLocalRegisteredMedicines(selectedProfile)
+    ]);
+    const medicineSchedules = registeredMedicines
+      .filter((medicine) => medicine.status !== "ended")
+      .map((medicine) => ({
+        id: `medicine-${medicine.id}`,
+        pillName: medicine.alias || medicine.name,
+        time: medicine.schedule?.split(" ")[1] ?? "08:00",
+        instruction: `${medicine.dosage ?? "1정"} · ${medicine.timing ?? "식후"}`,
+        adherenceRate: medicine.highRisk ? 92 : 80,
+        familyShared: medicine.highRisk
+      }));
+    setSchedules(medicineSchedules.length ? medicineSchedules : mockSchedules);
+  };
 
   const nextSchedule = useMemo(() => schedules[0], [schedules]);
   const adherenceAverage = useMemo(() => {

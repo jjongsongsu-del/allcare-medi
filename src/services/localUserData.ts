@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MedicalFacility } from "@/types/domain";
+import { MedicalFacility, MedicationEvent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
 
 export type FamilyProfile = {
   profileId: string | number;
@@ -55,6 +55,9 @@ const favoritePlacesKey = "allcaremedi.local.favoritePlaces";
 const recentPlacesKey = "allcaremedi.local.recentPlaces";
 const consentSettingsKey = "allcaremedi.local.consentSettings";
 const selectedFamilyProfileKey = "allcaremedi.local.selectedFamilyProfile";
+const registeredMedicinesKey = "allcaremedi.local.registeredMedicines";
+const medicineSchedulesKey = "allcaremedi.local.medicineSchedules";
+const medicationEventsKey = "allcaremedi.local.medicationEvents";
 
 export const defaultConsentSettings: ConsentSettings = {
   terms: false,
@@ -143,8 +146,107 @@ export async function saveConsentSettings(settings: ConsentSettings): Promise<vo
   await AsyncStorage.setItem(consentSettingsKey, JSON.stringify(settings));
 }
 
+export async function getLocalRegisteredMedicines(profile?: FamilyProfile | null): Promise<RegisteredMedicine[]> {
+  const medicines = await readJson<RegisteredMedicine[]>(registeredMedicinesKey, []);
+  if (!profile?.profileId) return medicines;
+  return medicines.filter((medicine) => !medicine.profileId || String(medicine.profileId) === String(profile.profileId));
+}
+
+export async function saveLocalRegisteredMedicine(
+  medicine: Omit<RegisteredMedicine, "id" | "createdAt" | "updatedAt"> & Partial<Pick<RegisteredMedicine, "id" | "createdAt" | "updatedAt">>
+): Promise<RegisteredMedicine[]> {
+  const medicines = await readJson<RegisteredMedicine[]>(registeredMedicinesKey, []);
+  const now = new Date().toISOString();
+  const nextMedicine: RegisteredMedicine = {
+    ...medicine,
+    id: medicine.id ?? `local-medicine-${Date.now()}`,
+    name: medicine.name.trim(),
+    status: medicine.status ?? "taking",
+    source: medicine.source ?? "manual",
+    favorite: medicine.favorite ?? false,
+    highRisk: medicine.highRisk ?? false,
+    durWarnings: medicine.durWarnings ?? [],
+    createdAt: medicine.createdAt ?? now,
+    updatedAt: now
+  };
+  const next = [nextMedicine, ...medicines.filter((item) => item.id !== nextMedicine.id)];
+  await AsyncStorage.setItem(registeredMedicinesKey, JSON.stringify(next));
+  return next;
+}
+
+export async function updateLocalRegisteredMedicine(medicine: RegisteredMedicine): Promise<RegisteredMedicine[]> {
+  const medicines = await readJson<RegisteredMedicine[]>(registeredMedicinesKey, []);
+  const updatedMedicine = { ...medicine, updatedAt: new Date().toISOString() };
+  const exists = medicines.some((item) => item.id === medicine.id);
+  const next = exists
+    ? medicines.map((item) => item.id === medicine.id ? updatedMedicine : item)
+    : [updatedMedicine, ...medicines];
+  await AsyncStorage.setItem(registeredMedicinesKey, JSON.stringify(next));
+  return next;
+}
+
+export async function deleteLocalRegisteredMedicine(medicineId: string): Promise<RegisteredMedicine[]> {
+  const [medicines, schedules, events] = await Promise.all([
+    readJson<RegisteredMedicine[]>(registeredMedicinesKey, []),
+    readJson<MedicineSchedule[]>(medicineSchedulesKey, []),
+    readJson<MedicationEvent[]>(medicationEventsKey, [])
+  ]);
+  await AsyncStorage.setItem(registeredMedicinesKey, JSON.stringify(medicines.filter((medicine) => medicine.id !== medicineId)));
+  await AsyncStorage.setItem(medicineSchedulesKey, JSON.stringify(schedules.filter((schedule) => schedule.medicineId !== medicineId)));
+  await AsyncStorage.setItem(medicationEventsKey, JSON.stringify(events.filter((event) => event.medicineId !== medicineId)));
+  return getLocalRegisteredMedicines();
+}
+
+export async function getLocalMedicineSchedules(profile?: FamilyProfile | null): Promise<MedicineSchedule[]> {
+  const schedules = await readJson<MedicineSchedule[]>(medicineSchedulesKey, []);
+  if (!profile?.profileId) return schedules;
+  return schedules.filter((schedule) => !schedule.profileId || String(schedule.profileId) === String(profile.profileId));
+}
+
+export async function saveLocalMedicineSchedule(
+  schedule: Omit<MedicineSchedule, "id" | "createdAt" | "updatedAt"> & Partial<Pick<MedicineSchedule, "id" | "createdAt" | "updatedAt">>
+): Promise<MedicineSchedule[]> {
+  const schedules = await readJson<MedicineSchedule[]>(medicineSchedulesKey, []);
+  const now = new Date().toISOString();
+  const nextSchedule: MedicineSchedule = {
+    ...schedule,
+    id: schedule.id ?? `local-schedule-${Date.now()}`,
+    createdAt: schedule.createdAt ?? now,
+    updatedAt: now
+  };
+  const next = [nextSchedule, ...schedules.filter((item) => item.id !== nextSchedule.id)];
+  await AsyncStorage.setItem(medicineSchedulesKey, JSON.stringify(next));
+  return next;
+}
+
+export async function getLocalMedicationEvents(profile?: FamilyProfile | null): Promise<MedicationEvent[]> {
+  const events = await readJson<MedicationEvent[]>(medicationEventsKey, []);
+  if (!profile?.profileId) return events;
+  return events.filter((event) => !event.profileId || String(event.profileId) === String(profile.profileId));
+}
+
+export async function saveLocalMedicationEvent(
+  event: Omit<MedicationEvent, "id"> & Partial<Pick<MedicationEvent, "id">>
+): Promise<MedicationEvent[]> {
+  const events = await readJson<MedicationEvent[]>(medicationEventsKey, []);
+  const nextEvent: MedicationEvent = {
+    ...event,
+    id: event.id ?? `local-dose-${Date.now()}`
+  };
+  const next = [nextEvent, ...events.filter((item) => item.id !== nextEvent.id)];
+  await AsyncStorage.setItem(medicationEventsKey, JSON.stringify(next));
+  return next;
+}
+
 export async function clearLocalUserData(): Promise<void> {
-  await AsyncStorage.multiRemove([familyProfilesKey, favoritePlacesKey, recentPlacesKey]);
+  await AsyncStorage.multiRemove([
+    familyProfilesKey,
+    favoritePlacesKey,
+    recentPlacesKey,
+    registeredMedicinesKey,
+    medicineSchedulesKey,
+    medicationEventsKey
+  ]);
 }
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {

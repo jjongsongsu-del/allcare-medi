@@ -211,15 +211,36 @@ class Medication(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    product_name: Mapped[str] = mapped_column(String(160), nullable=False)
-    ingredient: Mapped[str] = mapped_column(String(200), nullable=False)
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("family_profiles.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    alias: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    product_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    ingredient: Mapped[str | None] = mapped_column(String(200), nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    dosage: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    form: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    imprint: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    purpose: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    taking_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    timing: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    caution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    side_effects: Mapped[str | None] = mapped_column(Text, nullable=True)
+    storage_method: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dur_warnings: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="taking")
     source: Mapped[str] = mapped_column(String(40), default="manual")
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False)
+    high_risk: Mapped[bool] = mapped_column(Boolean, default=False)
     safety_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship(back_populates="medications")
     schedules: Mapped[list["MedicationSchedule"]] = relationship(back_populates="medication")
+    events: Mapped[list["MedicationEvent"]] = relationship(back_populates="medication")
 
 
 class MedicationSchedule(Base):
@@ -227,13 +248,42 @@ class MedicationSchedule(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     medication_id: Mapped[int] = mapped_column(ForeignKey("medications.id"), nullable=False)
-    dose_time: Mapped[str] = mapped_column(String(5), nullable=False)
-    instruction: Mapped[str] = mapped_column(String(120), nullable=False)
+    dose_time: Mapped[str] = mapped_column(String(5), default="08:00")
+    instruction: Mapped[str] = mapped_column(String(120), default="Take as directed")
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("family_profiles.id"), nullable=True)
+    dose_amount: Mapped[str] = mapped_column(String(80), nullable=False)
+    dose_method: Mapped[str] = mapped_column(String(80), nullable=False)
+    dose_timing: Mapped[str] = mapped_column(String(80), nullable=False)
+    purpose: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    times_per_day: Mapped[int] = mapped_column(Integer, default=1)
+    dose_times: Mapped[str] = mapped_column(Text, nullable=False)
     starts_on: Mapped[str] = mapped_column(String(10), nullable=False)
     ends_on: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    duration_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    repeat_rule: Mapped[str] = mapped_column(String(30), default="daily")
     notify_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    notification_level: Mapped[str] = mapped_column(String(20), default="normal")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     medication: Mapped["Medication"] = relationship(back_populates="schedules")
+
+
+class MedicationEvent(Base):
+    __tablename__ = "medication_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    medication_id: Mapped[int] = mapped_column(ForeignKey("medications.id"), nullable=False)
+    schedule_id: Mapped[int | None] = mapped_column(ForeignKey("medication_schedules.id"), nullable=True)
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("family_profiles.id"), nullable=True)
+    scheduled_at: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    taken_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    shared_with_guardian: Mapped[bool] = mapped_column(Boolean, default=False)
+    memo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    medication: Mapped["Medication"] = relationship(back_populates="events")
 
 
 class FacilityReport(Base):

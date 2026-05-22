@@ -8,21 +8,121 @@ class HealthCheck(BaseModel):
 
 class MedicationCreate(BaseModel):
     user_id: int = Field(..., ge=1)
-    product_name: str = Field(..., min_length=1, max_length=160)
-    ingredient: str = Field(..., min_length=1, max_length=200)
+    profile_id: int | None = None
+    name: str = Field(..., min_length=1, max_length=160)
+    alias: str | None = Field(default=None, max_length=160)
+    product_name: str | None = Field(default=None, max_length=160)
+    ingredient: str | None = Field(default=None, max_length=200)
     manufacturer: str | None = Field(default=None, max_length=120)
+    dosage: str | None = Field(default=None, max_length=80)
+    form: str | None = Field(default=None, max_length=80)
+    color: str | None = Field(default=None, max_length=80)
+    imprint: str | None = Field(default=None, max_length=120)
+    image_url: str | None = None
+    purpose: str | None = Field(default=None, max_length=160)
+    taking_method: str | None = Field(default=None, max_length=40)
+    timing: str | None = Field(default=None, max_length=40)
+    memo: str | None = None
+    caution: str | None = None
+    side_effects: str | None = None
+    storage_method: str | None = None
+    dur_warnings: str | None = None
+    status: str = Field(default="taking", max_length=20)
     source: str = Field(default="manual", max_length=40)
+    favorite: bool = False
+    high_risk: bool = False
     safety_note: str | None = None
 
 
 class MedicationRead(BaseModel):
     id: int
     user_id: int
-    product_name: str
-    ingredient: str
+    profile_id: int | None
+    name: str
+    alias: str | None
+    product_name: str | None
+    ingredient: str | None
     manufacturer: str | None
+    dosage: str | None
+    form: str | None
+    color: str | None
+    imprint: str | None
+    image_url: str | None
+    purpose: str | None
+    taking_method: str | None
+    timing: str | None
+    memo: str | None
+    caution: str | None
+    side_effects: str | None
+    storage_method: str | None
+    dur_warnings: str | None
+    status: str
     source: str
+    favorite: bool
+    high_risk: bool
     safety_note: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class MedicationScheduleCreate(BaseModel):
+    medication_id: int = Field(..., ge=1)
+    profile_id: int | None = None
+    dose_amount: str = Field(..., min_length=1, max_length=80)
+    dose_method: str = Field(..., min_length=1, max_length=80)
+    dose_timing: str = Field(..., min_length=1, max_length=80)
+    purpose: str | None = Field(default=None, max_length=160)
+    times_per_day: int = Field(default=1, ge=1, le=12)
+    dose_times: list[str] = []
+    starts_on: str = Field(..., min_length=4, max_length=10)
+    ends_on: str | None = Field(default=None, max_length=10)
+    duration_days: int | None = None
+    repeat_rule: str = Field(default="daily", max_length=30)
+    notify_enabled: bool = True
+    notification_level: str = Field(default="normal", max_length=20)
+
+
+class MedicationScheduleRead(BaseModel):
+    id: int
+    medication_id: int
+    profile_id: int | None
+    dose_amount: str
+    dose_method: str
+    dose_timing: str
+    purpose: str | None
+    times_per_day: int
+    dose_times: list[str]
+    starts_on: str
+    ends_on: str | None
+    duration_days: int | None
+    repeat_rule: str
+    notify_enabled: bool
+    notification_level: str
+
+    model_config = {"from_attributes": True}
+
+
+class MedicationEventCreate(BaseModel):
+    medication_id: int = Field(..., ge=1)
+    schedule_id: int | None = None
+    profile_id: int | None = None
+    scheduled_at: str = Field(..., min_length=4, max_length=40)
+    status: str = Field(default="pending", max_length=20)
+    taken_at: str | None = Field(default=None, max_length=40)
+    shared_with_guardian: bool = False
+    memo: str | None = None
+
+
+class MedicationEventRead(BaseModel):
+    id: int
+    medication_id: int
+    schedule_id: int | None
+    profile_id: int | None
+    scheduled_at: str
+    status: str
+    taken_at: str | None
+    shared_with_guardian: bool
+    memo: str | None
 
     model_config = {"from_attributes": True}
 
@@ -182,3 +282,6 @@ class GuestDataMigrationRequest(BaseModel):
     favorites: list[dict] = []
     recentPlaces: list[dict] = []
     familyProfiles: list[dict] = []
+    medicines: list[dict] = []
+    medicineSchedules: list[dict] = []
+    medicationEvents: list[dict] = []

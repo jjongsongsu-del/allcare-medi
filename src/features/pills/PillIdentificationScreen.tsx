@@ -3,34 +3,25 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { useAuth } from "@/auth/AuthProvider";
+import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import {
+  getLocalRegisteredMedicines,
+  saveLocalMedicationEvent,
+  saveLocalMedicineSchedule,
+  saveLocalRegisteredMedicine,
+  updateLocalRegisteredMedicine
+} from "@/services/localUserData";
 import { recognizePillFromImage } from "@/services/pillRecognitionService";
+import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, updateRegisteredMedicine } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
-import { Pill } from "@/types/domain";
+import { MedicationEvent, MedicineSchedule, Pill, RegisteredMedicine } from "@/types/domain";
 
 type PillTab = "medicine" | "prescription";
 type RegisterMethod = "manual" | "search" | "prescription" | "ai";
 type RegisterStep = "input" | "confirm" | "schedule";
-type MedicineStatus = "taking" | "scheduled" | "ended";
-
-type RegisteredMedicine = {
-  id: string;
-  name: string;
-  alias: string;
-  ingredient: string;
-  manufacturer: string;
-  dosage: string;
-  form: string;
-  color: string;
-  purpose: string;
-  timing: string;
-  schedule: string;
-  status: MedicineStatus;
-  favorite: boolean;
-  highRisk: boolean;
-};
-
 const registrationMethods: Array<{
   key: RegisterMethod;
   title: string;
@@ -60,8 +51,11 @@ const registeredMedicinesSeed: RegisteredMedicine[] = [
     timing: "아침 식후",
     schedule: "매일 08:00 · 30일",
     status: "taking",
+    source: "manual",
     favorite: true,
-    highRisk: true
+    highRisk: true,
+    createdAt: "2026-05-22T00:00:00.000Z",
+    updatedAt: "2026-05-22T00:00:00.000Z"
   },
   {
     id: "registered-002",
@@ -76,12 +70,17 @@ const registeredMedicinesSeed: RegisteredMedicine[] = [
     timing: "저녁 식후",
     schedule: "매일 21:00 · 장기",
     status: "scheduled",
+    source: "manual",
     favorite: false,
-    highRisk: false
+    highRisk: false,
+    createdAt: "2026-05-22T00:00:00.000Z",
+    updatedAt: "2026-05-22T00:00:00.000Z"
   }
 ];
 
 export function PillIdentificationScreen() {
+  const { session } = useAuth();
+  const { selectedProfile } = useFamilyProfile();
   const [pills, setPills] = useState<Pill[]>([]);
   const [activeTab, setActiveTab] = useState<PillTab>("medicine");
   const [selectedMethod, setSelectedMethod] = useState<RegisterMethod>("manual");
@@ -99,11 +98,29 @@ export function PillIdentificationScreen() {
     purpose: "",
     memo: ""
   });
-  const [medicines, setMedicines] = useState(registeredMedicinesSeed);
+  const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const isMember = session?.mode === "member" && Boolean(session.userId);
 
   useEffect(() => {
     recognizePillFromImage().then(setPills);
   }, []);
+
+  useEffect(() => {
+    loadMedicines();
+  }, [session?.mode, session?.userId, selectedProfile?.profileId]);
+
+  const loadMedicines = async () => {
+    if (isMember && session?.userId) {
+      const serverMedicines = await fetchRegisteredMedicines({ userId: session.userId, profileId: selectedProfile?.profileId }).catch(() => []);
+      if (serverMedicines.length) {
+        setMedicines(serverMedicines);
+        return;
+      }
+    }
+    const localMedicines = await getLocalRegisteredMedicines(selectedProfile);
+    setMedicines(localMedicines.length ? localMedicines : seedForSelectedProfile(selectedProfile));
+  };
 
   const filteredMedicines = useMemo(() => {
     const normalizedSearch = searchText.trim();
@@ -122,12 +139,123 @@ export function PillIdentificationScreen() {
 
   const selectedMethodMeta = registrationMethods.find((method) => method.key === selectedMethod) ?? registrationMethods[0];
 
-  const toggleFavorite = (medicineId: string) => {
-    setMedicines((current) => current.map((medicine) => medicine.id === medicineId ? { ...medicine, favorite: !medicine.favorite } : medicine));
+  const persistMedicine = async (medicine: RegisteredMedicine) => {
+    if (isMember && session?.userId && !medicine.id.startsWith("local-")) {
+      await updateRegisteredMedicine(session.userId, medicine).catch(() => updateLocalRegisteredMedicine(medicine));
+    } else {
+      await updateLocalRegisteredMedicine(medicine);
+    }
+    await loadMedicines();
   };
 
-  const endMedicine = (medicineId: string) => {
-    setMedicines((current) => current.map((medicine) => medicine.id === medicineId ? { ...medicine, status: "ended" } : medicine));
+  const toggleFavorite = async (medicineId: string) => {
+    const medicine = medicines.find((item) => item.id === medicineId);
+    if (!medicine) return;
+    await persistMedicine({ ...medicine, favorite: !medicine.favorite });
+  };
+
+  const endMedicine = async (medicineId: string) => {
+    const medicine = medicines.find((item) => item.id === medicineId);
+    if (!medicine) return;
+    await persistMedicine({ ...medicine, status: "ended" });
+    setMessage("삭제 대신 복용종료로 처리했습니다. 연결된 스케줄과 이력은 보존됩니다.");
+  };
+
+  const saveDraftMedicine = async () => {
+    const name = draft.name.trim();
+    if (!name) {
+      setMessage("약명은 필수 입력값입니다.");
+      setActiveStep("input");
+      return;
+    }
+    const duplicate = medicines.find((medicine) => [medicine.name, medicine.productName, medicine.alias].filter(Boolean).includes(name));
+    const baseMedicine: RegisteredMedicine = {
+      id: `local-medicine-${Date.now()}`,
+      userId: session?.userId,
+      profileId: selectedProfile?.profileId,
+      profileName: selectedProfile?.profileName,
+      name,
+      alias: draft.alias,
+      productName: name,
+      ingredient: draft.ingredient,
+      manufacturer: draft.manufacturer,
+      dosage: draft.dosage,
+      form: draft.form,
+      color: draft.color,
+      purpose: draft.purpose,
+      timing: "식후",
+      takingMethod: "경구",
+      memo: draft.memo,
+      durWarnings: duplicate ? ["이미 등록된 약과 이름이 비슷합니다. 중복 복용 여부를 확인하세요."] : [],
+      status: activeStep === "schedule" ? "taking" : "scheduled",
+      source: selectedMethod,
+      favorite: false,
+      highRisk: Boolean(duplicate),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const savedMedicine = isMember && session?.userId
+      ? await createRegisteredMedicine(session.userId, baseMedicine).catch(async () => {
+          const localList = await saveLocalRegisteredMedicine(baseMedicine);
+          return localList[0];
+        })
+      : (await saveLocalRegisteredMedicine(baseMedicine))[0];
+
+    if (activeStep === "schedule") {
+      await saveScheduleForMedicine(savedMedicine);
+    }
+    await loadMedicines();
+    setMessage(duplicate ? "약을 저장했습니다. 다만 기존 등록 약과 중복 가능성이 있어 확인이 필요합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
+    setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "" });
+    setActiveStep("input");
+  };
+
+  const saveScheduleForMedicine = async (medicine: RegisteredMedicine) => {
+    const schedule: MedicineSchedule = {
+      id: `local-schedule-${Date.now()}`,
+      medicineId: medicine.id,
+      profileId: selectedProfile?.profileId,
+      doseAmount: medicine.dosage ?? "1정",
+      doseMethod: medicine.takingMethod ?? "경구",
+      doseTiming: medicine.timing ?? "식후",
+      purpose: medicine.purpose,
+      timesPerDay: 1,
+      doseTimes: ["08:00"],
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: null,
+      durationDays: null,
+      repeatRule: "daily",
+      notifyEnabled: true,
+      notificationLevel: "normal",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    if (isMember && session?.userId && !medicine.id.startsWith("local-")) {
+      await createMedicineSchedule(schedule).catch(() => saveLocalMedicineSchedule(schedule));
+    } else {
+      await saveLocalMedicineSchedule(schedule);
+    }
+  };
+
+  const recordDose = async (medicine: RegisteredMedicine, status: MedicationEvent["status"]) => {
+    const event: MedicationEvent = {
+      id: `local-dose-${Date.now()}`,
+      medicineId: medicine.id,
+      scheduleId: null,
+      profileId: selectedProfile?.profileId,
+      scheduledAt: new Date().toISOString(),
+      status,
+      takenAt: status === "taken" ? new Date().toISOString() : null,
+      sharedWithGuardian: medicine.highRisk,
+      memo: medicine.highRisk ? "중요 약 복약 상태 보호자 공유 대상" : undefined
+    };
+    if (isMember && session?.userId && !medicine.id.startsWith("local-")) {
+      await createMedicationEvent(event).catch(() => saveLocalMedicationEvent(event));
+    } else {
+      await saveLocalMedicationEvent(event);
+    }
+    setMessage(status === "taken" ? "복약 완료를 기록했습니다." : "이번 회차를 건너뜀으로 기록했습니다.");
   };
 
   return (
@@ -199,7 +327,7 @@ export function PillIdentificationScreen() {
         {activeStep === "schedule" ? <ScheduleDraft /> : null}
 
         <View style={styles.resultActions}>
-          <Pressable style={styles.primaryButton} onPress={() => setActiveStep(activeStep === "input" ? "confirm" : activeStep === "confirm" ? "schedule" : "schedule")}>
+          <Pressable style={styles.primaryButton} onPress={() => activeStep === "schedule" ? saveDraftMedicine() : setActiveStep(activeStep === "input" ? "confirm" : "schedule")}>
             <MaterialCommunityIcons name={activeStep === "schedule" ? "content-save-outline" : "arrow-right"} size={18} color="#FFFFFF" />
             <Text style={styles.primaryButtonText}>{activeStep === "schedule" ? "약 저장" : "다음 단계"}</Text>
           </Pressable>
@@ -221,7 +349,7 @@ export function PillIdentificationScreen() {
           </View>
         </View>
         {medicines.filter((medicine) => medicine.status !== "ended").map((medicine) => (
-          <TodayDoseRow key={medicine.id} medicine={medicine} />
+          <TodayDoseRow key={medicine.id} medicine={medicine} onTaken={() => recordDose(medicine, "taken")} onSkipped={() => recordDose(medicine, "skipped")} />
         ))}
       </View>
 
@@ -269,6 +397,8 @@ export function PillIdentificationScreen() {
       {pills.map((pill) => (
         <AiCandidateCard key={pill.id} pill={pill} />
       ))}
+
+      {message ? <Text style={styles.successNotice}>{message}</Text> : null}
     </AppScreen>
   );
 }
@@ -376,11 +506,11 @@ function ScheduleDraft() {
   );
 }
 
-function TodayDoseRow({ medicine }: { medicine: RegisteredMedicine }) {
+function TodayDoseRow({ medicine, onTaken, onSkipped }: { medicine: RegisteredMedicine; onTaken: () => void; onSkipped: () => void }) {
   return (
     <View style={[styles.todayDoseRow, medicine.highRisk && styles.highRiskRow]}>
       <View style={styles.doseTimeBox}>
-        <Text style={styles.doseTime}>{medicine.schedule.split(" ")[1] ?? "08:00"}</Text>
+        <Text style={styles.doseTime}>{medicine.schedule?.split(" ")[1] ?? "08:00"}</Text>
         <Text style={styles.meta}>{medicine.timing}</Text>
       </View>
       <View style={styles.flex}>
@@ -389,10 +519,10 @@ function TodayDoseRow({ medicine }: { medicine: RegisteredMedicine }) {
         {medicine.highRisk ? <Text style={styles.dangerText}>중요도 높은 약 · 보호자 공유 권장</Text> : null}
       </View>
       <View style={styles.statusActions}>
-        <Pressable style={styles.iconAction}>
+        <Pressable style={styles.iconAction} onPress={onTaken}>
           <MaterialCommunityIcons name="check-circle" size={22} color={colors.success} />
         </Pressable>
-        <Pressable style={styles.iconAction}>
+        <Pressable style={styles.iconAction} onPress={onSkipped}>
           <MaterialCommunityIcons name="clock-alert-outline" size={22} color={colors.warning} />
         </Pressable>
       </View>
@@ -503,13 +633,21 @@ function MiniChoice({ label, active = false }: { label: string; active?: boolean
   );
 }
 
-function StatusBadge({ status, highRisk }: { status: MedicineStatus; highRisk: boolean }) {
+function StatusBadge({ status, highRisk }: { status: RegisteredMedicine["status"]; highRisk: boolean }) {
   const label = highRisk ? "고위험" : status === "taking" ? "복용중" : status === "scheduled" ? "복용예정" : "복용종료";
   return (
     <View style={[styles.statusBadge, highRisk ? styles.highRiskBadge : status === "ended" ? styles.endedBadge : styles.takingBadge]}>
       <Text style={[styles.statusBadgeText, highRisk && styles.highRiskBadgeText]}>{label}</Text>
     </View>
   );
+}
+
+function seedForSelectedProfile(profile?: { profileId?: string | number | null; profileName?: string | null } | null): RegisteredMedicine[] {
+  return registeredMedicinesSeed.map((medicine) => ({
+    ...medicine,
+    profileId: profile?.profileId,
+    profileName: profile?.profileName
+  }));
 }
 
 const noticeText = "#A83B15";
@@ -984,5 +1122,10 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     ...typography.button,
     color: colors.primary
+  },
+  successNotice: {
+    ...typography.body,
+    color: colors.success,
+    textAlign: "center"
   }
 });

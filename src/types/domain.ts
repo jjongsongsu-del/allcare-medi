@@ -47,6 +47,74 @@ export type MedicationSchedule = {
   familyShared: boolean;
 };
 
+export type MedicineStatus = "taking" | "scheduled" | "ended";
+export type MedicineRegistrationSource = "manual" | "search" | "prescription" | "ai";
+export type MedicineDoseStatus = "pending" | "taken" | "skipped" | "delayed";
+
+export type RegisteredMedicine = {
+  id: string;
+  userId?: number | null;
+  profileId?: string | number | null;
+  profileName?: string | null;
+  name: string;
+  alias?: string;
+  productName?: string;
+  ingredient?: string;
+  manufacturer?: string;
+  dosage?: string;
+  form?: string;
+  color?: string;
+  imprint?: string;
+  imageUrl?: string;
+  purpose?: string;
+  schedule?: string;
+  takingMethod?: string;
+  timing?: string;
+  memo?: string;
+  caution?: string;
+  sideEffects?: string;
+  storageMethod?: string;
+  durWarnings?: string[];
+  status: MedicineStatus;
+  source: MedicineRegistrationSource;
+  favorite: boolean;
+  highRisk: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MedicineSchedule = {
+  id: string;
+  medicineId: string;
+  profileId?: string | number | null;
+  doseAmount: string;
+  doseMethod: string;
+  doseTiming: string;
+  purpose?: string;
+  timesPerDay: number;
+  doseTimes: string[];
+  startDate: string;
+  endDate?: string | null;
+  durationDays?: number | null;
+  repeatRule: "daily" | "weekly" | "alternate_day" | "as_needed";
+  notifyEnabled: boolean;
+  notificationLevel: "normal" | "strong";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MedicationEvent = {
+  id: string;
+  medicineId: string;
+  scheduleId?: string | null;
+  profileId?: string | number | null;
+  scheduledAt: string;
+  status: MedicineDoseStatus;
+  takenAt?: string | null;
+  sharedWithGuardian: boolean;
+  memo?: string;
+};
+
 export type EmergencyRoom = {
   id: string;
   name: string;

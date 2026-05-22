@@ -10,6 +10,9 @@ import {
   FamilyProfile,
   getConsentSettings,
   getLocalFavoritePlaces,
+  getLocalMedicationEvents,
+  getLocalMedicineSchedules,
+  getLocalRegisteredMedicines,
   getLocalRecentPlaces,
   saveConsentSettings,
   StoredPlace,
@@ -168,12 +171,20 @@ export function FamilyMyPageScreen() {
 
   const migrateLocalData = async () => {
     if (!session?.guestId && !session?.deviceUuid) return;
+    const [medicines, medicineSchedules, medicationEvents] = await Promise.all([
+      getLocalRegisteredMedicines(),
+      getLocalMedicineSchedules(),
+      getLocalMedicationEvents()
+    ]);
     await migrateGuestData({
       guestId: session.guestId ?? session.deviceUuid ?? "unknown-guest",
       userId: session.userId,
       favorites,
       recentPlaces,
-      familyProfiles: profiles
+      familyProfiles: profiles,
+      medicines,
+      medicineSchedules,
+      medicationEvents
     });
     setMessage("비회원 데이터를 회원 계정에 병합했습니다.");
   };
