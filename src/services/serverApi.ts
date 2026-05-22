@@ -29,10 +29,21 @@ export type SocialLoginResponse = {
 export type FamilyProfilePayload = {
   profileName: string;
   relationType?: string | null;
+  birthDate?: string | null;
   birthYear?: number | null;
   birthMonth?: number | null;
   gender?: string | null;
+  phone?: string | null;
   memo?: string | null;
+  bloodType?: string | null;
+  allergies?: string | null;
+  chronicDiseases?: string | null;
+  currentMedications?: string | null;
+  emergencyContact?: string | null;
+  canView?: boolean;
+  canEdit?: boolean;
+  canReceiveAlert?: boolean;
+  canViewEmergency?: boolean;
 };
 
 export type FamilyProfileResponse = FamilyProfilePayload & {

@@ -47,6 +47,8 @@ uvicorn app.main:app --reload --port 8000
 
 `/api/migration/guest-data`는 `userId`가 전달되면 즐겨찾기, 최근 본 장소, 가족 프로필을 서버 테이블에 저장합니다.
 
+가족관리 확장 모델은 `family_groups`, `family_members`, `health_profiles`, `family_permissions` 테이블을 기준으로 하며, 현재 화면은 MVP 호환을 위해 `family_profiles` API를 먼저 사용합니다.
+
 ## 역할
 
 - 공공 API 키 보호와 응답 정규화

@@ -77,11 +77,25 @@ class FamilyProfile(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     profile_name: Mapped[str] = mapped_column(String(100), nullable=False)
     relation_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    birth_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
     birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     birth_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(80), nullable=True)
     memo: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    blood_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    allergies: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chronic_diseases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_medications: Mapped[str | None] = mapped_column(Text, nullable=True)
+    emergency_contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    favorite_hospital: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    favorite_pharmacy: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    can_view: Mapped[bool] = mapped_column(Boolean, default=True)
+    can_edit: Mapped[bool] = mapped_column(Boolean, default=True)
+    can_receive_alert: Mapped[bool] = mapped_column(Boolean, default=False)
+    can_view_emergency: Mapped[bool] = mapped_column(Boolean, default=True)
+    consent_status: Mapped[str] = mapped_column(String(20), default="LOCAL_ONLY")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -102,6 +116,56 @@ class ProfileMedicalNote(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     profile: Mapped["FamilyProfile"] = relationship(back_populates="medical_notes")
+
+
+class FamilyGroup(Base):
+    __tablename__ = "family_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    group_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FamilyMember(Base):
+    __tablename__ = "family_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    family_group_id: Mapped[int] = mapped_column(ForeignKey("family_groups.id"), nullable=False)
+    linked_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    relationship: Mapped[str] = mapped_column(String(30), nullable=False)
+    birth_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    member_type: Mapped[str] = mapped_column(String(30), default="LOCAL_PROFILE")
+    consent_status: Mapped[str] = mapped_column(String(20), default="PENDING")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class HealthProfile(Base):
+    __tablename__ = "health_profiles"
+
+    member_id: Mapped[int] = mapped_column(ForeignKey("family_members.id"), primary_key=True)
+    blood_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    allergies: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chronic_diseases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pregnancy_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    emergency_contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    current_medications: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class FamilyPermission(Base):
+    __tablename__ = "family_permissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    member_id: Mapped[int] = mapped_column(ForeignKey("family_members.id"), nullable=False)
+    target_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    can_view: Mapped[bool] = mapped_column(Boolean, default=True)
+    can_edit: Mapped[bool] = mapped_column(Boolean, default=False)
+    can_receive_alert: Mapped[bool] = mapped_column(Boolean, default=False)
+    can_view_emergency: Mapped[bool] = mapped_column(Boolean, default=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class FavoritePlace(Base):

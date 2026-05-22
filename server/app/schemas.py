@@ -132,21 +132,48 @@ class LogoutRequest(BaseModel):
 class FamilyProfileCreate(BaseModel):
     profileName: str = Field(..., min_length=1, max_length=100)
     relationType: str | None = Field(default=None, max_length=30)
+    birthDate: str | None = Field(default=None, max_length=10)
     birthYear: int | None = None
     birthMonth: int | None = None
     gender: str | None = Field(default=None, max_length=20)
+    phone: str | None = Field(default=None, max_length=80)
     memo: str | None = None
+    bloodType: str | None = Field(default=None, max_length=10)
+    allergies: str | None = None
+    chronicDiseases: str | None = None
+    currentMedications: str | None = None
+    emergencyContact: str | None = Field(default=None, max_length=120)
+    favoriteHospital: str | None = Field(default=None, max_length=160)
+    favoritePharmacy: str | None = Field(default=None, max_length=160)
+    canView: bool = True
+    canEdit: bool = True
+    canReceiveAlert: bool = False
+    canViewEmergency: bool = True
 
 
 class FamilyProfileRead(BaseModel):
     profileId: int
     profileName: str
     relationType: str | None
+    birthDate: str | None
     birthYear: int | None
     birthMonth: int | None
     gender: str | None
+    phone: str | None
     memo: str | None
     isDefault: bool
+    bloodType: str | None
+    allergies: str | None
+    chronicDiseases: str | None
+    currentMedications: str | None
+    emergencyContact: str | None
+    favoriteHospital: str | None
+    favoritePharmacy: str | None
+    canView: bool
+    canEdit: bool
+    canReceiveAlert: bool
+    canViewEmergency: bool
+    consentStatus: str
 
 
 class GuestDataMigrationRequest(BaseModel):

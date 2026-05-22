@@ -5,11 +5,25 @@ export type FamilyProfile = {
   profileId: string | number;
   profileName: string;
   relationType?: string | null;
+  birthDate?: string | null;
   birthYear?: number | null;
   birthMonth?: number | null;
   gender?: string | null;
+  phone?: string | null;
   memo?: string | null;
   isDefault?: boolean;
+  bloodType?: string | null;
+  allergies?: string | null;
+  chronicDiseases?: string | null;
+  currentMedications?: string | null;
+  emergencyContact?: string | null;
+  favoriteHospital?: string | null;
+  favoritePharmacy?: string | null;
+  canView?: boolean;
+  canEdit?: boolean;
+  canReceiveAlert?: boolean;
+  canViewEmergency?: boolean;
+  consentStatus?: "PENDING" | "ACCEPTED" | "LOCAL_ONLY";
 };
 
 export type StoredPlace = {
@@ -38,6 +52,7 @@ const familyProfilesKey = "allcaremedi.local.familyProfiles";
 const favoritePlacesKey = "allcaremedi.local.favoritePlaces";
 const recentPlacesKey = "allcaremedi.local.recentPlaces";
 const consentSettingsKey = "allcaremedi.local.consentSettings";
+const selectedFamilyProfileKey = "allcaremedi.local.selectedFamilyProfile";
 
 export const defaultConsentSettings: ConsentSettings = {
   terms: false,
@@ -60,10 +75,30 @@ export async function saveLocalFamilyProfile(profile: Omit<FamilyProfile, "profi
   const nextProfile: FamilyProfile = {
     ...profile,
     profileId: `local-profile-${Date.now()}`,
-    isDefault: profiles.length === 0
+    isDefault: profiles.length === 0,
+    canView: profile.canView ?? true,
+    canEdit: profile.canEdit ?? true,
+    canReceiveAlert: profile.canReceiveAlert ?? false,
+    canViewEmergency: profile.canViewEmergency ?? true,
+    consentStatus: profile.consentStatus ?? "LOCAL_ONLY"
   };
   await AsyncStorage.setItem(familyProfilesKey, JSON.stringify([...profiles, nextProfile]));
   return nextProfile;
+}
+
+export async function updateLocalFamilyProfile(profile: FamilyProfile): Promise<FamilyProfile[]> {
+  const profiles = await getLocalFamilyProfiles();
+  const next = profiles.map((item) => String(item.profileId) === String(profile.profileId) ? profile : item);
+  await AsyncStorage.setItem(familyProfilesKey, JSON.stringify(next));
+  return next;
+}
+
+export async function getSelectedFamilyProfileId(): Promise<string | null> {
+  return AsyncStorage.getItem(selectedFamilyProfileKey);
+}
+
+export async function setSelectedFamilyProfileId(profileId: string | number): Promise<void> {
+  await AsyncStorage.setItem(selectedFamilyProfileKey, String(profileId));
 }
 
 export async function getLocalFavoritePlaces(): Promise<StoredPlace[]> {
