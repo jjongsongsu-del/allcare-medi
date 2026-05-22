@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
@@ -10,15 +10,125 @@ import { typography } from "@/theme/typography";
 import { Pill } from "@/types/domain";
 
 type PillTab = "medicine" | "prescription";
+type RegisterMethod = "manual" | "search" | "prescription" | "ai";
+type RegisterStep = "input" | "confirm" | "schedule";
+type MedicineStatus = "taking" | "scheduled" | "ended";
+
+type RegisteredMedicine = {
+  id: string;
+  name: string;
+  alias: string;
+  ingredient: string;
+  manufacturer: string;
+  dosage: string;
+  form: string;
+  color: string;
+  purpose: string;
+  timing: string;
+  schedule: string;
+  status: MedicineStatus;
+  favorite: boolean;
+  highRisk: boolean;
+};
+
+const registrationMethods: Array<{
+  key: RegisterMethod;
+  title: string;
+  description: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}> = [
+  { key: "manual", title: "직접등록", description: "약명·용량 입력", icon: "square-edit-outline" },
+  { key: "search", title: "검색등록", description: "e약은 API", icon: "magnify" },
+  { key: "prescription", title: "처방전등록", description: "OCR 추출", icon: "file-document-edit-outline" },
+  { key: "ai", title: "AI판독등록", description: "사진 후보 확인", icon: "camera-outline" }
+];
+
+const listFilters = ["전체", "복용중", "복용예정", "복용종료", "즐겨찾기", "고위험"];
+const scheduleTimes = ["아침 08:00", "점심 13:00", "저녁 19:00", "취침 전 22:00"];
+
+const registeredMedicinesSeed: RegisteredMedicine[] = [
+  {
+    id: "registered-001",
+    name: "아모잘탄정",
+    alias: "아침 혈압약",
+    ingredient: "암로디핀/로사르탄",
+    manufacturer: "한미약품",
+    dosage: "1정",
+    form: "정제",
+    color: "분홍색",
+    purpose: "혈압",
+    timing: "아침 식후",
+    schedule: "매일 08:00 · 30일",
+    status: "taking",
+    favorite: true,
+    highRisk: true
+  },
+  {
+    id: "registered-002",
+    name: "비타민 D",
+    alias: "저녁 영양제",
+    ingredient: "콜레칼시페롤",
+    manufacturer: "올케어제약",
+    dosage: "1캡슐",
+    form: "캡슐",
+    color: "노란색",
+    purpose: "영양",
+    timing: "저녁 식후",
+    schedule: "매일 21:00 · 장기",
+    status: "scheduled",
+    favorite: false,
+    highRisk: false
+  }
+];
 
 export function PillIdentificationScreen() {
   const [pills, setPills] = useState<Pill[]>([]);
   const [activeTab, setActiveTab] = useState<PillTab>("medicine");
+  const [selectedMethod, setSelectedMethod] = useState<RegisterMethod>("manual");
+  const [activeStep, setActiveStep] = useState<RegisterStep>("input");
   const [searchText, setSearchText] = useState("");
+  const [listFilter, setListFilter] = useState("전체");
+  const [draft, setDraft] = useState({
+    name: "",
+    alias: "",
+    manufacturer: "",
+    ingredient: "",
+    dosage: "1정",
+    form: "정제",
+    color: "",
+    purpose: "",
+    memo: ""
+  });
+  const [medicines, setMedicines] = useState(registeredMedicinesSeed);
 
   useEffect(() => {
     recognizePillFromImage().then(setPills);
   }, []);
+
+  const filteredMedicines = useMemo(() => {
+    const normalizedSearch = searchText.trim();
+    return medicines
+      .filter((medicine) => {
+        if (listFilter === "복용중" && medicine.status !== "taking") return false;
+        if (listFilter === "복용예정" && medicine.status !== "scheduled") return false;
+        if (listFilter === "복용종료" && medicine.status !== "ended") return false;
+        if (listFilter === "즐겨찾기" && !medicine.favorite) return false;
+        if (listFilter === "고위험" && !medicine.highRisk) return false;
+        if (!normalizedSearch) return true;
+        return [medicine.name, medicine.alias, medicine.ingredient, medicine.purpose].join(" ").includes(normalizedSearch);
+      })
+      .sort((a, b) => Number(b.favorite) - Number(a.favorite));
+  }, [listFilter, medicines, searchText]);
+
+  const selectedMethodMeta = registrationMethods.find((method) => method.key === selectedMethod) ?? registrationMethods[0];
+
+  const toggleFavorite = (medicineId: string) => {
+    setMedicines((current) => current.map((medicine) => medicine.id === medicineId ? { ...medicine, favorite: !medicine.favorite } : medicine));
+  };
+
+  const endMedicine = (medicineId: string) => {
+    setMedicines((current) => current.map((medicine) => medicine.id === medicineId ? { ...medicine, status: "ended" } : medicine));
+  };
 
   return (
     <AppScreen contentStyle={styles.screen}>
@@ -28,15 +138,13 @@ export function PillIdentificationScreen() {
         </View>
         <Text style={styles.eyebrow}>내 약통</Text>
         <Text style={styles.title}>약관리</Text>
-        <Text style={styles.description}>
-          등록된 약 목록을 확인하고, 약을 추가하거나 선택해서 변경·삭제할 수 있습니다.
-        </Text>
+        <Text style={styles.description}>직접등록, 검색등록, 처방전등록, AI판독등록으로 약을 등록하고 복약 스케줄까지 이어서 설정합니다.</Text>
       </View>
 
       <View style={styles.notice}>
         <MaterialCommunityIcons name="alert-circle-outline" size={28} color={noticeText} />
         <Text style={styles.noticeText}>
-          이 기능은 복약 기록과 알림을 돕기 위한 기능입니다. 약의 변경, 중단, 병용 여부는 반드시 의사 또는 약사와 상담하세요.
+          OCR과 AI 판독 결과는 자동 저장하지 않습니다. 사용자가 후보와 상세 정보를 최종 확인한 뒤 저장하며, DUR 위험 정보는 쉬운 설명으로 표시합니다.
         </Text>
       </View>
 
@@ -48,28 +156,79 @@ export function PillIdentificationScreen() {
       </View>
 
       <View style={styles.actionGrid}>
-        <RegistrationTile
-          title="직접등록"
-          description="수기로 입력"
-          icon="square-edit-outline"
-          active
-        />
-        <RegistrationTile
-          title="검색등록"
-          description="e약 검색"
-          icon="magnify"
-        />
-        <RegistrationTile
-          title="AI판독등록"
-          description="사진 판독"
-          icon="camera-outline"
-        />
+        {registrationMethods.map((method) => (
+          <RegistrationTile
+            key={method.key}
+            title={method.title}
+            description={method.description}
+            icon={method.icon}
+            active={selectedMethod === method.key}
+            onPress={() => {
+              setSelectedMethod(method.key);
+              setActiveStep("input");
+            }}
+          />
+        ))}
+      </View>
+
+      <View style={styles.flowCard}>
+        <View style={styles.listHeader}>
+          <View style={styles.flex}>
+            <Text style={styles.sectionTitle}>약 등록 절차</Text>
+            <Text style={styles.body}>{selectedMethodMeta.title} · 최대 3단계로 완료합니다.</Text>
+          </View>
+          <View style={styles.saveBadge}>
+            <Text style={styles.saveBadgeText}>임시저장</Text>
+          </View>
+        </View>
+
+        <View style={styles.stepRow}>
+          <StepPill label="1 입력/인식" active={activeStep === "input"} onPress={() => setActiveStep("input")} />
+          <StepPill label="2 후보 확인" active={activeStep === "confirm"} onPress={() => setActiveStep("confirm")} />
+          <StepPill label="3 스케줄" active={activeStep === "schedule"} onPress={() => setActiveStep("schedule")} />
+        </View>
+
+        {activeStep === "input" ? (
+          <RegistrationInput method={selectedMethod} draft={draft} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} />
+        ) : null}
+
+        {activeStep === "confirm" ? (
+          <CandidateConfirmation method={selectedMethod} pills={pills} draftName={draft.name} />
+        ) : null}
+
+        {activeStep === "schedule" ? <ScheduleDraft /> : null}
+
+        <View style={styles.resultActions}>
+          <Pressable style={styles.primaryButton} onPress={() => setActiveStep(activeStep === "input" ? "confirm" : activeStep === "confirm" ? "schedule" : "schedule")}>
+            <MaterialCommunityIcons name={activeStep === "schedule" ? "content-save-outline" : "arrow-right"} size={18} color="#FFFFFF" />
+            <Text style={styles.primaryButtonText}>{activeStep === "schedule" ? "약 저장" : "다음 단계"}</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton}>
+            <MaterialCommunityIcons name="skip-next-outline" size={18} color={colors.primary} />
+            <Text style={styles.secondaryButtonText}>나중에 설정</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.todayCard}>
+        <View style={styles.listHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>오늘 복약 목록</Text>
+            <Text style={styles.body}>시간대별로 완료, 건너뜀, 지연 상태를 기록합니다.</Text>
+          </View>
+          <View style={styles.todayBadge}>
+            <Text style={styles.todayBadgeText}>보호자 공유 가능</Text>
+          </View>
+        </View>
+        {medicines.filter((medicine) => medicine.status !== "ended").map((medicine) => (
+          <TodayDoseRow key={medicine.id} medicine={medicine} />
+        ))}
       </View>
 
       <View style={styles.listCard}>
         <View style={styles.listHeader}>
           <Text style={styles.sectionTitle}>등록된 약 목록</Text>
-          <Pressable style={styles.addButton}>
+          <Pressable style={styles.addButton} onPress={() => setActiveStep("input")}>
             <Text style={styles.addButtonText}>등록</Text>
           </Pressable>
         </View>
@@ -78,57 +237,235 @@ export function PillIdentificationScreen() {
           <TextInput
             value={searchText}
             onChangeText={setSearchText}
-            placeholder="등록된 약 검색"
+            placeholder="약명, 성분명, 복용 목적 검색"
             placeholderTextColor="#6B7280"
             style={styles.searchInput}
           />
         </View>
 
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyTitle}>등록된 약이 없습니다.</Text>
-          <Text style={styles.emptyDescription}>목록 위 등록 버튼을 눌러 복용약을 추가해 보세요.</Text>
+        <View style={styles.filterRow}>
+          {listFilters.map((filter) => (
+            <Pressable key={filter} onPress={() => setListFilter(filter)} style={[styles.filterChip, listFilter === filter && styles.filterChipActive]}>
+              <Text style={[styles.filterText, listFilter === filter && styles.filterTextActive]}>{filter}</Text>
+            </Pressable>
+          ))}
         </View>
+
+        {filteredMedicines.length ? filteredMedicines.map((medicine) => (
+          <MedicineListItem key={medicine.id} medicine={medicine} onToggleFavorite={() => toggleFavorite(medicine.id)} onEnd={() => endMedicine(medicine.id)} />
+        )) : (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyTitle}>조건에 맞는 약이 없습니다.</Text>
+            <Text style={styles.emptyDescription}>검색어를 지우거나 전체 목록을 확인해 보세요.</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.candidateSection}>
         <Text style={styles.sectionTitle}>AI 판독 후보</Text>
-        <Text style={styles.sectionDescription}>사진 판독 후 후보를 확인하고 복약 일정에 등록할 수 있습니다.</Text>
+        <Text style={styles.sectionDescription}>정확도가 낮은 경우 후보 목록을 보여주고, 사용자가 최종 선택합니다.</Text>
       </View>
 
       {pills.map((pill) => (
-        <View key={pill.id} style={styles.resultCard}>
-          <View style={styles.resultTop}>
-            <View style={styles.pillIcon}>
-              <MaterialCommunityIcons name="pill" size={26} color={colors.primary} />
-            </View>
-            <View style={styles.resultText}>
-              <Text style={styles.resultTitle}>{pill.productName}</Text>
-              <Text style={styles.resultMeta}>{pill.manufacturer} · {pill.ingredient}</Text>
-            </View>
-            <View style={styles.confidenceBadge}>
-              <Text style={styles.confidenceText}>{Math.round(pill.confidence * 100)}%</Text>
-            </View>
-          </View>
-          <Text style={styles.body}>{pill.shape} · {pill.color} · 식별문자 {pill.imprint}</Text>
-          {pill.warnings.map((warning) => (
-            <View key={warning} style={styles.warningRow}>
-              <MaterialCommunityIcons name="alert-outline" size={18} color={noticeText} />
-              <Text style={styles.warningText}>{warning}</Text>
-            </View>
-          ))}
-          <View style={styles.resultActions}>
-            <Pressable style={styles.primaryButton}>
-              <MaterialCommunityIcons name="calendar-plus" size={18} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>복약 일정 등록</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton}>
-              <MaterialCommunityIcons name="information-outline" size={18} color={colors.primary} />
-              <Text style={styles.secondaryButtonText}>상세보기</Text>
-            </Pressable>
-          </View>
-        </View>
+        <AiCandidateCard key={pill.id} pill={pill} />
       ))}
     </AppScreen>
+  );
+}
+
+function RegistrationInput({
+  method,
+  draft,
+  onChange
+}: {
+  method: RegisterMethod;
+  draft: {
+    name: string;
+    alias: string;
+    manufacturer: string;
+    ingredient: string;
+    dosage: string;
+    form: string;
+    color: string;
+    purpose: string;
+    memo: string;
+  };
+  onChange: (patch: Partial<typeof draft>) => void;
+}) {
+  const methodHint = {
+    manual: "약명은 필수입니다. 제조사, 성분명, 용량, 제형, 색상, 메모를 직접 입력합니다.",
+    search: "e약은 API 또는 의약품 정보 API로 약명, 성분명, 식별문자를 검색한 뒤 선택 등록합니다.",
+    prescription: "처방전 이미지를 촬영 또는 업로드하면 OCR이 약명, 용량, 복용횟수, 복용일수를 초안으로 채웁니다.",
+    ai: "알약 사진으로 모양, 색상, 식별문자를 분석하고 후보 약 목록을 제시합니다."
+  }[method];
+
+  return (
+    <View style={styles.inputStack}>
+      <Text style={styles.body}>{methodHint}</Text>
+      <View style={styles.twoColumn}>
+        <TextInput style={styles.input} placeholder="약명 필수" placeholderTextColor={colors.textMuted} value={draft.name} onChangeText={(value) => onChange({ name: value })} />
+        <TextInput style={styles.input} placeholder="별칭 예: 아침 혈압약" placeholderTextColor={colors.textMuted} value={draft.alias} onChangeText={(value) => onChange({ alias: value })} />
+      </View>
+      <View style={styles.twoColumn}>
+        <TextInput style={styles.input} placeholder="제조사" placeholderTextColor={colors.textMuted} value={draft.manufacturer} onChangeText={(value) => onChange({ manufacturer: value })} />
+        <TextInput style={styles.input} placeholder="성분명" placeholderTextColor={colors.textMuted} value={draft.ingredient} onChangeText={(value) => onChange({ ingredient: value })} />
+      </View>
+      <View style={styles.twoColumn}>
+        <TextInput style={styles.input} placeholder="용량 예: 1정" placeholderTextColor={colors.textMuted} value={draft.dosage} onChangeText={(value) => onChange({ dosage: value })} />
+        <TextInput style={styles.input} placeholder="제형 예: 정제" placeholderTextColor={colors.textMuted} value={draft.form} onChangeText={(value) => onChange({ form: value })} />
+      </View>
+      <View style={styles.twoColumn}>
+        <TextInput style={styles.input} placeholder="색상" placeholderTextColor={colors.textMuted} value={draft.color} onChangeText={(value) => onChange({ color: value })} />
+        <TextInput style={styles.input} placeholder="복용 목적 예: 혈압" placeholderTextColor={colors.textMuted} value={draft.purpose} onChangeText={(value) => onChange({ purpose: value })} />
+      </View>
+      <TextInput style={styles.input} placeholder="개인 메모" placeholderTextColor={colors.textMuted} value={draft.memo} onChangeText={(value) => onChange({ memo: value })} />
+    </View>
+  );
+}
+
+function CandidateConfirmation({ method, pills, draftName }: { method: RegisterMethod; pills: Pill[]; draftName: string }) {
+  const title = method === "ai" ? "AI 후보 확인" : method === "prescription" ? "OCR 추출 결과 확인" : "약 상세 정보 확인";
+
+  return (
+    <View style={styles.inputStack}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.body}>중복 등록 여부, 제품명, 성분명, DUR 위험 정보를 확인한 뒤 저장합니다.</Text>
+      <View style={styles.warningRow}>
+        <MaterialCommunityIcons name="alert-decagram-outline" size={18} color={noticeText} />
+        <Text style={styles.warningText}>중복성분, 병용금기, 연령주의, 임부금기 정보가 있으면 쉬운 설명으로 표시합니다.</Text>
+      </View>
+      {(method === "ai" ? pills : pills.slice(0, 1)).map((pill) => (
+        <View key={pill.id} style={styles.candidateBox}>
+          <Text style={styles.cardTitle}>{draftName || pill.productName}</Text>
+          <Text style={styles.body}>{pill.manufacturer} · {pill.ingredient}</Text>
+          <Text style={styles.meta}>후보 신뢰도 {Math.round(pill.confidence * 100)}% · 최종 확인 후 저장</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ScheduleDraft() {
+  return (
+    <View style={styles.inputStack}>
+      <Text style={styles.cardTitle}>복약 스케줄 설정</Text>
+      <Text style={styles.body}>스케줄 없이 약만 저장할 수 있고, 처방전 OCR 결과는 스케줄 초안으로 자동 생성됩니다.</Text>
+      <View style={styles.filterRow}>
+        <MiniChoice label="1일 1회" active />
+        <MiniChoice label="1일 2회" />
+        <MiniChoice label="1일 3회" />
+        <MiniChoice label="필요 시" />
+      </View>
+      <View style={styles.filterRow}>
+        {scheduleTimes.map((time, index) => (
+          <MiniChoice key={time} label={time} active={index === 0} />
+        ))}
+      </View>
+      <View style={styles.twoColumn}>
+        <TextInput style={styles.input} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={colors.textMuted} />
+        <TextInput style={styles.input} placeholder="복용일수 입력 시 종료일 자동 계산" placeholderTextColor={colors.textMuted} />
+      </View>
+      <View style={styles.filterRow}>
+        <MiniChoice label="매일" active />
+        <MiniChoice label="특정 요일" />
+        <MiniChoice label="격일" />
+        <MiniChoice label="알림 켜기" active />
+        <MiniChoice label="강한 알림" />
+      </View>
+    </View>
+  );
+}
+
+function TodayDoseRow({ medicine }: { medicine: RegisteredMedicine }) {
+  return (
+    <View style={[styles.todayDoseRow, medicine.highRisk && styles.highRiskRow]}>
+      <View style={styles.doseTimeBox}>
+        <Text style={styles.doseTime}>{medicine.schedule.split(" ")[1] ?? "08:00"}</Text>
+        <Text style={styles.meta}>{medicine.timing}</Text>
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.cardTitle}>{medicine.alias || medicine.name}</Text>
+        <Text style={styles.body}>{medicine.dosage} · {medicine.form} · {medicine.purpose}</Text>
+        {medicine.highRisk ? <Text style={styles.dangerText}>중요도 높은 약 · 보호자 공유 권장</Text> : null}
+      </View>
+      <View style={styles.statusActions}>
+        <Pressable style={styles.iconAction}>
+          <MaterialCommunityIcons name="check-circle" size={22} color={colors.success} />
+        </Pressable>
+        <Pressable style={styles.iconAction}>
+          <MaterialCommunityIcons name="clock-alert-outline" size={22} color={colors.warning} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function MedicineListItem({ medicine, onToggleFavorite, onEnd }: { medicine: RegisteredMedicine; onToggleFavorite: () => void; onEnd: () => void }) {
+  return (
+    <View style={styles.medicineItem}>
+      <View style={styles.resultTop}>
+        <Pressable onPress={onToggleFavorite} style={styles.pillIcon}>
+          <MaterialCommunityIcons name={medicine.favorite ? "star" : "star-outline"} size={24} color={medicine.favorite ? colors.warning : colors.primary} />
+        </Pressable>
+        <View style={styles.resultText}>
+          <Text style={styles.resultTitle}>{medicine.alias || medicine.name}</Text>
+          <Text style={styles.resultMeta}>{medicine.name} · {medicine.ingredient}</Text>
+        </View>
+        <StatusBadge status={medicine.status} highRisk={medicine.highRisk} />
+      </View>
+      <Text style={styles.body}>{medicine.manufacturer} · {medicine.dosage} · {medicine.timing} · {medicine.schedule}</Text>
+      <View style={styles.resultActions}>
+        <Pressable style={styles.secondaryButton}>
+          <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.primary} />
+          <Text style={styles.secondaryButtonText}>수정</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton}>
+          <MaterialCommunityIcons name="calendar-plus" size={18} color={colors.primary} />
+          <Text style={styles.secondaryButtonText}>스케줄</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={onEnd}>
+          <MaterialCommunityIcons name="stop-circle-outline" size={18} color={colors.primary} />
+          <Text style={styles.secondaryButtonText}>복용종료</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.meta}>삭제 전 연결된 복약 스케줄과 이력을 안내하고, 삭제 대신 복용종료를 선택할 수 있습니다.</Text>
+    </View>
+  );
+}
+
+function AiCandidateCard({ pill }: { pill: Pill }) {
+  return (
+    <View style={styles.resultCard}>
+      <View style={styles.resultTop}>
+        <View style={styles.pillIcon}>
+          <MaterialCommunityIcons name="pill" size={26} color={colors.primary} />
+        </View>
+        <View style={styles.resultText}>
+          <Text style={styles.resultTitle}>{pill.productName}</Text>
+          <Text style={styles.resultMeta}>{pill.manufacturer} · {pill.ingredient}</Text>
+        </View>
+        <View style={styles.confidenceBadge}>
+          <Text style={styles.confidenceText}>{Math.round(pill.confidence * 100)}%</Text>
+        </View>
+      </View>
+      <Text style={styles.body}>{pill.shape} · {pill.color} · 식별문자 {pill.imprint}</Text>
+      {pill.warnings.map((warning) => (
+        <View key={warning} style={styles.warningRow}>
+          <MaterialCommunityIcons name="alert-outline" size={18} color={noticeText} />
+          <Text style={styles.warningText}>{warning}</Text>
+        </View>
+      ))}
+      <View style={styles.resultActions}>
+        <Pressable style={styles.primaryButton}>
+          <MaterialCommunityIcons name="check-circle-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.primaryButtonText}>이 약 선택</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton}>
+          <MaterialCommunityIcons name="information-outline" size={18} color={colors.primary} />
+          <Text style={styles.secondaryButtonText}>상세보기</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -140,13 +477,38 @@ function SegmentButton({ label, active, onPress }: { label: string; active: bool
   );
 }
 
-function RegistrationTile({ title, description, icon, active = false }: { title: string; description: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; active?: boolean }) {
+function RegistrationTile({ title, description, icon, active = false, onPress }: { title: string; description: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; active?: boolean; onPress: () => void }) {
   return (
-    <Pressable style={[styles.tile, active && styles.tileActive]}>
+    <Pressable onPress={onPress} style={[styles.tile, active && styles.tileActive]}>
       <MaterialCommunityIcons name={icon} size={34} color={active ? "#FFFFFF" : colors.primary} />
       <Text style={[styles.tileTitle, active && styles.tileTitleActive]}>{title}</Text>
       <Text style={[styles.tileDescription, active && styles.tileDescriptionActive]}>{description}</Text>
     </Pressable>
+  );
+}
+
+function StepPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.stepPill, active && styles.stepPillActive]}>
+      <Text style={[styles.stepText, active && styles.stepTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function MiniChoice({ label, active = false }: { label: string; active?: boolean }) {
+  return (
+    <View style={[styles.filterChip, active && styles.filterChipActive]}>
+      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+    </View>
+  );
+}
+
+function StatusBadge({ status, highRisk }: { status: MedicineStatus; highRisk: boolean }) {
+  const label = highRisk ? "고위험" : status === "taking" ? "복용중" : status === "scheduled" ? "복용예정" : "복용종료";
+  return (
+    <View style={[styles.statusBadge, highRisk ? styles.highRiskBadge : status === "ended" ? styles.endedBadge : styles.takingBadge]}>
+      <Text style={[styles.statusBadgeText, highRisk && styles.highRiskBadgeText]}>{label}</Text>
+    </View>
   );
 }
 
@@ -232,10 +594,12 @@ const styles = StyleSheet.create({
   },
   actionGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm
   },
   tile: {
-    flex: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
     minHeight: 122,
     borderRadius: 8,
     borderWidth: 1,
@@ -262,6 +626,14 @@ const styles = StyleSheet.create({
   tileDescriptionActive: {
     color: "#FFFFFF"
   },
+  flowCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
   listCard: {
     borderRadius: 8,
     borderWidth: 1,
@@ -276,9 +648,166 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md
   },
+  flex: {
+    flex: 1,
+    gap: spacing.xs
+  },
   sectionTitle: {
     ...typography.title,
     color: colors.textStrong
+  },
+  cardTitle: {
+    ...typography.sectionTitle,
+    color: colors.textStrong
+  },
+  body: {
+    ...typography.body,
+    color: colors.text
+  },
+  meta: {
+    ...typography.caption,
+    color: colors.textMuted
+  },
+  saveBadge: {
+    borderRadius: 8,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs
+  },
+  saveBadgeText: {
+    ...typography.caption,
+    color: colors.primaryStrong
+  },
+  stepRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  stepPill: {
+    minHeight: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md
+  },
+  stepPillActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary
+  },
+  stepText: {
+    ...typography.caption,
+    color: colors.primary
+  },
+  stepTextActive: {
+    color: "#FFFFFF"
+  },
+  inputStack: {
+    gap: spacing.sm
+  },
+  input: {
+    minHeight: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    ...typography.bodyLarge,
+    color: colors.textStrong
+  },
+  twoColumn: {
+    gap: spacing.sm
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  filterChip: {
+    minHeight: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  filterText: {
+    ...typography.caption,
+    color: colors.primary
+  },
+  filterTextActive: {
+    color: "#FFFFFF"
+  },
+  candidateBox: {
+    borderRadius: 8,
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.md,
+    gap: spacing.xs
+  },
+  todayCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  todayBadge: {
+    borderRadius: 8,
+    backgroundColor: "#E8F5EE",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs
+  },
+  todayBadgeText: {
+    ...typography.caption,
+    color: colors.success
+  },
+  todayDoseRow: {
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md
+  },
+  highRiskRow: {
+    borderColor: "#FDBA74",
+    backgroundColor: "#FFF7ED"
+  },
+  doseTimeBox: {
+    width: 82,
+    borderRadius: 8,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    padding: spacing.sm,
+    gap: 2
+  },
+  doseTime: {
+    ...typography.sectionTitle,
+    color: colors.primary
+  },
+  dangerText: {
+    ...typography.caption,
+    color: noticeText
+  },
+  statusActions: {
+    gap: spacing.xs
+  },
+  iconAction: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF"
   },
   addButton: {
     minWidth: 64,
@@ -324,6 +853,35 @@ const styles = StyleSheet.create({
   emptyDescription: {
     ...typography.bodyLarge,
     color: colors.text
+  },
+  medicineItem: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  statusBadge: {
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs
+  },
+  takingBadge: {
+    backgroundColor: colors.primarySoft
+  },
+  endedBadge: {
+    backgroundColor: "#F3F4F6"
+  },
+  highRiskBadge: {
+    backgroundColor: "#FFF7ED"
+  },
+  statusBadgeText: {
+    ...typography.caption,
+    color: colors.primaryStrong
+  },
+  highRiskBadgeText: {
+    color: noticeText
   },
   candidateSection: {
     gap: spacing.xs
@@ -377,10 +935,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.success,
     fontWeight: "800"
-  },
-  body: {
-    ...typography.body,
-    color: colors.text
   },
   warningRow: {
     borderRadius: 8,
