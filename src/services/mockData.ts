@@ -155,22 +155,36 @@ export const medicationSchedules: MedicationSchedule[] = [
 export const emergencyRooms: EmergencyRoom[] = [
   {
     id: "er-001",
-    name: "서울권역응급의료센터",
-    distanceKm: 2.1,
-    availableBeds: 6,
+    name: "올케어 권역응급의료센터",
+    centerType: "권역응급의료센터",
+    address: "서울특별시 중구 세종대로 1",
+    distanceKm: 0.52,
+    availableBeds: 8,
+    operatingRooms: 2,
+    icuBeds: 4,
+    inpatientBeds: 32,
     pediatricEmergency: true,
     deliveryRoom: true,
     isolationRoom: true,
+    severeCare: true,
+    updatedAt: "2026.05.22 04:00",
     phone: "02-119-0001"
   },
   {
     id: "er-002",
-    name: "도심응급의료기관",
+    name: "서울중앙 응급의료기관",
+    centerType: "지역응급의료기관",
+    address: "서울특별시 종로구 대학로 25",
     distanceKm: 3.8,
     availableBeds: 2,
-    pediatricEmergency: false,
+    operatingRooms: 1,
+    icuBeds: 1,
+    inpatientBeds: 14,
+    pediatricEmergency: true,
     deliveryRoom: false,
     isolationRoom: true,
+    severeCare: false,
+    updatedAt: "2026.05.22 03:55",
     phone: "02-119-0002"
   }
 ];

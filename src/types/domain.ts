@@ -50,10 +50,17 @@ export type MedicationSchedule = {
 export type EmergencyRoom = {
   id: string;
   name: string;
+  centerType: string;
+  address: string;
   distanceKm: number;
   availableBeds: number;
+  operatingRooms: number;
+  icuBeds: number;
+  inpatientBeds: number;
   pediatricEmergency: boolean;
   deliveryRoom: boolean;
   isolationRoom: boolean;
+  severeCare: boolean;
+  updatedAt: string;
   phone: string;
 };
