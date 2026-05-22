@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { ActionButton } from "@/components/ActionButton";
@@ -12,17 +12,14 @@ import {
   defaultConsentSettings,
   FamilyProfile,
   getConsentSettings,
-  getLocalFamilyProfiles,
   getLocalFavoritePlaces,
   getLocalRecentPlaces,
-  getSelectedFamilyProfileId,
   saveConsentSettings,
-  saveLocalFamilyProfile,
-  setSelectedFamilyProfileId,
   StoredPlace,
   updateLocalFamilyProfile
 } from "@/services/localUserData";
-import { createFamilyProfile, fetchFamilyProfiles, migrateGuestData } from "@/services/serverApi";
+import { migrateGuestData } from "@/services/serverApi";
+import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -59,8 +56,7 @@ const consentLabels: Array<[keyof ConsentSettings, string]> = [
 
 export function FamilyMyPageScreen() {
   const { session, logout } = useAuth();
-  const [profiles, setProfiles] = useState<FamilyProfile[]>([]);
-  const [selectedProfileId, setSelectedProfileIdState] = useState<string | number | null>(null);
+  const { profiles, selectedProfile, selectProfile: selectFamilyProfile, addProfile, reloadProfiles } = useFamilyProfile();
   const [activeTab, setActiveTab] = useState<DetailTab>("basic");
   const [favorites, setFavorites] = useState<StoredPlace[]>([]);
   const [recentPlaces, setRecentPlaces] = useState<StoredPlace[]>([]);
@@ -69,53 +65,30 @@ export function FamilyMyPageScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   const isMember = session?.mode === "member" && Boolean(session.userId);
-  const selectedProfile = useMemo(
-    () => profiles.find((profile) => String(profile.profileId) === String(selectedProfileId)) ?? profiles[0],
-    [profiles, selectedProfileId]
-  );
-
   useEffect(() => {
     loadData();
   }, [session?.mode, session?.userId]);
 
   const loadData = async () => {
-    const [localProfiles, localFavorites, localRecent, localConsents, selectedId] = await Promise.all([
-      getLocalFamilyProfiles(),
+    const [localFavorites, localRecent, localConsents] = await Promise.all([
       getLocalFavoritePlaces(),
       getLocalRecentPlaces(),
-      getConsentSettings(),
-      getSelectedFamilyProfileId()
+      getConsentSettings()
     ]);
     setFavorites(localFavorites);
     setRecentPlaces(localRecent);
     setConsents(localConsents);
-
-    const loadedProfiles = isMember && session?.userId ? await fetchFamilyProfiles(session.userId).catch(() => localProfiles) : localProfiles;
-    const ensuredProfiles = loadedProfiles.length ? loadedProfiles : [await createDefaultSelfProfile()];
-    setProfiles(ensuredProfiles);
-    setSelectedProfileIdState(selectedId ?? ensuredProfiles[0]?.profileId ?? null);
   };
 
-  const createDefaultSelfProfile = async () => {
-    const payload = normalizeProfileDraft({ profileName: "나", relationType: "SELF", consentStatus: "LOCAL_ONLY" });
-    return isMember && session?.userId ? createFamilyProfile(session.userId, payload) : saveLocalFamilyProfile(payload);
-  };
-
-  const selectProfile = async (profileId: string | number) => {
-    setSelectedProfileIdState(profileId);
-    await setSelectedFamilyProfileId(profileId);
+  const handleSelectProfile = async (profileId: string | number) => {
+    await selectFamilyProfile(profileId);
     setMessage("현재 관리 대상을 변경했습니다. 복약, 병원검색, 응급 메뉴에 이 기준을 연동합니다.");
   };
 
-  const addProfile = async () => {
+  const addDraftProfile = async () => {
     if (!draft.profileName?.trim()) return;
     const payload = normalizeProfileDraft(draft);
-    const saved = isMember && session?.userId
-      ? await createFamilyProfile(session.userId, payload)
-      : await saveLocalFamilyProfile(payload);
-    setProfiles((current) => [...current, saved]);
-    setSelectedProfileIdState(saved.profileId);
-    await setSelectedFamilyProfileId(saved.profileId);
+    await addProfile(payload);
     setDraft({ profileName: "", relationType: "CHILD" });
     setMessage(isMember ? "가족 프로필을 서버에 저장했습니다." : "가족 프로필을 이 기기에 저장했습니다.");
   };
@@ -124,11 +97,11 @@ export function FamilyMyPageScreen() {
     if (!selectedProfile) return;
     const nextProfile = { ...selectedProfile, ...patch };
     if (!isMember) {
-      setProfiles(await updateLocalFamilyProfile(nextProfile));
+      await updateLocalFamilyProfile(nextProfile);
+      await reloadProfiles();
       setMessage("이 기기의 가족 프로필을 업데이트했습니다.");
       return;
     }
-    setProfiles((current) => current.map((item) => String(item.profileId) === String(nextProfile.profileId) ? nextProfile : item));
     setMessage("서버 저장 API는 다음 단계에서 PATCH로 연결됩니다. 현재 화면 상태에는 반영했습니다.");
   };
 
@@ -154,7 +127,7 @@ export function FamilyMyPageScreen() {
     await clearLocalUserData();
     setFavorites([]);
     setRecentPlaces([]);
-    if (!isMember) setProfiles([]);
+    if (!isMember) await reloadProfiles();
     setMessage("이 기기에 저장된 기록을 삭제했습니다.");
   };
 
@@ -172,7 +145,7 @@ export function FamilyMyPageScreen() {
         {profiles.map((profile) => {
           const active = String(profile.profileId) === String(selectedProfile?.profileId);
           return (
-            <Pressable key={String(profile.profileId)} style={[styles.profileChip, active && styles.activeProfileChip]} onPress={() => selectProfile(profile.profileId)}>
+            <Pressable key={String(profile.profileId)} style={[styles.profileChip, active && styles.activeProfileChip]} onPress={() => handleSelectProfile(profile.profileId)}>
               <Text style={[styles.profileChipText, active && styles.activeProfileChipText]}>{profile.profileName}</Text>
             </Pressable>
           );
@@ -204,7 +177,7 @@ export function FamilyMyPageScreen() {
           <TextInput style={styles.input} placeholder="생년월일 YYYY-MM-DD" placeholderTextColor={colors.textMuted} value={draft.birthDate ?? ""} onChangeText={(value) => setDraft((current) => ({ ...current, birthDate: value }))} />
           <TextInput style={styles.input} placeholder="연락처" placeholderTextColor={colors.textMuted} value={draft.phone ?? ""} onChangeText={(value) => setDraft((current) => ({ ...current, phone: value }))} />
         </View>
-        <ActionButton label="가족 등록" icon="account-plus" onPress={addProfile} />
+        <ActionButton label="가족 등록" icon="account-plus" onPress={addDraftProfile} />
       </KrdsCard>
 
       {selectedProfile ? (
@@ -254,7 +227,7 @@ export function FamilyMyPageScreen() {
   );
 }
 
-function CurrentProfileSummary({ isMember, sessionName, profile }: { isMember: boolean; sessionName?: string; profile?: FamilyProfile }) {
+function CurrentProfileSummary({ isMember, sessionName, profile }: { isMember: boolean; sessionName?: string; profile?: FamilyProfile | null }) {
   return (
     <KrdsCard>
       <View style={styles.rowBetween}>

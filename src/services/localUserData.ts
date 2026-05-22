@@ -30,6 +30,8 @@ export type StoredPlace = {
   placeId: string;
   placeName: string;
   placeType: string;
+  profileId?: string | number;
+  profileName?: string;
   address: string;
   phone: string;
   memo?: string;
@@ -116,11 +118,13 @@ export async function getLocalRecentPlaces(): Promise<StoredPlace[]> {
   return readJson<StoredPlace[]>(recentPlacesKey, []);
 }
 
-export async function saveLocalRecentPlace(facility: MedicalFacility): Promise<StoredPlace[]> {
+export async function saveLocalRecentPlace(facility: MedicalFacility, profile?: FamilyProfile | null): Promise<StoredPlace[]> {
   const place: StoredPlace = {
     placeId: facility.id,
     placeName: facility.name,
     placeType: facility.type,
+    profileId: profile?.profileId,
+    profileName: profile?.profileName,
     address: facility.address,
     phone: facility.phone,
     viewedAt: new Date().toISOString()

@@ -6,6 +6,9 @@ import { ActionButton } from "@/components/ActionButton";
 import { KrdsCard } from "@/components/KrdsCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { findNearbyFacilities } from "@/services/medicalFacilityService";
+import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import { familyFacilityScore, familyRecommendation } from "@/family/familyRecommendations";
 import {
   getLocalFavoritePlaces,
   getLocalRecentPlaces,
@@ -23,6 +26,7 @@ const sortOptions = ["거리순", "영업중 우선", "마감 임박 제외", "�
 type ViewMode = "map" | "list";
 
 export function MedicalMapScreen() {
+  const { selectedProfile } = useFamilyProfile();
   const [facilities, setFacilities] = useState<MedicalFacility[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<MedicalFacility | null>(null);
   const [activeFilters, setActiveFilters] = useState<string[]>(["내 주변", "영업중"]);
@@ -32,6 +36,7 @@ export function MedicalMapScreen() {
   const [locationRequested, setLocationRequested] = useState(false);
   const [favoritePlaces, setFavoritePlaces] = useState<StoredPlace[]>([]);
   const [recentPlaces, setRecentPlaces] = useState<StoredPlace[]>([]);
+  const recommendation = useMemo(() => familyRecommendation(selectedProfile), [selectedProfile]);
 
   useEffect(() => {
     findNearbyFacilities().then((items) => {
@@ -40,7 +45,7 @@ export function MedicalMapScreen() {
     });
     getLocalFavoritePlaces().then(setFavoritePlaces);
     getLocalRecentPlaces().then(setRecentPlaces);
-  }, []);
+  }, [selectedProfile?.profileId]);
 
   const visibleFacilities = useMemo(() => {
     const normalizedQuery = query.trim();
@@ -59,12 +64,14 @@ export function MedicalMapScreen() {
           .includes(normalizedQuery);
       })
       .sort((a, b) => {
+        const familyScore = familyFacilityScore(b, selectedProfile) - familyFacilityScore(a, selectedProfile);
+        if (familyScore !== 0) return familyScore;
         if (sort === "영업중 우선") return Number(b.isOpen) - Number(a.isOpen) || a.distanceKm - b.distanceKm;
         if (sort === "전화번호 우선") return Number(b.hasPhone) - Number(a.hasPhone) || a.distanceKm - b.distanceKm;
         if (sort === "마감 임박 제외") return Number(a.closingSoonMinutes ?? 999) - Number(b.closingSoonMinutes ?? 999);
         return a.distanceKm - b.distanceKm;
       });
-  }, [activeFilters, facilities, query, sort]);
+  }, [activeFilters, facilities, query, selectedProfile, sort]);
 
   const topOpenFacilities = visibleFacilities.filter((facility) => facility.operatingStatus === "open_expected").slice(0, 3);
 
@@ -76,7 +83,7 @@ export function MedicalMapScreen() {
 
   const selectFacility = async (facility: MedicalFacility) => {
     setSelectedFacility(facility);
-    setRecentPlaces(await saveLocalRecentPlace(facility));
+    setRecentPlaces(await saveLocalRecentPlace(facility, selectedProfile));
   };
 
   const addFavorite = async (facility: MedicalFacility) => {
@@ -85,6 +92,8 @@ export function MedicalMapScreen() {
         placeId: facility.id,
         placeName: facility.name,
         placeType: facility.type,
+        profileId: selectedProfile?.profileId,
+        profileName: selectedProfile?.profileName,
         address: facility.address,
         phone: facility.phone
       })
@@ -93,16 +102,30 @@ export function MedicalMapScreen() {
 
   return (
     <AppScreen>
+      <CurrentFamilyBanner />
+
       <SectionHeader
         title="약국병원"
-        description="지금 갈 수 있는 곳을 먼저 보여주고, 방문 전 전화 확인을 돕습니다."
+        description={`${selectedProfile?.profileName ?? "나"} 기준으로 지금 갈 수 있는 곳을 먼저 보여줍니다.`}
       />
+
+      <KrdsCard>
+        <Text style={styles.cardTitle}>{recommendation.title}</Text>
+        <Text style={styles.body}>{recommendation.description}</Text>
+        <View style={styles.chipRow}>
+          {recommendation.chips.map((chip) => (
+            <Pressable key={chip} style={styles.recommendChip} onPress={() => setQuery(chip.replace("문 연 ", "").replace("가까운 ", ""))}>
+              <Text style={styles.recommendChipText}>{chip}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </KrdsCard>
 
       <View style={styles.searchBox}>
         <MaterialCommunityIcons name="magnify" size={24} color={colors.primary} />
         <TextInput
           accessibilityLabel="약국병원 상황 검색"
-          placeholder="야간 약국, 일요일 병원, 소아과, 응급실"
+          placeholder={recommendation.queryHints.join(", ")}
           placeholderTextColor={colors.textMuted}
           style={styles.searchInput}
           value={query}
@@ -195,8 +218,8 @@ export function MedicalMapScreen() {
       <KrdsCard>
         <Text style={styles.meta}>즐겨찾기</Text>
         <Text style={styles.body}>{favoritePlaces.length ? favoritePlaces.map((item) => item.placeName).join(" · ") : "아직 저장한 장소가 없습니다."}</Text>
-        <Text style={styles.meta}>최근 본 장소</Text>
-        <Text style={styles.body}>{recentPlaces.length ? recentPlaces.map((item) => item.placeName).join(" · ") : "최근 본 장소가 없습니다."}</Text>
+        <Text style={styles.meta}>{selectedProfile?.profileName ?? "나"} 기준 최근 본 장소</Text>
+        <Text style={styles.body}>{recentPlaces.length ? recentPlaces.filter((item) => !item.profileId || String(item.profileId) === String(selectedProfile?.profileId)).map((item) => item.placeName).join(" · ") || "현재 가족 기준 최근 본 장소가 없습니다." : "최근 본 장소가 없습니다."}</Text>
       </KrdsCard>
 
       {selectedFacility ? <FacilityBottomSheet facility={selectedFacility} onFavorite={() => addFavorite(selectedFacility)} /> : null}
@@ -496,5 +519,18 @@ const styles = StyleSheet.create({
   },
   navigationApps: {
     gap: spacing.xs
+  },
+  recommendChip: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    justifyContent: "center",
+    backgroundColor: colors.surface
+  },
+  recommendChipText: {
+    ...typography.caption,
+    color: colors.primary
   }
 });

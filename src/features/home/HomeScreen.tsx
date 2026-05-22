@@ -3,12 +3,15 @@ import { router } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { ActionButton } from "@/components/ActionButton";
+import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { KrdsCard } from "@/components/KrdsCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { useAccessibilitySettings } from "@/theme/AccessibilityProvider";
+import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import { familyRecommendation } from "@/family/familyRecommendations";
 
 const quickActions = [
   { label: "AI 알약", icon: "camera-outline" as const },
@@ -19,9 +22,13 @@ const quickActions = [
 
 export function HomeScreen() {
   const { highContrast, largeText, toggleHighContrast, toggleLargeText } = useAccessibilitySettings();
+  const { selectedProfile } = useFamilyProfile();
+  const recommendation = familyRecommendation(selectedProfile);
 
   return (
     <AppScreen>
+      <CurrentFamilyBanner />
+
       <View style={styles.hero}>
         <Image source={require("../../../app_img/allcaremedi.png")} style={styles.heroImage} resizeMode="contain" />
         <View style={styles.heroText}>
@@ -51,6 +58,15 @@ export function HomeScreen() {
           </Pressable>
         ))}
       </View>
+
+      <KrdsCard>
+        <SectionHeader title={`${selectedProfile?.profileName ?? "나"} 맞춤 바로가기`} description={recommendation.description} />
+        <View style={styles.buttonRow}>
+          {recommendation.chips.map((chip) => (
+            <ActionButton key={chip} label={chip} icon="account-search-outline" tone="secondary" />
+          ))}
+        </View>
+      </KrdsCard>
 
       <KrdsCard>
         <SectionHeader title="접근성 설정" description="고령층과 저시력 사용자를 위한 표시 옵션입니다." />
