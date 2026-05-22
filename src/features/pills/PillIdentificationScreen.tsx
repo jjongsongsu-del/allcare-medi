@@ -280,6 +280,7 @@ export function PillIdentificationScreen() {
       purpose: draft.purpose,
       timing: "식후",
       takingMethod: "경구",
+      schedule: activeStep === "schedule" ? "매일 08:00" : undefined,
       memo: draft.memo,
       durWarnings: duplicate ? ["이미 등록된 약과 이름이 비슷합니다. 중복 복용 여부를 확인하세요."] : [],
       status: activeStep === "schedule" ? "taking" : "scheduled",
