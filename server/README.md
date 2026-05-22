@@ -36,6 +36,15 @@ uvicorn app.main:app --reload --port 8000
 
 관리 대상 API는 `doc/api`의 가이드 문서를 기준으로 `app/public_api_registry.py`에 등록합니다.
 
+## 인증 API
+
+- `POST /api/auth/social-login`: Google/Kakao/Naver 소셜 토큰을 서버로 전달하고 서비스 토큰을 발급합니다.
+- `POST /api/auth/refresh`: refresh token rotation으로 새 토큰을 발급합니다.
+- `POST /api/auth/logout`: 현재 기기의 refresh token을 폐기합니다.
+- `GET /api/family-profiles`: 회원 가족 프로필 목록
+- `POST /api/family-profiles`: 회원 가족 프로필 생성
+- `POST /api/migration/guest-data`: 비회원 로컬 데이터 병합 접수
+
 ## 역할
 
 - 공공 API 키 보호와 응답 정규화

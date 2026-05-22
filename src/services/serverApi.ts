@@ -16,6 +16,16 @@ export type ManagedApiEndpoint = {
   description: string;
 };
 
+export type SocialLoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  isNewUser: boolean;
+  user: {
+    userId: number;
+    nickname: string;
+  };
+};
+
 type FacilitySearchResult = {
   id: string;
   name: string;
@@ -42,6 +52,25 @@ export async function fetchManagedApis(): Promise<ManagedApiEndpoint[]> {
   const response = await fetch(`${API_BASE_URL}/admin/apis`);
   if (!response.ok) {
     throw new Error("API 목록을 불러오지 못했습니다.");
+  }
+  return response.json();
+}
+
+export async function socialLogin(payload: {
+  provider: "GOOGLE" | "KAKAO" | "NAVER";
+  idToken: string;
+  deviceUuid: string;
+  pushToken?: string;
+}): Promise<SocialLoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/social-login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("로그인 서버 연결에 실패했습니다.");
   }
   return response.json();
 }

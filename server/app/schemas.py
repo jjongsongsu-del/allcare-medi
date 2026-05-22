@@ -97,3 +97,60 @@ class FacilitySearchResponse(BaseModel):
     source: str
     results: list[FacilitySearchResult]
     message: str | None = None
+
+
+class SocialLoginRequest(BaseModel):
+    provider: str = Field(..., pattern="^(GOOGLE|KAKAO|NAVER)$")
+    idToken: str = Field(..., min_length=8)
+    deviceUuid: str = Field(..., min_length=8, max_length=255)
+    pushToken: str | None = None
+    deviceName: str | None = Field(default=None, max_length=100)
+
+
+class AuthUser(BaseModel):
+    userId: int
+    nickname: str
+
+
+class SocialLoginResponse(BaseModel):
+    accessToken: str
+    refreshToken: str
+    isNewUser: bool
+    user: AuthUser
+
+
+class RefreshRequest(BaseModel):
+    refreshToken: str
+    deviceUuid: str
+
+
+class LogoutRequest(BaseModel):
+    refreshToken: str
+    deviceUuid: str
+
+
+class FamilyProfileCreate(BaseModel):
+    profileName: str = Field(..., min_length=1, max_length=100)
+    relationType: str | None = Field(default=None, max_length=30)
+    birthYear: int | None = None
+    birthMonth: int | None = None
+    gender: str | None = Field(default=None, max_length=20)
+    memo: str | None = None
+
+
+class FamilyProfileRead(BaseModel):
+    profileId: int
+    profileName: str
+    relationType: str | None
+    birthYear: int | None
+    birthMonth: int | None
+    gender: str | None
+    memo: str | None
+    isDefault: bool
+
+
+class GuestDataMigrationRequest(BaseModel):
+    guestId: str
+    favorites: list[dict] = []
+    recentPlaces: list[dict] = []
+    familyProfiles: list[dict] = []

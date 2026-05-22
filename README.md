@@ -27,3 +27,11 @@ npm run start
 ## API 관리자
 
 홈 화면의 `API 관리자`에서 서버가 관리하는 공공 API 목록을 확인할 수 있습니다. 서버는 `PUBLIC_DATA_SERVICE_KEY`를 이용해 공공데이터포털 API를 호출하고, 앱은 `/facilities/search`를 통해 병원·약국 검색 결과를 받습니다.
+
+## 로그인 구조
+
+앱 최초 실행 시 자동 로그인 세션이 없으면 SNS 로그인 또는 비회원 시작 화면을 보여줍니다.
+
+- SNS 로그인: 서버 `/auth/social-login`에 로그인 정보를 저장하고 access token/refresh token을 발급합니다.
+- 비회원 시작: `guest_id`를 기기 로컬에 저장하고 최근 본 장소, 즐겨찾기 같은 데이터를 기기 안에서만 관리합니다.
+- 토큰 저장: refresh token은 `expo-secure-store` 기반 저장소를 사용합니다.
