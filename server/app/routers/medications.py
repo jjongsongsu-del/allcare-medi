@@ -1,8 +1,11 @@
 import json
+import re
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_db
 from app.models import Medication, MedicationEvent, MedicationSchedule
 from app.schemas import (
@@ -75,6 +78,9 @@ def search_medicines(query: str, limit: int = 10) -> list[MedicineSearchResultRe
     normalized = query.strip().lower()
     if not normalized:
         return []
+    live_results = search_e_drug_medicines(query.strip(), limit)
+    if live_results:
+        return live_results
     matches = []
     for item in MEDICINE_SEARCH_FALLBACK:
         haystack = " ".join(
@@ -86,6 +92,94 @@ def search_medicines(query: str, limit: int = 10) -> list[MedicineSearchResultRe
     if not matches:
         matches = [MedicineSearchResultRead(**item) for item in MEDICINE_SEARCH_FALLBACK[: min(limit, 3)]]
     return matches[:limit]
+
+
+def search_e_drug_medicines(query: str, limit: int) -> list[MedicineSearchResultRead]:
+    settings = get_settings()
+    service_key = settings.e_drug_api_key or settings.public_data_service_key
+    if not service_key:
+        return []
+    try:
+        response = httpx.get(
+            "http://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList",
+            params={
+                "serviceKey": service_key,
+                "pageNo": 1,
+                "numOfRows": max(1, min(limit, 20)),
+                "itemName": query,
+                "type": "json",
+            },
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError):
+        return []
+
+    response_payload = payload.get("response", payload)
+    items = response_payload.get("body", {}).get("items", [])
+    if isinstance(items, dict):
+        items = items.get("item", items)
+    if isinstance(items, dict):
+        items = [items]
+    if not isinstance(items, list):
+        return []
+
+    results: list[MedicineSearchResultRead] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_name = item.get("itemName")
+        item_seq = str(item.get("itemSeq") or item_name or len(results))
+        efficacy = plain_text(item.get("efcyQesitm"))
+        warning = plain_text(item.get("atpnWarnQesitm")) or plain_text(item.get("atpnQesitm"))
+        results.append(
+            MedicineSearchResultRead(
+                id=f"edrug-{item_seq}",
+                name=item_name or "",
+                product_name=item_name,
+                ingredient=efficacy[:160] if efficacy else None,
+                manufacturer=item.get("entpName"),
+                dosage=infer_dosage(plain_text(item.get("useMethodQesitm"))),
+                form=infer_form(item_name or ""),
+                color=None,
+                imprint=None,
+                image_url=item.get("itemImage"),
+                efficacy=efficacy,
+                usage=plain_text(item.get("useMethodQesitm")),
+                caution=warning,
+                interaction=plain_text(item.get("intrcQesitm")),
+                side_effects=plain_text(item.get("seQesitm")),
+                storage_method=plain_text(item.get("depositMethodQesitm")),
+                source="e_drug",
+            )
+        )
+    return results[:limit]
+
+
+def plain_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = re.sub(r"<[^>]+>", " ", str(value))
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or None
+
+
+def infer_dosage(usage: str | None) -> str | None:
+    if not usage:
+        return None
+    match = re.search(r"1회\s*([0-9]+)\s*(정|캡슐|포|ml|mL)", usage)
+    if match:
+        return f"{match.group(1)}{match.group(2)}"
+    return None
+
+
+def infer_form(item_name: str) -> str | None:
+    form_keywords = ["정", "캡슐", "시럽", "액", "연고", "크림", "점안", "주사", "산", "과립"]
+    for keyword in form_keywords:
+        if keyword in item_name:
+            return f"{keyword}제" if keyword in {"정", "캡슐", "산"} else keyword
+    return None
 
 
 @router.post("", response_model=MedicationRead)

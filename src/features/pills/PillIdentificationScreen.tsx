@@ -207,7 +207,9 @@ export function PillIdentificationScreen() {
       ingredient: medicine.ingredient ?? current.ingredient,
       dosage: medicine.dosage ?? current.dosage,
       form: medicine.form ?? current.form,
-      color: medicine.color ?? current.color
+      color: medicine.color ?? current.color,
+      purpose: medicine.efficacy ?? current.purpose,
+      memo: [medicine.usage, medicine.caution, medicine.interaction, medicine.sideEffects, medicine.storageMethod].filter(Boolean).join("\n\n") || current.memo
     }));
     setActiveStep("confirm");
   };
@@ -629,7 +631,7 @@ function SearchRegistrationStep({
             </View>
             <View style={styles.resultText}>
               <Text style={styles.resultTitle}>{medicine.productName ?? medicine.name}</Text>
-              <Text style={styles.resultMeta}>{medicine.manufacturer ?? "제조사 정보 없음"} · {medicine.ingredient ?? "성분 정보 없음"}</Text>
+              <Text style={styles.resultMeta}>{medicine.manufacturer ?? "제조사 정보 없음"} · {medicine.ingredient ?? medicine.efficacy ?? "효능 정보 없음"}</Text>
               <Text style={styles.meta}>{medicine.form ?? "제형 미상"} · {medicine.color ?? "색상 미상"} · 식별문자 {medicine.imprint ?? "정보 없음"}</Text>
             </View>
             {active ? <MaterialCommunityIcons name="check-circle" size={24} color={colors.success} /> : null}
@@ -694,7 +696,7 @@ function CandidateConfirmation({ method, pills, draftName, selectedMedicine }: {
       {selectedMedicine ? (
         <View style={styles.candidateBox}>
           <Text style={styles.cardTitle}>{selectedMedicine.productName ?? selectedMedicine.name}</Text>
-          <Text style={styles.body}>{selectedMedicine.manufacturer ?? "제조사 정보 없음"} · {selectedMedicine.ingredient ?? "성분 정보 없음"}</Text>
+          <Text style={styles.body}>{selectedMedicine.manufacturer ?? "제조사 정보 없음"} · {selectedMedicine.efficacy ?? selectedMedicine.ingredient ?? "효능 정보 없음"}</Text>
           <Text style={styles.meta}>e약은 검색 결과 선택 완료 · 저장 전 최종 확인</Text>
         </View>
       ) : null}

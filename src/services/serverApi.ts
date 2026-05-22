@@ -310,6 +310,12 @@ function toMedicineSearchResult(item: any): MedicineSearchResult {
     color: item.color ?? undefined,
     imprint: item.imprint ?? undefined,
     imageUrl: item.image_url ?? undefined,
+    efficacy: item.efficacy ?? undefined,
+    usage: item.usage ?? undefined,
+    caution: item.caution ?? undefined,
+    interaction: item.interaction ?? undefined,
+    sideEffects: item.side_effects ?? undefined,
+    storageMethod: item.storage_method ?? undefined,
     source: item.source ?? "fallback"
   };
 }

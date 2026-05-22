@@ -76,6 +76,12 @@ class MedicineSearchResultRead(BaseModel):
     color: str | None = None
     imprint: str | None = None
     image_url: str | None = None
+    efficacy: str | None = None
+    usage: str | None = None
+    caution: str | None = None
+    interaction: str | None = None
+    side_effects: str | None = None
+    storage_method: str | None = None
     source: str = "fallback"
 
 

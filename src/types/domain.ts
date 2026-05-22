@@ -62,6 +62,12 @@ export type MedicineSearchResult = {
   color?: string;
   imprint?: string;
   imageUrl?: string;
+  efficacy?: string;
+  usage?: string;
+  caution?: string;
+  interaction?: string;
+  sideEffects?: string;
+  storageMethod?: string;
   source: "e_drug" | "fallback";
 };
 
