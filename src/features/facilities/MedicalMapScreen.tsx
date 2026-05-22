@@ -102,6 +102,9 @@ export function MedicalMapScreen() {
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
+        <View style={styles.iconBox}>
+          <MaterialCommunityIcons name="map-outline" size={36} color={colors.primary} />
+        </View>
         <Text style={styles.eyebrow}>지도</Text>
         <Text style={styles.title}>지금 갈 수 있는 곳</Text>
         <Text style={styles.description}>병원과 약국 운영시간은 예상값이며 방문 전 전화 확인을 권장합니다.</Text>
@@ -363,6 +366,15 @@ const styles = StyleSheet.create({
   hero: {
     paddingTop: spacing.sm,
     gap: spacing.xs
+  },
+  iconBox: {
+    width: 68,
+    height: 68,
+    borderRadius: 8,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md
   },
   eyebrow: {
     ...typography.title,

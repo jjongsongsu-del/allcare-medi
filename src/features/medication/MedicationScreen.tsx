@@ -32,6 +32,9 @@ export function MedicationScreen() {
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
+        <View style={styles.iconBox}>
+          <MaterialCommunityIcons name="clock-outline" size={36} color={colors.primary} />
+        </View>
         <Text style={styles.eyebrow}>복약</Text>
         <Text style={styles.title}>오늘 먹을 약</Text>
         <Text style={styles.description}>
@@ -190,6 +193,15 @@ const styles = StyleSheet.create({
   hero: {
     paddingTop: spacing.sm,
     gap: spacing.xs
+  },
+  iconBox: {
+    width: 68,
+    height: 68,
+    borderRadius: 8,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md
   },
   eyebrow: {
     ...typography.title,
