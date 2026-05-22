@@ -231,7 +231,7 @@ export function PillIdentificationScreen() {
       setActiveStep("schedule");
       return;
     }
-    saveDraftMedicine();
+    saveDraftMedicine({ withSchedule: true });
   };
 
   const persistMedicine = async (medicine: RegisteredMedicine) => {
@@ -256,7 +256,8 @@ export function PillIdentificationScreen() {
     setMessage("삭제 대신 복용종료로 처리했습니다. 연결된 스케줄과 이력은 보존됩니다.");
   };
 
-  const saveDraftMedicine = async () => {
+  const saveDraftMedicine = async (options?: { withSchedule?: boolean }) => {
+    const withSchedule = options?.withSchedule ?? activeStep === "schedule";
     const name = draft.name.trim();
     if (!name) {
       setMessage("약명은 필수 입력값입니다.");
@@ -280,10 +281,10 @@ export function PillIdentificationScreen() {
       purpose: draft.purpose,
       timing: "식후",
       takingMethod: "경구",
-      schedule: activeStep === "schedule" ? "매일 08:00" : undefined,
+      schedule: withSchedule ? "매일 08:00" : undefined,
       memo: draft.memo,
       durWarnings: duplicate ? ["이미 등록된 약과 이름이 비슷합니다. 중복 복용 여부를 확인하세요."] : [],
-      status: activeStep === "schedule" ? "taking" : "scheduled",
+      status: withSchedule ? "taking" : "scheduled",
       source: selectedMethod,
       favorite: false,
       highRisk: Boolean(duplicate),
@@ -298,7 +299,7 @@ export function PillIdentificationScreen() {
         })
       : (await saveLocalRegisteredMedicine(baseMedicine))[0];
 
-    if (activeStep === "schedule") {
+    if (withSchedule) {
       await saveScheduleForMedicine(savedMedicine);
     }
     await loadMedicines();
@@ -475,7 +476,7 @@ export function PillIdentificationScreen() {
         onSearch={runMedicineSearch}
         onSelectSearchResult={selectMedicineSearchResult}
         onNext={proceedRegistrationStep}
-        onSaveLater={saveDraftMedicine}
+        onSaveMedicineOnly={() => saveDraftMedicine({ withSchedule: false })}
       />
 
       {message ? <Text style={styles.successNotice}>{message}</Text> : null}
@@ -502,7 +503,7 @@ function MedicineRegistrationModal({
   onSearch,
   onSelectSearchResult,
   onNext,
-  onSaveLater
+  onSaveMedicineOnly
 }: {
   visible: boolean;
   method: RegisterMethod;
@@ -522,9 +523,9 @@ function MedicineRegistrationModal({
   onSearch: () => void;
   onSelectSearchResult: (medicine: MedicineSearchResult) => void;
   onNext: () => void;
-  onSaveLater: () => void;
+  onSaveMedicineOnly: () => void;
 }) {
-  const nextLabel = activeStep === "schedule" ? "약 저장" : activeStep === "input" && method === "search" ? "선택 후 다음" : "다음 단계";
+  const nextLabel = activeStep === "schedule" ? "약 저장" : activeStep === "confirm" ? "스케줄 등록" : activeStep === "input" && method === "search" ? "선택 후 다음" : "다음 단계";
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -542,7 +543,7 @@ function MedicineRegistrationModal({
 
           <View style={styles.stepRow}>
             <StepPill label="1 입력/검색" active={activeStep === "input"} onPress={() => onStepChange("input")} />
-            <StepPill label="2 후보 확인" active={activeStep === "confirm"} onPress={() => onStepChange("confirm")} />
+            <StepPill label="2 상세 정보" active={activeStep === "confirm"} onPress={() => onStepChange("confirm")} />
             <StepPill label="3 스케줄" active={activeStep === "schedule"} onPress={() => onStepChange("schedule")} />
           </View>
 
@@ -565,7 +566,10 @@ function MedicineRegistrationModal({
             ) : null}
 
             {activeStep === "confirm" ? (
-              <CandidateConfirmation method={method} pills={pills} draftName={draft.name} selectedMedicine={selectedSearchMedicine} />
+              <>
+                <CandidateConfirmation method={method} pills={pills} draftName={draft.name} selectedMedicine={selectedSearchMedicine} />
+                <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
+              </>
             ) : null}
 
             {activeStep === "schedule" ? <ScheduleDraft /> : null}
@@ -576,9 +580,9 @@ function MedicineRegistrationModal({
               <MaterialCommunityIcons name={activeStep === "schedule" ? "content-save-outline" : "arrow-right"} size={18} color="#FFFFFF" />
               <Text style={styles.primaryButtonText}>{nextLabel}</Text>
             </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={activeStep === "schedule" ? onSaveLater : onClose}>
-              <MaterialCommunityIcons name={activeStep === "schedule" ? "skip-next-outline" : "close-circle-outline"} size={18} color={colors.primary} />
-              <Text style={styles.secondaryButtonText}>{activeStep === "schedule" ? "스케줄 없이 저장" : "닫기"}</Text>
+            <Pressable style={styles.secondaryButton} onPress={activeStep === "confirm" || activeStep === "schedule" ? onSaveMedicineOnly : onClose}>
+              <MaterialCommunityIcons name={activeStep === "confirm" || activeStep === "schedule" ? "skip-next-outline" : "close-circle-outline"} size={18} color={colors.primary} />
+              <Text style={styles.secondaryButtonText}>{activeStep === "confirm" || activeStep === "schedule" ? "약만 등록" : "닫기"}</Text>
             </Pressable>
           </View>
         </View>
