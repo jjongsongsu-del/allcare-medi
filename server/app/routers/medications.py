@@ -168,9 +168,9 @@ def plain_text(value: object) -> str | None:
 def infer_dosage(usage: str | None) -> str | None:
     if not usage:
         return None
-    match = re.search(r"1회\s*([0-9]+)\s*(정|캡슐|포|ml|mL)", usage)
+    match = re.search(r"1회\s*([0-9]+(?:\s*~\s*[0-9]+)?)\s*(정|캡슐|포|ml|mL)", usage)
     if match:
-        return f"{match.group(1)}{match.group(2)}"
+        return f"{match.group(1).replace(' ', '')}{match.group(2)}"
     return None
 
 
