@@ -3,157 +3,330 @@ import { router } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { ActionButton } from "@/components/ActionButton";
-import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
-import { KrdsCard } from "@/components/KrdsCard";
-import { SectionHeader } from "@/components/SectionHeader";
+import { useAuth } from "@/auth/AuthProvider";
+import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
-import { useAccessibilitySettings } from "@/theme/AccessibilityProvider";
-import { useFamilyProfile } from "@/family/FamilyProfileProvider";
-import { familyRecommendation } from "@/family/familyRecommendations";
-
-const quickActions = [
-  { label: "AI 알약", icon: "camera-outline" as const },
-  { label: "주변 약국", icon: "map-marker-radius-outline" as const },
-  { label: "건강백과", icon: "book-open-page-variant-outline" as const },
-  { label: "응급실", icon: "hospital-box-outline" as const }
-];
 
 export function HomeScreen() {
-  const { highContrast, largeText, toggleHighContrast, toggleLargeText } = useAccessibilitySettings();
+  const { session } = useAuth();
   const { selectedProfile } = useFamilyProfile();
-  const recommendation = familyRecommendation(selectedProfile);
+  const displayName = selectedProfile?.profileName ?? (session?.mode === "guest" ? "비회원" : "나");
+  const accountLabel = session?.mode === "member" ? session.nickname ?? "회원" : "비회원";
 
   return (
-    <AppScreen>
-      <CurrentFamilyBanner />
-
+    <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
-        <Image source={require("../../../app_img/allcaremedi.png")} style={styles.heroImage} resizeMode="contain" />
-        <View style={styles.heroText}>
-          <Text style={styles.greeting}>헬시가 도와드릴게요</Text>
-          <Text style={styles.title}>무엇을 찾고 계신가요?</Text>
+        <View style={styles.heroCopy}>
+          <Text style={styles.eyebrow}>전국 어디서나</Text>
+          <Text style={styles.logoTitle}>올케어메디</Text>
+          <Text style={styles.subtitle}>내 손안의 가족 주치의</Text>
+        </View>
+        <Image source={require("../../../app_img/allcaremedi.png")} style={styles.mascot} resizeMode="contain" />
+      </View>
+
+      <Pressable style={styles.profileCard} onPress={() => router.push("/(tabs)/family")}>
+        <View style={styles.avatar} />
+        <View style={styles.profileText}>
+          <Text style={styles.profileName}>{displayName}</Text>
+          <Text style={styles.profileMeta}>{accountLabel}</Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={28} color={colors.textMuted} />
+      </Pressable>
+
+      <View style={styles.searchCard}>
+        <Text style={styles.cardTitle}>통합검색</Text>
+        <View style={styles.searchBox}>
+          <TextInput
+            accessibilityLabel="통합 검색"
+            placeholder="약품, 약국, 병원명을 검색하세요"
+            placeholderTextColor={colors.textMuted}
+            style={styles.searchInput}
+          />
+          <Pressable accessibilityRole="button" style={styles.searchButton}>
+            <Text style={styles.searchButtonText}>검색</Text>
+          </Pressable>
         </View>
       </View>
 
-      <View style={styles.searchBox}>
-        <MaterialCommunityIcons name="magnify" size={24} color={colors.primary} />
-        <TextInput
-          accessibilityLabel="통합 검색"
-          placeholder="질병, 약품, 병원, 증상을 검색"
-          placeholderTextColor={colors.textMuted}
-          style={styles.searchInput}
-        />
-        <Pressable accessibilityRole="button" style={styles.iconButton}>
-          <MaterialCommunityIcons name="camera-outline" size={22} color={colors.onPrimary} />
+      <View style={styles.aiCard}>
+        <Text style={styles.cardTitle}>AI 약 판독</Text>
+        <Text style={styles.aiText}>촬영한 약과 유사한 후보를 찾고, 복용 전 약사 또는 의사 확인으로 연결합니다.</Text>
+        <Pressable style={styles.primarySmallButton} onPress={() => router.push("/(tabs)/pills")}>
+          <Text style={styles.primarySmallButtonText}>판독 시작</Text>
         </Pressable>
       </View>
 
-      <View style={styles.quickGrid}>
-        {quickActions.map((item) => (
-          <Pressable key={item.label} style={styles.quickItem} accessibilityRole="button">
-            <MaterialCommunityIcons name={item.icon} size={26} color={colors.primary} />
-            <Text style={styles.quickLabel}>{item.label}</Text>
+      <View style={styles.medicationCard}>
+        <View style={styles.rowBetween}>
+          <View>
+            <Text style={styles.cardTitle}>오늘 복약 스케줄</Text>
+            <Text style={styles.cardSubTitle}>남은 복용 0건</Text>
+          </View>
+          <Pressable style={styles.outlineMiniButton} onPress={() => router.push("/(tabs)/medication")}>
+            <Text style={styles.outlineMiniButtonText}>관리</Text>
           </Pressable>
-        ))}
+        </View>
+
+        <View style={styles.emptyMedication}>
+          <Text style={styles.emptyTitle}>등록된 복용약이 없습니다.</Text>
+          <Text style={styles.emptyText}>약 판독 결과나 직접 입력으로 내 약통을 시작해 보세요.</Text>
+        </View>
+
+        <View style={styles.medicationButtons}>
+          <Pressable style={styles.largePrimaryButton} onPress={() => router.push("/(tabs)/medication")}>
+            <Text style={styles.largePrimaryButtonText}>약관리</Text>
+          </Pressable>
+          <Pressable style={styles.largeOutlineButton} onPress={() => router.push("/(tabs)/medication")}>
+            <Text style={styles.largeOutlineButtonText}>복용등록</Text>
+          </Pressable>
+        </View>
       </View>
 
-      <KrdsCard>
-        <SectionHeader title={`${selectedProfile?.profileName ?? "나"} 맞춤 바로가기`} description={recommendation.description} />
-        <View style={styles.buttonRow}>
-          {recommendation.chips.map((chip) => (
-            <ActionButton key={chip} label={chip} icon="account-search-outline" tone="secondary" />
-          ))}
-        </View>
-      </KrdsCard>
-
-      <KrdsCard>
-        <SectionHeader title="접근성 설정" description="고령층과 저시력 사용자를 위한 표시 옵션입니다." />
-        <View style={styles.buttonRow}>
-          <ActionButton label={largeText ? "큰 글자 켜짐" : "큰 글자"} icon="format-size" tone="secondary" onPress={toggleLargeText} />
-          <ActionButton label={highContrast ? "고대비 켜짐" : "고대비"} icon="contrast-circle" tone="secondary" onPress={toggleHighContrast} />
-        </View>
-      </KrdsCard>
-
-      <KrdsCard>
-        <SectionHeader title="관리자" description="공공 API 연결 상태와 문서 기준 엔드포인트를 확인합니다." />
+      <View style={styles.secondaryGrid}>
+        <ActionButton label="병원약국" icon="hospital-building" tone="secondary" onPress={() => router.push("/(tabs)/map")} />
+        <ActionButton label="가족관리" icon="account-heart" tone="secondary" onPress={() => router.push("/(tabs)/family")} />
+        <ActionButton label="응급카드" icon="card-account-details-star-outline" tone="secondary" onPress={() => router.push("/(tabs)/emergency")} />
         <ActionButton label="API 관리자" icon="api" tone="secondary" onPress={() => router.push("/admin/apis")} />
-      </KrdsCard>
+      </View>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    gap: 20,
+    paddingHorizontal: 20,
+    backgroundColor: colors.background
+  },
   hero: {
-    minHeight: 180,
+    minHeight: 250,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: spacing.xl
+  },
+  heroCopy: {
+    flex: 1,
+    gap: 10
+  },
+  eyebrow: {
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: "900",
+    color: colors.primary
+  },
+  logoTitle: {
+    fontSize: 56,
+    lineHeight: 66,
+    fontWeight: "900",
+    color: colors.textStrong
+  },
+  subtitle: {
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: "800",
+    color: colors.text
+  },
+  mascot: {
+    width: 148,
+    height: 148
+  },
+  profileCard: {
+    minHeight: 116,
     borderRadius: 8,
-    backgroundColor: colors.primarySoft,
-    padding: spacing.lg,
+    borderWidth: 2,
+    borderColor: "#CAD7EE",
+    backgroundColor: "#F8FBFF",
+    paddingHorizontal: spacing.xl,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.lg
   },
-  heroImage: {
-    width: 104,
-    height: 104
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primary
   },
-  heroText: {
+  profileText: {
     flex: 1,
-    gap: spacing.xs
+    gap: 4
   },
-  greeting: {
-    ...typography.caption,
-    color: colors.primaryStrong
-  },
-  title: {
-    ...typography.title,
+  profileName: {
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: "900",
     color: colors.textStrong
   },
-  searchBox: {
-    minHeight: 60,
+  profileMeta: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "800",
+    color: colors.textMuted
+  },
+  searchCard: {
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: colors.primary,
-    paddingHorizontal: spacing.md,
+    borderColor: "#CAD7EE",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.xl,
+    gap: spacing.xl
+  },
+  cardTitle: {
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: "900",
+    color: colors.textStrong
+  },
+  cardSubTitle: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "800",
+    color: colors.textMuted
+  },
+  searchBox: {
+    minHeight: 74,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#CAD7EE",
+    backgroundColor: colors.surface,
     flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm
+    overflow: "hidden"
   },
   searchInput: {
     flex: 1,
-    ...typography.bodyLarge,
+    paddingHorizontal: spacing.xl,
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: "800",
     color: colors.textStrong
   },
-  iconButton: {
-    width: 40,
-    height: 40,
+  searchButton: {
+    width: 150,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary
+  },
+  searchButtonText: {
+    fontSize: 25,
+    lineHeight: 32,
+    fontWeight: "900",
+    color: colors.onPrimary
+  },
+  aiCard: {
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#AAC7FF",
+    backgroundColor: "#EAF2FF",
+    padding: spacing.xl,
+    gap: spacing.lg
+  },
+  aiText: {
+    fontSize: 25,
+    lineHeight: 36,
+    fontWeight: "800",
+    color: colors.text
+  },
+  primarySmallButton: {
+    width: 170,
+    minHeight: 68,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary
   },
-  quickGrid: {
+  primarySmallButtonText: {
+    fontSize: 25,
+    lineHeight: 32,
+    fontWeight: "900",
+    color: colors.onPrimary
+  },
+  medicationCard: {
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#CAD7EE",
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    gap: spacing.xl
+  },
+  rowBetween: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.md
   },
-  quickItem: {
-    width: "47%",
-    minHeight: 88,
+  outlineMiniButton: {
+    minWidth: 96,
+    minHeight: 64,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
+    borderColor: colors.primary,
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surface
+    justifyContent: "center"
   },
-  quickLabel: {
-    ...typography.body,
+  outlineMiniButtonText: {
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: "900",
+    color: colors.primary
+  },
+  emptyMedication: {
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#DFE5EF",
+    backgroundColor: "#F8FAFD",
+    padding: spacing.xl,
+    gap: spacing.sm
+  },
+  emptyTitle: {
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: "900",
     color: colors.textStrong
   },
-  buttonRow: {
+  emptyText: {
+    fontSize: 22,
+    lineHeight: 32,
+    fontWeight: "800",
+    color: colors.textMuted
+  },
+  medicationButtons: {
+    flexDirection: "row",
+    gap: spacing.md
+  },
+  largePrimaryButton: {
+    flex: 1,
+    minHeight: 72,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary
+  },
+  largePrimaryButtonText: {
+    fontSize: 25,
+    lineHeight: 32,
+    fontWeight: "900",
+    color: colors.onPrimary
+  },
+  largeOutlineButton: {
+    flex: 1,
+    minHeight: 72,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface
+  },
+  largeOutlineButtonText: {
+    fontSize: 25,
+    lineHeight: 32,
+    fontWeight: "900",
+    color: colors.primary
+  },
+  secondaryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
