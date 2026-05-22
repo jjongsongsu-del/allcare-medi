@@ -62,8 +62,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="family"
         options={{
-          title: "가족/마이",
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="account-heart" size={tabIconSize} color={color} />
+          title: "메뉴",
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="view-grid-outline" size={tabIconSize} color={color} />
         }}
       />
     </Tabs>
