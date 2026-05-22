@@ -12,9 +12,52 @@ from app.schemas import (
     MedicationRead,
     MedicationScheduleCreate,
     MedicationScheduleRead,
+    MedicineSearchResultRead,
 )
 
 router = APIRouter(prefix="/medications", tags=["medications"])
+
+MEDICINE_SEARCH_FALLBACK = [
+    {
+        "id": "edrug-fallback-001",
+        "name": "타이레놀정 500mg",
+        "product_name": "타이레놀정 500mg",
+        "ingredient": "아세트아미노펜",
+        "manufacturer": "한국얀센",
+        "dosage": "1정",
+        "form": "정제",
+        "color": "흰색",
+        "imprint": "TYLENOL",
+        "image_url": None,
+        "source": "fallback",
+    },
+    {
+        "id": "edrug-fallback-002",
+        "name": "게보린정",
+        "product_name": "게보린정",
+        "ingredient": "아세트아미노펜/이소프로필안티피린/카페인",
+        "manufacturer": "삼진제약",
+        "dosage": "1정",
+        "form": "정제",
+        "color": "흰색",
+        "imprint": "GB",
+        "image_url": None,
+        "source": "fallback",
+    },
+    {
+        "id": "edrug-fallback-003",
+        "name": "아모잘탄정",
+        "product_name": "아모잘탄정",
+        "ingredient": "암로디핀/로사르탄",
+        "manufacturer": "한미약품",
+        "dosage": "1정",
+        "form": "정제",
+        "color": "분홍색",
+        "imprint": "HMP",
+        "image_url": None,
+        "source": "fallback",
+    },
+]
 
 
 @router.get("", response_model=list[MedicationRead])
@@ -25,6 +68,24 @@ def list_medications(user_id: int | None = None, profile_id: int | None = None, 
     if profile_id is not None:
         query = query.filter(Medication.profile_id == profile_id)
     return query.order_by(Medication.id.desc()).all()
+
+
+@router.get("/search", response_model=list[MedicineSearchResultRead])
+def search_medicines(query: str, limit: int = 10) -> list[MedicineSearchResultRead]:
+    normalized = query.strip().lower()
+    if not normalized:
+        return []
+    matches = []
+    for item in MEDICINE_SEARCH_FALLBACK:
+        haystack = " ".join(
+            str(item.get(key) or "")
+            for key in ("name", "product_name", "ingredient", "manufacturer", "imprint")
+        ).lower()
+        if normalized in haystack:
+            matches.append(MedicineSearchResultRead(**item))
+    if not matches:
+        matches = [MedicineSearchResultRead(**item) for item in MEDICINE_SEARCH_FALLBACK[: min(limit, 3)]]
+    return matches[:limit]
 
 
 @router.post("", response_model=MedicationRead)

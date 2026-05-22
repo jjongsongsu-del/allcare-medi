@@ -1,4 +1,4 @@
-import { MedicalFacility, MedicationEvent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
+import { MedicalFacility, MedicationEvent, MedicineSchedule, MedicineSearchResult, RegisteredMedicine } from "@/types/domain";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -175,6 +175,17 @@ export async function fetchRegisteredMedicines(params: { userId: number; profile
   return payload.map(toRegisteredMedicine);
 }
 
+export async function searchMedicines(query: string): Promise<MedicineSearchResult[]> {
+  const url = new URL(`${API_BASE_URL}/medications/search`);
+  url.searchParams.set("query", query);
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error("약 검색에 실패했습니다.");
+  }
+  const payload = await response.json();
+  return payload.map(toMedicineSearchResult);
+}
+
 export async function createRegisteredMedicine(userId: number, medicine: RegisteredMedicine): Promise<RegisteredMedicine> {
   const response = await fetch(`${API_BASE_URL}/medications`, {
     method: "POST",
@@ -285,6 +296,22 @@ function toMedicalFacility(item: FacilitySearchResult): MedicalFacility {
 function extractCloseTime(hours: string): string | undefined {
   const closeTime = hours.split("~")[1];
   return closeTime?.trim();
+}
+
+function toMedicineSearchResult(item: any): MedicineSearchResult {
+  return {
+    id: String(item.id),
+    name: item.name,
+    productName: item.product_name ?? undefined,
+    ingredient: item.ingredient ?? undefined,
+    manufacturer: item.manufacturer ?? undefined,
+    dosage: item.dosage ?? undefined,
+    form: item.form ?? undefined,
+    color: item.color ?? undefined,
+    imprint: item.imprint ?? undefined,
+    imageUrl: item.image_url ?? undefined,
+    source: item.source ?? "fallback"
+  };
 }
 
 function toRegisteredMedicine(item: any): RegisteredMedicine {

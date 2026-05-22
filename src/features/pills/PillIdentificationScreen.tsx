@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useAuth } from "@/auth/AuthProvider";
@@ -13,15 +13,26 @@ import {
   updateLocalRegisteredMedicine
 } from "@/services/localUserData";
 import { recognizePillFromImage } from "@/services/pillRecognitionService";
-import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, updateRegisteredMedicine } from "@/services/serverApi";
+import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, searchMedicines, updateRegisteredMedicine } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
-import { MedicationEvent, MedicineSchedule, Pill, RegisteredMedicine } from "@/types/domain";
+import { MedicationEvent, MedicineSchedule, MedicineSearchResult, Pill, RegisteredMedicine } from "@/types/domain";
 
 type PillTab = "medicine" | "prescription";
 type RegisterMethod = "manual" | "search" | "prescription" | "ai";
 type RegisterStep = "input" | "confirm" | "schedule";
+type MedicineDraft = {
+  name: string;
+  alias: string;
+  manufacturer: string;
+  ingredient: string;
+  dosage: string;
+  form: string;
+  color: string;
+  purpose: string;
+  memo: string;
+};
 const registrationMethods: Array<{
   key: RegisterMethod;
   title: string;
@@ -85,9 +96,15 @@ export function PillIdentificationScreen() {
   const [activeTab, setActiveTab] = useState<PillTab>("medicine");
   const [selectedMethod, setSelectedMethod] = useState<RegisterMethod>("manual");
   const [activeStep, setActiveStep] = useState<RegisterStep>("input");
+  const [registrationModalVisible, setRegistrationModalVisible] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [medicineSearchQuery, setMedicineSearchQuery] = useState("");
+  const [medicineSearchResults, setMedicineSearchResults] = useState<MedicineSearchResult[]>([]);
+  const [selectedSearchMedicine, setSelectedSearchMedicine] = useState<MedicineSearchResult | null>(null);
+  const [medicineSearchLoading, setMedicineSearchLoading] = useState(false);
+  const [medicineSearchError, setMedicineSearchError] = useState<string | null>(null);
   const [listFilter, setListFilter] = useState("전체");
-  const [draft, setDraft] = useState({
+  const [draft, setDraft] = useState<MedicineDraft>({
     name: "",
     alias: "",
     manufacturer: "",
@@ -138,6 +155,82 @@ export function PillIdentificationScreen() {
   }, [listFilter, medicines, searchText]);
 
   const selectedMethodMeta = registrationMethods.find((method) => method.key === selectedMethod) ?? registrationMethods[0];
+
+  const openRegistrationModal = (method: RegisterMethod) => {
+    setSelectedMethod(method);
+    setActiveStep("input");
+    setRegistrationModalVisible(true);
+    setMedicineSearchError(null);
+    if (method !== "search") {
+      setSelectedSearchMedicine(null);
+      setMedicineSearchResults([]);
+    }
+  };
+
+  const closeRegistrationModal = () => {
+    setRegistrationModalVisible(false);
+    setSelectedSearchMedicine(null);
+    setMedicineSearchResults([]);
+    setMedicineSearchQuery("");
+    setActiveStep("input");
+  };
+
+  const runMedicineSearch = async () => {
+    const query = medicineSearchQuery.trim();
+    if (!query) {
+      setMedicineSearchError("검색할 약명, 성분명 또는 식별문자를 입력해 주세요.");
+      return;
+    }
+    setMedicineSearchLoading(true);
+    setMedicineSearchError(null);
+    setSelectedSearchMedicine(null);
+    try {
+      const results = await searchMedicines(query);
+      setMedicineSearchResults(results);
+      if (!results.length) {
+        setMedicineSearchError("검색 결과가 없습니다. 약명이나 성분명을 조금 더 넓게 입력해 보세요.");
+      }
+    } catch {
+      setMedicineSearchError("e약은 검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setMedicineSearchResults([]);
+    } finally {
+      setMedicineSearchLoading(false);
+    }
+  };
+
+  const selectMedicineSearchResult = (medicine: MedicineSearchResult) => {
+    setSelectedSearchMedicine(medicine);
+    setDraft((current) => ({
+      ...current,
+      name: medicine.productName ?? medicine.name,
+      manufacturer: medicine.manufacturer ?? current.manufacturer,
+      ingredient: medicine.ingredient ?? current.ingredient,
+      dosage: medicine.dosage ?? current.dosage,
+      form: medicine.form ?? current.form,
+      color: medicine.color ?? current.color
+    }));
+    setActiveStep("confirm");
+  };
+
+  const proceedRegistrationStep = () => {
+    if (selectedMethod === "search" && activeStep === "input") {
+      if (!selectedSearchMedicine) {
+        setMedicineSearchError("검색 결과에서 등록할 약을 먼저 선택해 주세요.");
+        return;
+      }
+      setActiveStep("confirm");
+      return;
+    }
+    if (activeStep === "input") {
+      setActiveStep("confirm");
+      return;
+    }
+    if (activeStep === "confirm") {
+      setActiveStep("schedule");
+      return;
+    }
+    saveDraftMedicine();
+  };
 
   const persistMedicine = async (medicine: RegisteredMedicine) => {
     if (isMember && session?.userId && !medicine.id.startsWith("local-")) {
@@ -208,7 +301,11 @@ export function PillIdentificationScreen() {
     await loadMedicines();
     setMessage(duplicate ? "약을 저장했습니다. 다만 기존 등록 약과 중복 가능성이 있어 확인이 필요합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
     setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "" });
+    setSelectedSearchMedicine(null);
+    setMedicineSearchResults([]);
+    setMedicineSearchQuery("");
     setActiveStep("input");
+    setRegistrationModalVisible(false);
   };
 
   const saveScheduleForMedicine = async (medicine: RegisteredMedicine) => {
@@ -291,51 +388,9 @@ export function PillIdentificationScreen() {
             description={method.description}
             icon={method.icon}
             active={selectedMethod === method.key}
-            onPress={() => {
-              setSelectedMethod(method.key);
-              setActiveStep("input");
-            }}
+            onPress={() => openRegistrationModal(method.key)}
           />
         ))}
-      </View>
-
-      <View style={styles.flowCard}>
-        <View style={styles.listHeader}>
-          <View style={styles.flex}>
-            <Text style={styles.sectionTitle}>약 등록 절차</Text>
-            <Text style={styles.body}>{selectedMethodMeta.title} · 최대 3단계로 완료합니다.</Text>
-          </View>
-          <View style={styles.saveBadge}>
-            <Text style={styles.saveBadgeText}>임시저장</Text>
-          </View>
-        </View>
-
-        <View style={styles.stepRow}>
-          <StepPill label="1 입력/인식" active={activeStep === "input"} onPress={() => setActiveStep("input")} />
-          <StepPill label="2 후보 확인" active={activeStep === "confirm"} onPress={() => setActiveStep("confirm")} />
-          <StepPill label="3 스케줄" active={activeStep === "schedule"} onPress={() => setActiveStep("schedule")} />
-        </View>
-
-        {activeStep === "input" ? (
-          <RegistrationInput method={selectedMethod} draft={draft} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} />
-        ) : null}
-
-        {activeStep === "confirm" ? (
-          <CandidateConfirmation method={selectedMethod} pills={pills} draftName={draft.name} />
-        ) : null}
-
-        {activeStep === "schedule" ? <ScheduleDraft /> : null}
-
-        <View style={styles.resultActions}>
-          <Pressable style={styles.primaryButton} onPress={() => activeStep === "schedule" ? saveDraftMedicine() : setActiveStep(activeStep === "input" ? "confirm" : "schedule")}>
-            <MaterialCommunityIcons name={activeStep === "schedule" ? "content-save-outline" : "arrow-right"} size={18} color="#FFFFFF" />
-            <Text style={styles.primaryButtonText}>{activeStep === "schedule" ? "약 저장" : "다음 단계"}</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton}>
-            <MaterialCommunityIcons name="skip-next-outline" size={18} color={colors.primary} />
-            <Text style={styles.secondaryButtonText}>나중에 설정</Text>
-          </Pressable>
-        </View>
       </View>
 
       <View style={styles.todayCard}>
@@ -356,7 +411,7 @@ export function PillIdentificationScreen() {
       <View style={styles.listCard}>
         <View style={styles.listHeader}>
           <Text style={styles.sectionTitle}>등록된 약 목록</Text>
-          <Pressable style={styles.addButton} onPress={() => setActiveStep("input")}>
+          <Pressable style={styles.addButton} onPress={() => openRegistrationModal("manual")}>
             <Text style={styles.addButtonText}>등록</Text>
           </Pressable>
         </View>
@@ -398,8 +453,190 @@ export function PillIdentificationScreen() {
         <AiCandidateCard key={pill.id} pill={pill} />
       ))}
 
+      <MedicineRegistrationModal
+        visible={registrationModalVisible}
+        method={selectedMethod}
+        methodTitle={selectedMethodMeta.title}
+        activeStep={activeStep}
+        draft={draft}
+        pills={pills}
+        searchQuery={medicineSearchQuery}
+        searchResults={medicineSearchResults}
+        selectedSearchMedicine={selectedSearchMedicine}
+        searchLoading={medicineSearchLoading}
+        searchError={medicineSearchError}
+        onClose={closeRegistrationModal}
+        onStepChange={setActiveStep}
+        onDraftChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+        onSearchQueryChange={setMedicineSearchQuery}
+        onSearch={runMedicineSearch}
+        onSelectSearchResult={selectMedicineSearchResult}
+        onNext={proceedRegistrationStep}
+        onSaveLater={saveDraftMedicine}
+      />
+
       {message ? <Text style={styles.successNotice}>{message}</Text> : null}
     </AppScreen>
+  );
+}
+
+function MedicineRegistrationModal({
+  visible,
+  method,
+  methodTitle,
+  activeStep,
+  draft,
+  pills,
+  searchQuery,
+  searchResults,
+  selectedSearchMedicine,
+  searchLoading,
+  searchError,
+  onClose,
+  onStepChange,
+  onDraftChange,
+  onSearchQueryChange,
+  onSearch,
+  onSelectSearchResult,
+  onNext,
+  onSaveLater
+}: {
+  visible: boolean;
+  method: RegisterMethod;
+  methodTitle: string;
+  activeStep: RegisterStep;
+  draft: MedicineDraft;
+  pills: Pill[];
+  searchQuery: string;
+  searchResults: MedicineSearchResult[];
+  selectedSearchMedicine: MedicineSearchResult | null;
+  searchLoading: boolean;
+  searchError: string | null;
+  onClose: () => void;
+  onStepChange: (step: RegisterStep) => void;
+  onDraftChange: (patch: Partial<MedicineDraft>) => void;
+  onSearchQueryChange: (value: string) => void;
+  onSearch: () => void;
+  onSelectSearchResult: (medicine: MedicineSearchResult) => void;
+  onNext: () => void;
+  onSaveLater: () => void;
+}) {
+  const nextLabel = activeStep === "schedule" ? "약 저장" : activeStep === "input" && method === "search" ? "선택 후 다음" : "다음 단계";
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.sectionTitle}>약 등록 절차</Text>
+              <Text style={styles.body}>{methodTitle} 방식으로 약 정보 확인 후 복약 스케줄까지 설정합니다.</Text>
+            </View>
+            <Pressable style={styles.iconAction} onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.primary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.stepRow}>
+            <StepPill label="1 입력/검색" active={activeStep === "input"} onPress={() => onStepChange("input")} />
+            <StepPill label="2 후보 확인" active={activeStep === "confirm"} onPress={() => onStepChange("confirm")} />
+            <StepPill label="3 스케줄" active={activeStep === "schedule"} onPress={() => onStepChange("schedule")} />
+          </View>
+
+          <ScrollView style={styles.modalBody} contentContainerStyle={styles.modalBodyContent}>
+            {activeStep === "input" && method === "search" ? (
+              <SearchRegistrationStep
+                query={searchQuery}
+                results={searchResults}
+                selected={selectedSearchMedicine}
+                loading={searchLoading}
+                error={searchError}
+                onQueryChange={onSearchQueryChange}
+                onSearch={onSearch}
+                onSelect={onSelectSearchResult}
+              />
+            ) : null}
+
+            {activeStep === "input" && method !== "search" ? (
+              <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
+            ) : null}
+
+            {activeStep === "confirm" ? (
+              <CandidateConfirmation method={method} pills={pills} draftName={draft.name} selectedMedicine={selectedSearchMedicine} />
+            ) : null}
+
+            {activeStep === "schedule" ? <ScheduleDraft /> : null}
+          </ScrollView>
+
+          <View style={styles.modalActions}>
+            <Pressable style={styles.primaryButton} onPress={onNext}>
+              <MaterialCommunityIcons name={activeStep === "schedule" ? "content-save-outline" : "arrow-right"} size={18} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>{nextLabel}</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={activeStep === "schedule" ? onSaveLater : onClose}>
+              <MaterialCommunityIcons name={activeStep === "schedule" ? "skip-next-outline" : "close-circle-outline"} size={18} color={colors.primary} />
+              <Text style={styles.secondaryButtonText}>{activeStep === "schedule" ? "스케줄 없이 저장" : "닫기"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function SearchRegistrationStep({
+  query,
+  results,
+  selected,
+  loading,
+  error,
+  onQueryChange,
+  onSearch,
+  onSelect
+}: {
+  query: string;
+  results: MedicineSearchResult[];
+  selected: MedicineSearchResult | null;
+  loading: boolean;
+  error: string | null;
+  onQueryChange: (value: string) => void;
+  onSearch: () => void;
+  onSelect: (medicine: MedicineSearchResult) => void;
+}) {
+  return (
+    <View style={styles.inputStack}>
+      <Text style={styles.body}>e약은 API를 통해 약명, 성분명, 식별문자를 검색하고 등록할 약을 선택합니다.</Text>
+      <View style={styles.searchRegisterRow}>
+        <TextInput
+          style={[styles.input, styles.searchRegisterInput]}
+          placeholder="예: 타이레놀, 아세트아미노펜, GB"
+          placeholderTextColor={colors.textMuted}
+          value={query}
+          onChangeText={onQueryChange}
+          onSubmitEditing={onSearch}
+        />
+        <Pressable style={styles.searchRegisterButton} onPress={onSearch}>
+          {loading ? <ActivityIndicator color="#FFFFFF" /> : <MaterialCommunityIcons name="magnify" size={22} color="#FFFFFF" />}
+        </Pressable>
+      </View>
+      {error ? <Text style={styles.dangerText}>{error}</Text> : null}
+      {results.map((medicine) => {
+        const active = selected?.id === medicine.id;
+        return (
+          <Pressable key={medicine.id} style={[styles.searchResultItem, active && styles.searchResultItemActive]} onPress={() => onSelect(medicine)}>
+            <View style={styles.pillIcon}>
+              <MaterialCommunityIcons name="pill" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.resultText}>
+              <Text style={styles.resultTitle}>{medicine.productName ?? medicine.name}</Text>
+              <Text style={styles.resultMeta}>{medicine.manufacturer ?? "제조사 정보 없음"} · {medicine.ingredient ?? "성분 정보 없음"}</Text>
+              <Text style={styles.meta}>{medicine.form ?? "제형 미상"} · {medicine.color ?? "색상 미상"} · 식별문자 {medicine.imprint ?? "정보 없음"}</Text>
+            </View>
+            {active ? <MaterialCommunityIcons name="check-circle" size={24} color={colors.success} /> : null}
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -409,18 +646,8 @@ function RegistrationInput({
   onChange
 }: {
   method: RegisterMethod;
-  draft: {
-    name: string;
-    alias: string;
-    manufacturer: string;
-    ingredient: string;
-    dosage: string;
-    form: string;
-    color: string;
-    purpose: string;
-    memo: string;
-  };
-  onChange: (patch: Partial<typeof draft>) => void;
+  draft: MedicineDraft;
+  onChange: (patch: Partial<MedicineDraft>) => void;
 }) {
   const methodHint = {
     manual: "약명은 필수입니다. 제조사, 성분명, 용량, 제형, 색상, 메모를 직접 입력합니다.",
@@ -453,7 +680,7 @@ function RegistrationInput({
   );
 }
 
-function CandidateConfirmation({ method, pills, draftName }: { method: RegisterMethod; pills: Pill[]; draftName: string }) {
+function CandidateConfirmation({ method, pills, draftName, selectedMedicine }: { method: RegisterMethod; pills: Pill[]; draftName: string; selectedMedicine?: MedicineSearchResult | null }) {
   const title = method === "ai" ? "AI 후보 확인" : method === "prescription" ? "OCR 추출 결과 확인" : "약 상세 정보 확인";
 
   return (
@@ -464,6 +691,13 @@ function CandidateConfirmation({ method, pills, draftName }: { method: RegisterM
         <MaterialCommunityIcons name="alert-decagram-outline" size={18} color={noticeText} />
         <Text style={styles.warningText}>중복성분, 병용금기, 연령주의, 임부금기 정보가 있으면 쉬운 설명으로 표시합니다.</Text>
       </View>
+      {selectedMedicine ? (
+        <View style={styles.candidateBox}>
+          <Text style={styles.cardTitle}>{selectedMedicine.productName ?? selectedMedicine.name}</Text>
+          <Text style={styles.body}>{selectedMedicine.manufacturer ?? "제조사 정보 없음"} · {selectedMedicine.ingredient ?? "성분 정보 없음"}</Text>
+          <Text style={styles.meta}>e약은 검색 결과 선택 완료 · 저장 전 최종 확인</Text>
+        </View>
+      ) : null}
       {(method === "ai" ? pills : pills.slice(0, 1)).map((pill) => (
         <View key={pill.id} style={styles.candidateBox}>
           <Text style={styles.cardTitle}>{draftName || pill.productName}</Text>
@@ -1127,5 +1361,66 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.success,
     textAlign: "center"
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.42)",
+    justifyContent: "flex-end"
+  },
+  modalSheet: {
+    maxHeight: "92%",
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md
+  },
+  modalBody: {
+    maxHeight: 520
+  },
+  modalBodyContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.sm
+  },
+  modalActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  searchRegisterRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center"
+  },
+  searchRegisterInput: {
+    flex: 1
+  },
+  searchRegisterButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  searchResultItem: {
+    minHeight: 86,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  searchResultItemActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
   }
 });

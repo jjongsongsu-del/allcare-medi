@@ -51,6 +51,20 @@ export type MedicineStatus = "taking" | "scheduled" | "ended";
 export type MedicineRegistrationSource = "manual" | "search" | "prescription" | "ai";
 export type MedicineDoseStatus = "pending" | "taken" | "skipped" | "delayed";
 
+export type MedicineSearchResult = {
+  id: string;
+  name: string;
+  productName?: string;
+  ingredient?: string;
+  manufacturer?: string;
+  dosage?: string;
+  form?: string;
+  color?: string;
+  imprint?: string;
+  imageUrl?: string;
+  source: "e_drug" | "fallback";
+};
+
 export type RegisteredMedicine = {
   id: string;
   userId?: number | null;

@@ -65,6 +65,20 @@ class MedicationRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MedicineSearchResultRead(BaseModel):
+    id: str
+    name: str
+    product_name: str | None = None
+    ingredient: str | None = None
+    manufacturer: str | None = None
+    dosage: str | None = None
+    form: str | None = None
+    color: str | None = None
+    imprint: str | None = None
+    image_url: str | None = None
+    source: str = "fallback"
+
+
 class MedicationScheduleCreate(BaseModel):
     medication_id: int = Field(..., ge=1)
     profile_id: int | None = None
