@@ -82,7 +82,28 @@ class MedicineSearchResultRead(BaseModel):
     interaction: str | None = None
     side_effects: str | None = None
     storage_method: str | None = None
+    dur_warnings: list[str] = []
     source: str = "fallback"
+
+
+class DurItemRead(BaseModel):
+    item_seq: str | None = None
+    item_name: str
+    manufacturer: str | None = None
+    ingredient: str | None = None
+    type_code: str | None = None
+    type_name: str
+    class_name: str | None = None
+    storage_method: str | None = None
+    change_date: str | None = None
+
+
+class DurSafetyRead(BaseModel):
+    query: str
+    source: str
+    warnings: list[str] = []
+    items: list[DurItemRead] = []
+    message: str | None = None
 
 
 class PrescriptionOcrMedicineRead(BaseModel):

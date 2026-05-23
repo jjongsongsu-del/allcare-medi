@@ -133,6 +133,24 @@ export type FacilityReport = {
   status: "pending" | "reviewing" | "approved" | "rejected";
 };
 
+export type DurSafetyResult = {
+  query: string;
+  source: string;
+  warnings: string[];
+  items: Array<{
+    itemSeq?: string | null;
+    itemName: string;
+    manufacturer?: string | null;
+    ingredient?: string | null;
+    typeCode?: string | null;
+    typeName: string;
+    className?: string | null;
+    storageMethod?: string | null;
+    changeDate?: string | null;
+  }>;
+  message?: string | null;
+};
+
 export async function fetchManagedApis(): Promise<ManagedApiEndpoint[]> {
   const response = await fetch(`${API_BASE_URL}/admin/apis`);
   if (!response.ok) {
@@ -256,6 +274,16 @@ export async function searchMedicines(query: string): Promise<MedicineSearchResu
   }
   const payload = await response.json();
   return payload.map(toMedicineSearchResult);
+}
+
+export async function searchDurSafety(query: string): Promise<DurSafetyResult> {
+  const url = new URL(`${API_BASE_URL}/medications/dur/search`);
+  url.searchParams.set("query", query);
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error("DUR 안전정보 조회에 실패했습니다.");
+  }
+  return toDurSafetyResult(await response.json());
 }
 
 export async function uploadPrescriptionOcr(imageUri: string): Promise<PrescriptionOcrResult> {
@@ -665,7 +693,30 @@ function toMedicineSearchResult(item: any): MedicineSearchResult {
     interaction: item.interaction ?? undefined,
     sideEffects: item.side_effects ?? undefined,
     storageMethod: item.storage_method ?? undefined,
+    durWarnings: Array.isArray(item.dur_warnings) ? item.dur_warnings : [],
     source: item.source ?? "fallback"
+  };
+}
+
+function toDurSafetyResult(item: any): DurSafetyResult {
+  return {
+    query: item.query ?? "",
+    source: item.source ?? "unknown",
+    warnings: Array.isArray(item.warnings) ? item.warnings : [],
+    items: Array.isArray(item.items)
+      ? item.items.map((row: any) => ({
+          itemSeq: row.item_seq ?? null,
+          itemName: row.item_name,
+          manufacturer: row.manufacturer ?? null,
+          ingredient: row.ingredient ?? null,
+          typeCode: row.type_code ?? null,
+          typeName: row.type_name,
+          className: row.class_name ?? null,
+          storageMethod: row.storage_method ?? null,
+          changeDate: row.change_date ?? null
+        }))
+      : [],
+    message: item.message ?? null
   };
 }
 

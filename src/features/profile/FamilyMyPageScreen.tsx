@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
@@ -15,8 +16,7 @@ import {
   getLocalRegisteredMedicines,
   getLocalRecentPlaces,
   saveConsentSettings,
-  StoredPlace,
-  updateLocalFamilyProfile
+  StoredPlace
 } from "@/services/localUserData";
 import { migrateGuestData } from "@/services/serverApi";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
@@ -24,7 +24,7 @@ import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 
-type MenuTab = "mydata" | "family";
+type MenuTab = "mydata" | "family" | "consent";
 type DetailTab = "basic" | "health" | "medication" | "emergency" | "permission";
 
 type FamilyInvite = {
@@ -66,7 +66,7 @@ const consentLabels: Array<[keyof ConsentSettings, string]> = [
 
 export function FamilyMyPageScreen() {
   const { session, logout } = useAuth();
-  const { profiles, selectedProfile, selectProfile: selectFamilyProfile, addProfile, reloadProfiles } = useFamilyProfile();
+  const { profiles, selectedProfile, selectProfile: selectFamilyProfile, addProfile, updateProfile, reloadProfiles } = useFamilyProfile();
   const [activeMenu, setActiveMenu] = useState<MenuTab>("mydata");
   const [activeDetail, setActiveDetail] = useState<DetailTab>("basic");
   const [favorites, setFavorites] = useState<StoredPlace[]>([]);
@@ -77,6 +77,8 @@ export function FamilyMyPageScreen() {
   const [myDataDraft, setMyDataDraft] = useState<Partial<FamilyProfile>>({});
   const [inviteDraft, setInviteDraft] = useState({ snsId: "", relationType: "PARENT" });
   const [invites, setInvites] = useState<FamilyInvite[]>([]);
+  const [dataSummary, setDataSummary] = useState({ medicines: 0, schedules: 0, events: 0 });
+  const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const isMember = session?.mode === "member" && Boolean(session.userId);
@@ -88,6 +90,11 @@ export function FamilyMyPageScreen() {
 
   useEffect(() => {
     setMyDataDraft({
+      profileName: selectedProfile?.profileName ?? "나",
+      relationType: selectedProfile?.relationType ?? "SELF",
+      birthDate: selectedProfile?.birthDate ?? "",
+      gender: selectedProfile?.gender ?? "",
+      phone: selectedProfile?.phone ?? "",
       bloodType: selectedProfile?.bloodType ?? "",
       allergies: selectedProfile?.allergies ?? "",
       chronicDiseases: selectedProfile?.chronicDiseases ?? "",
@@ -102,16 +109,35 @@ export function FamilyMyPageScreen() {
     () => recentPlaces.filter((item) => !item.profileId || String(item.profileId) === String(selectedProfile?.profileId)),
     [recentPlaces, selectedProfile?.profileId]
   );
+  const profileCompletion = useMemo(() => {
+    const checks = [
+      selectedProfile?.profileName,
+      selectedProfile?.bloodType,
+      selectedProfile?.allergies,
+      selectedProfile?.currentMedications,
+      selectedProfile?.emergencyContact
+    ];
+    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  }, [selectedProfile]);
+  const consentCount = useMemo(() => Object.values(consents).filter(Boolean).length, [consents]);
 
   const loadData = async () => {
-    const [localFavorites, localRecent, localConsents] = await Promise.all([
+    const [localFavorites, localRecent, localConsents, medicines, medicineSchedules, medicationEvents] = await Promise.all([
       getLocalFavoritePlaces(),
       getLocalRecentPlaces(),
-      getConsentSettings()
+      getConsentSettings(),
+      getLocalRegisteredMedicines(),
+      getLocalMedicineSchedules(),
+      getLocalMedicationEvents()
     ]);
     setFavorites(localFavorites);
     setRecentPlaces(localRecent);
     setConsents(localConsents);
+    setDataSummary({
+      medicines: medicines.length,
+      schedules: medicineSchedules.length,
+      events: medicationEvents.length
+    });
   };
 
   const handleSelectProfile = async (profileId: string | number) => {
@@ -122,13 +148,8 @@ export function FamilyMyPageScreen() {
   const updateSelectedProfile = async (patch: Partial<FamilyProfile>) => {
     if (!selectedProfile) return;
     const nextProfile = { ...selectedProfile, ...patch };
-    if (!isMember) {
-      await updateLocalFamilyProfile(nextProfile);
-      await reloadProfiles();
-      setMessage("마이데이터를 이 기기에 저장했습니다.");
-      return;
-    }
-    setMessage("회원 마이데이터는 서버 PATCH API 연결 지점입니다. 현재 구조는 서버 동기화 기준으로 분리했습니다.");
+    await updateProfile(nextProfile);
+    setMessage(isMember ? "마이데이터를 서버에 동기화했습니다." : "마이데이터를 이 기기에 저장했습니다.");
   };
 
   const saveMyData = async () => {
@@ -199,6 +220,7 @@ export function FamilyMyPageScreen() {
     await clearLocalUserData();
     setFavorites([]);
     setRecentPlaces([]);
+    setDataSummary({ medicines: 0, schedules: 0, events: 0 });
     if (!isMember) await reloadProfiles();
     setMessage("이 기기에 저장된 기록을 삭제했습니다.");
   };
@@ -208,7 +230,7 @@ export function FamilyMyPageScreen() {
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
-            <MaterialCommunityIcons name="view-grid-outline" size={28} color={colors.primary} />
+            <MaterialCommunityIcons name="view-grid-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.heroTitleGroup}>
             <Text style={styles.eyebrow}>전체 메뉴</Text>
@@ -227,15 +249,30 @@ export function FamilyMyPageScreen() {
         </Text>
       </View>
 
+      <View style={styles.dashboardGrid}>
+        <DashboardMetric label="저장 방식" value={isMember ? "서버" : "기기"} icon={isMember ? "cloud-check-outline" : "cellphone-lock"} tone={isMember ? "primary" : "warning"} />
+        <DashboardMetric label="프로필 완성" value={`${profileCompletion}%`} icon="account-heart-outline" tone={profileCompletion >= 80 ? "success" : "warning"} />
+        <DashboardMetric label="복약 데이터" value={`${dataSummary.medicines}/${dataSummary.schedules}`} icon="pill" tone="primary" />
+        <DashboardMetric label="동의 항목" value={`${consentCount}/${consentLabels.length}`} icon="shield-check-outline" tone={consentCount >= 3 ? "success" : "warning"} />
+      </View>
+
+      <View style={styles.shortcutGrid}>
+        <ShortcutButton label="알약" icon="pill" onPress={() => router.push("/(tabs)/pills")} />
+        <ShortcutButton label="복약" icon="calendar-check" onPress={() => router.push("/(tabs)/medication")} />
+        <ShortcutButton label="병원약국" icon="map-marker-radius" onPress={() => router.push("/(tabs)/map")} />
+        <ShortcutButton label="응급카드" icon="card-account-details-star-outline" danger onPress={() => router.push("/(tabs)/emergency")} />
+      </View>
+
       <View style={styles.segmented}>
         <SegmentButton label="마이데이터" active={activeMenu === "mydata"} onPress={() => setActiveMenu("mydata")} />
         <SegmentButton label="가족" active={activeMenu === "family"} onPress={() => setActiveMenu("family")} />
+        <SegmentButton label="동의관리" active={activeMenu === "consent"} onPress={() => setActiveMenu("consent")} />
       </View>
 
       <View style={styles.actionGrid}>
-        <MenuTile title="마이데이터 등록" description={storageLabel} icon="database-plus-outline" active={activeMenu === "mydata"} onPress={() => setMyDataModalVisible(true)} />
+        <MenuTile title="마이데이터" description="등록/수정" icon="database-plus-outline" active={activeMenu === "mydata"} onPress={() => setActiveMenu("mydata")} />
         <MenuTile title="가족 추가" description="SNS 신청" icon="account-plus-outline" active={activeMenu === "family"} onPress={() => setFamilyInviteModalVisible(true)} />
-        <MenuTile title="동의 관리" description="개인정보" icon="file-document-check-outline" />
+        <MenuTile title="동의 관리" description="개인정보" icon="file-document-check-outline" active={activeMenu === "consent"} onPress={() => setActiveMenu("consent")} />
       </View>
 
       {activeMenu === "mydata" ? (
@@ -245,14 +282,13 @@ export function FamilyMyPageScreen() {
           profile={selectedProfile}
           favorites={favorites}
           recentPlaces={localRecentForProfile}
-          consents={consents}
           onOpenModal={() => setMyDataModalVisible(true)}
-          onToggleConsent={toggleConsent}
           onMigrate={migrateLocalData}
-          onClearRecords={clearRecords}
+          onClearRecords={() => setClearConfirmVisible(true)}
           onLogout={logout}
+          dataSummary={dataSummary}
         />
-      ) : (
+      ) : activeMenu === "family" ? (
         <FamilyPanel
           profiles={profiles}
           selectedProfile={selectedProfile}
@@ -266,6 +302,8 @@ export function FamilyMyPageScreen() {
           onUpdateProfile={updateSelectedProfile}
           onApproveInvite={approveInviteDemo}
         />
+      ) : (
+        <ConsentPanel consents={consents} onToggleConsent={toggleConsent} />
       )}
 
       {message ? <Text style={styles.successNotice}>{message}</Text> : null}
@@ -285,6 +323,18 @@ export function FamilyMyPageScreen() {
         onClose={() => setFamilyInviteModalVisible(false)}
         onSend={sendFamilyInvite}
       />
+
+      <ConfirmModal
+        visible={clearConfirmVisible}
+        title="기기 기록 삭제"
+        description="비회원 로컬 즐겨찾기, 최근 기록, 가족 프로필, 약/복약 기록이 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+        confirmLabel="삭제"
+        onConfirm={async () => {
+          setClearConfirmVisible(false);
+          await clearRecords();
+        }}
+        onClose={() => setClearConfirmVisible(false)}
+      />
     </AppScreen>
   );
 }
@@ -295,9 +345,8 @@ function MyDataPanel({
   profile,
   favorites,
   recentPlaces,
-  consents,
+  dataSummary,
   onOpenModal,
-  onToggleConsent,
   onMigrate,
   onClearRecords,
   onLogout
@@ -307,13 +356,21 @@ function MyDataPanel({
   profile?: FamilyProfile | null;
   favorites: StoredPlace[];
   recentPlaces: StoredPlace[];
-  consents: ConsentSettings;
+  dataSummary: { medicines: number; schedules: number; events: number };
   onOpenModal: () => void;
-  onToggleConsent: (key: keyof ConsentSettings) => void;
   onMigrate: () => void;
   onClearRecords: () => void;
   onLogout: () => void;
 }) {
+  const healthItems = [
+    { label: "혈액형", value: profile?.bloodType },
+    { label: "알레르기", value: profile?.allergies },
+    { label: "기저질환", value: profile?.chronicDiseases },
+    { label: "복용약", value: profile?.currentMedications },
+    { label: "응급 연락처", value: profile?.emergencyContact }
+  ];
+  const filledHealthItems = healthItems.filter((item) => Boolean(item.value));
+
   return (
     <>
       <View style={styles.listCard}>
@@ -323,35 +380,96 @@ function MyDataPanel({
             <Text style={styles.body}>{isMember ? `${sessionName ?? "회원"} 계정에 활동 기록과 건강 메모를 동기화합니다.` : "비회원 마이데이터는 이 기기에만 저장됩니다."}</Text>
           </View>
           <Pressable style={styles.addButton} onPress={onOpenModal}>
-            <Text style={styles.addButtonText}>등록</Text>
+            <Text style={styles.addButtonText}>{filledHealthItems.length ? "수정" : "등록"}</Text>
           </Pressable>
         </View>
-        <InfoLine label="현재 대상" value={profile?.profileName ?? "나"} />
-        <InfoLine label="혈액형" value={profile?.bloodType ?? "미등록"} />
-        <InfoLine label="알레르기" value={profile?.allergies ?? "미등록"} />
-        <InfoLine label="기저질환" value={profile?.chronicDiseases ?? "미등록"} />
-        <InfoLine label="복용약" value={profile?.currentMedications ?? "미등록"} />
+        <View style={styles.myDataSummary}>
+          <View style={styles.profileAvatar}>
+            <MaterialCommunityIcons name="account-heart-outline" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.cardTitle}>{profile?.profileName ?? "나"}</Text>
+            <Text style={styles.meta}>
+              {relationLabel(profile?.relationType)} · {profile?.gender || "성별 미입력"} · {profile?.birthDate || birthYearMonth(profile ?? ({ profileId: "", profileName: "" } as FamilyProfile))}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.healthChipRow}>
+          {filledHealthItems.length ? filledHealthItems.map((item) => (
+            <View key={item.label} style={styles.healthChip}>
+              <Text style={styles.healthChipLabel}>{item.label}</Text>
+              <Text style={styles.healthChipText} numberOfLines={1}>{item.value}</Text>
+            </View>
+          )) : (
+            <Pressable style={styles.emptyDataBox} onPress={onOpenModal}>
+              <MaterialCommunityIcons name="database-plus-outline" size={22} color={colors.primary} />
+              <Text style={styles.body}>아직 등록된 건강정보가 없습니다. 필요한 항목만 등록해 주세요.</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <View style={styles.listCard}>
-        <Text style={styles.sectionTitle}>저장한 정보</Text>
-        <InfoLine label="즐겨찾기" value={favorites.length ? favorites.map((item) => item.placeName).join(" · ") : "아직 저장한 장소가 없습니다."} />
-        <InfoLine label="최근 본 병원/약국" value={recentPlaces.length ? recentPlaces.map((item) => item.placeName).join(" · ") : "최근 본 장소가 없습니다."} />
+        <View style={styles.listHeader}>
+          <Text style={styles.sectionTitle}>저장한 정보</Text>
+          <Text style={styles.meta}>{isMember ? "서버 동기화" : "기기 저장"}</Text>
+        </View>
+        <View style={styles.miniMetricRow}>
+          <MiniMetric label="등록 약" value={`${dataSummary.medicines}개`} />
+          <MiniMetric label="복약 일정" value={`${dataSummary.schedules}개`} />
+          <MiniMetric label="복약 기록" value={`${dataSummary.events}건`} />
+        </View>
+        <View style={styles.placeSummaryRow}>
+          <MiniMetric label="즐겨찾기" value={`${favorites.length}곳`} />
+          <MiniMetric label="최근 본 장소" value={`${recentPlaces.length}곳`} />
+        </View>
         <View style={styles.buttonRow}>
           {isMember ? <MenuButton label="비회원 기록 병합" icon="database-import" variant="outline" onPress={onMigrate} /> : null}
           <MenuButton label="검색 기록 삭제" icon="delete-outline" variant="outline" onPress={onClearRecords} />
           <MenuButton label="로그아웃" icon="logout" variant="outline" onPress={onLogout} />
         </View>
       </View>
+    </>
+  );
+}
+
+function ConsentPanel({
+  consents,
+  onToggleConsent
+}: {
+  consents: ConsentSettings;
+  onToggleConsent: (key: keyof ConsentSettings) => void;
+}) {
+  const requiredKeys: Array<keyof ConsentSettings> = ["terms", "privacy", "age14"];
+  const optionalItems = consentLabels.filter(([key]) => !requiredKeys.includes(key));
+  const agreedRequired = requiredKeys.filter((key) => consents[key]).length;
+
+  return (
+    <>
+      <View style={styles.listCard}>
+        <View style={styles.listHeader}>
+          <View style={styles.flex}>
+            <Text style={styles.sectionTitle}>동의 관리</Text>
+            <Text style={styles.body}>약관, 개인정보, 위치, 알림 같은 동의 항목을 한곳에서 관리합니다.</Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText}>{agreedRequired}/{requiredKeys.length} 필수</Text>
+          </View>
+        </View>
+      </View>
 
       <View style={styles.listCard}>
-        <Text style={styles.sectionTitle}>약관/개인정보 동의</Text>
-        <Text style={styles.body}>민감 정보는 기능별로 따로 동의합니다.</Text>
-        {consentLabels.map(([key, label]) => (
-          <Pressable key={key} style={styles.consentRow} onPress={() => onToggleConsent(key)}>
-            <MaterialCommunityIcons name={consents[key] ? "checkbox-marked" : "checkbox-blank-outline"} size={24} color={colors.primary} />
-            <Text style={styles.body}>{label}</Text>
-          </Pressable>
+        <Text style={styles.sectionTitle}>필수 동의</Text>
+        {consentLabels.filter(([key]) => requiredKeys.includes(key)).map(([key, label]) => (
+          <ConsentRow key={key} label={label} checked={consents[key]} onPress={() => onToggleConsent(key)} required />
+        ))}
+      </View>
+
+      <View style={styles.listCard}>
+        <Text style={styles.sectionTitle}>선택 동의</Text>
+        <Text style={styles.body}>민감 정보와 편의 기능은 필요할 때만 켜도 됩니다.</Text>
+        {optionalItems.map(([key, label]) => (
+          <ConsentRow key={key} label={label} checked={consents[key]} onPress={() => onToggleConsent(key)} />
         ))}
       </View>
     </>
@@ -455,13 +573,64 @@ function ProfileDetail({
   recentPlaces: StoredPlace[];
 }) {
   if (activeTab === "basic") {
+    const basicItems = [
+      { label: "관계", value: relationLabel(profile.relationType) },
+      { label: "생년월일", value: profile.birthDate ?? birthYearMonth(profile) },
+      { label: "성별", value: profile.gender ?? "미입력" },
+      { label: "연락처", value: profile.phone ?? "미입력" }
+    ];
+    const careItems = [
+      { label: "자주 가는 병원", value: profile.favoriteHospital },
+      { label: "자주 가는 약국", value: profile.favoritePharmacy },
+      { label: "동의 상태", value: profile.consentStatus ?? "LOCAL_ONLY" },
+      { label: "최근 이용 기관", value: recentPlaces[0]?.placeName ?? favorites[0]?.placeName }
+    ].filter((item) => Boolean(item.value));
+
     return (
       <View style={styles.listCard}>
-        <Text style={styles.sectionTitle}>기본정보</Text>
-        <InfoLine label="관계" value={relationLabel(profile.relationType)} />
-        <InfoLine label="생년월일" value={profile.birthDate ?? birthYearMonth(profile)} />
-        <InfoLine label="성별" value={profile.gender ?? "미입력"} />
-        <InfoLine label="연락처" value={profile.phone ?? "미입력"} />
+        <View style={styles.listHeader}>
+          <View style={styles.flex}>
+            <Text style={styles.sectionTitle}>기본정보</Text>
+            <Text style={styles.body}>현재 가족의 기본 정보와 앱 연동 상태를 요약합니다.</Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText}>{relationLabel(profile.relationType)}</Text>
+          </View>
+        </View>
+        <View style={styles.myDataSummary}>
+          <View style={styles.profileAvatar}>
+            <MaterialCommunityIcons name="account-heart-outline" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.cardTitle}>{profile.profileName}</Text>
+            <Text style={styles.meta}>
+              {relationLabel(profile.relationType)} · {profile.gender || "성별 미입력"} · {profile.birthDate || birthYearMonth(profile)}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.healthChipRow}>
+          {basicItems.map((item) => (
+            <View key={item.label} style={styles.healthChip}>
+              <Text style={styles.healthChipLabel}>{item.label}</Text>
+              <Text style={styles.healthChipText} numberOfLines={1}>{item.value}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={styles.miniMetricRow}>
+          <MiniMetric label="조회 권한" value={profile.canView ? "가능" : "꺼짐"} />
+          <MiniMetric label="수정 권한" value={profile.canEdit ? "가능" : "꺼짐"} />
+          <MiniMetric label="알림 수신" value={profile.canReceiveAlert ? "가능" : "꺼짐"} />
+        </View>
+        {careItems.length ? (
+          <View style={styles.healthChipRow}>
+            {careItems.map((item) => (
+              <View key={item.label} style={styles.healthChip}>
+                <Text style={styles.healthChipLabel}>{item.label}</Text>
+                <Text style={styles.healthChipText} numberOfLines={1}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -534,12 +703,23 @@ function MyDataModal({
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
           <View style={styles.listHeader}>
-            <Text style={styles.sectionTitle}>마이데이터 등록</Text>
+            <Text style={styles.sectionTitle}>마이데이터 등록/수정</Text>
             <Pressable onPress={onClose} style={styles.iconButton}>
               <MaterialCommunityIcons name="close" size={24} color={colors.textStrong} />
             </Pressable>
           </View>
           <Text style={styles.body}>건강정보는 필요한 항목만 등록하고 언제든 삭제할 수 있습니다.</Text>
+          <TextInput style={styles.input} placeholder="프로필 이름 예: 나, 어머니" placeholderTextColor={colors.textMuted} value={draft.profileName ?? ""} onChangeText={(value) => onChange({ profileName: value })} />
+          <View style={styles.chipRow}>
+            {relationOptions.map((relation) => (
+              <Pressable key={relation.value} style={[styles.smallChip, draft.relationType === relation.value && styles.smallChipActive]} onPress={() => onChange({ relationType: relation.value })}>
+                <Text style={[styles.smallChipText, draft.relationType === relation.value && styles.smallChipTextActive]}>{relation.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput style={styles.input} placeholder="생년월일 예: 1980-05-12" placeholderTextColor={colors.textMuted} value={draft.birthDate ?? ""} onChangeText={(value) => onChange({ birthDate: value })} />
+          <TextInput style={styles.input} placeholder="성별 예: 여성, 남성" placeholderTextColor={colors.textMuted} value={draft.gender ?? ""} onChangeText={(value) => onChange({ gender: value })} />
+          <TextInput style={styles.input} placeholder="연락처" placeholderTextColor={colors.textMuted} value={draft.phone ?? ""} onChangeText={(value) => onChange({ phone: value })} />
           <TextInput style={styles.input} placeholder="혈액형 예: A+" placeholderTextColor={colors.textMuted} value={draft.bloodType ?? ""} onChangeText={(value) => onChange({ bloodType: value })} />
           <TextInput style={styles.input} placeholder="알레르기" placeholderTextColor={colors.textMuted} value={draft.allergies ?? ""} onChangeText={(value) => onChange({ allergies: value })} />
           <TextInput style={styles.input} placeholder="기저질환" placeholderTextColor={colors.textMuted} value={draft.chronicDiseases ?? ""} onChangeText={(value) => onChange({ chronicDiseases: value })} />
@@ -603,6 +783,65 @@ function FamilyInviteModal({
   );
 }
 
+function ConfirmModal({
+  visible,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  onClose
+}: {
+  visible: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <View style={styles.listHeader}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            <Pressable onPress={onClose} style={styles.iconButton}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.textStrong} />
+            </Pressable>
+          </View>
+          <Text style={styles.body}>{description}</Text>
+          <View style={styles.buttonRow}>
+            <MenuButton label={confirmLabel} icon="delete-outline" variant="filled" onPress={onConfirm} />
+            <MenuButton label="취소" icon="close-circle-outline" variant="outline" onPress={onClose} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ConsentRow({
+  label,
+  checked,
+  required = false,
+  onPress
+}: {
+  label: string;
+  checked: boolean;
+  required?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.consentManageRow} onPress={onPress}>
+      <MaterialCommunityIcons name={checked ? "checkbox-marked" : "checkbox-blank-outline"} size={26} color={checked ? colors.primary : colors.textMuted} />
+      <View style={styles.flex}>
+        <Text style={styles.body}>{label}</Text>
+        <Text style={styles.meta}>{required ? "서비스 이용을 위한 기본 동의" : "기능 사용 시 언제든 변경 가능"}</Text>
+      </View>
+      <Text style={[styles.consentState, checked && styles.consentStateActive]}>{checked ? "동의" : "미동의"}</Text>
+    </Pressable>
+  );
+}
+
 function SegmentButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[styles.segmentButton, active && styles.segmentButtonActive]}>
@@ -611,10 +850,60 @@ function SegmentButton({ label, active, onPress }: { label: string; active: bool
   );
 }
 
+function DashboardMetric({
+  label,
+  value,
+  icon,
+  tone
+}: {
+  label: string;
+  value: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  tone: "primary" | "success" | "warning";
+}) {
+  const warning = tone === "warning";
+  const success = tone === "success";
+  return (
+    <View style={[styles.dashboardCard, warning && styles.dashboardWarning, success && styles.dashboardSuccess]}>
+      <MaterialCommunityIcons name={icon} size={20} color={warning ? colors.warning : success ? colors.success : colors.primary} />
+      <Text style={styles.dashboardValue}>{value}</Text>
+      <Text style={styles.dashboardLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function ShortcutButton({
+  label,
+  icon,
+  danger = false,
+  onPress
+}: {
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={[styles.shortcutButton, danger && styles.shortcutDanger]} onPress={onPress}>
+      <MaterialCommunityIcons name={icon} size={20} color={danger ? "#D92D20" : colors.primary} />
+      <Text style={[styles.shortcutText, danger && styles.shortcutDangerText]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.miniMetric}>
+      <Text style={styles.miniMetricValue}>{value}</Text>
+      <Text style={styles.meta}>{label}</Text>
+    </View>
+  );
+}
+
 function MenuTile({ title, description, icon, active = false, onPress }: { title: string; description: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; active?: boolean; onPress?: () => void }) {
   return (
     <Pressable onPress={onPress} style={[styles.tile, active && styles.tileActive]}>
-      <MaterialCommunityIcons name={icon} size={28} color={active ? "#FFFFFF" : colors.primary} />
+      <MaterialCommunityIcons name={icon} size={24} color={active ? "#FFFFFF" : colors.primary} />
       <Text style={[styles.tileTitle, active && styles.tileTitleActive]}>{title}</Text>
       <Text style={[styles.tileDescription, active && styles.tileDescriptionActive]}>{description}</Text>
     </Pressable>
@@ -663,9 +952,14 @@ const noticeText = "#A83B15";
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
-    gap: spacing.lg
+    gap: spacing.md
   },
   hero: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
@@ -704,7 +998,7 @@ const styles = StyleSheet.create({
     lineHeight: 23
   },
   notice: {
-    minHeight: 104,
+    minHeight: 78,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#FDBA74",
@@ -721,8 +1015,71 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 24
   },
+  dashboardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  dashboardCard: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minHeight: 82,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.sm,
+    gap: spacing.xs
+  },
+  dashboardWarning: {
+    borderColor: "#FDBA74",
+    backgroundColor: "#FFF7ED"
+  },
+  dashboardSuccess: {
+    borderColor: "#B7E4C7",
+    backgroundColor: "#F0FFF4"
+  },
+  dashboardValue: {
+    ...typography.bodyLarge,
+    color: colors.textStrong,
+    fontWeight: "800"
+  },
+  dashboardLabel: {
+    ...typography.caption,
+    color: colors.textMuted
+  },
+  shortcutGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  shortcutButton: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minHeight: 46,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs
+  },
+  shortcutDanger: {
+    borderColor: "#FFB4AB",
+    backgroundColor: "#FFF1F1"
+  },
+  shortcutText: {
+    ...typography.button,
+    color: colors.primary
+  },
+  shortcutDangerText: {
+    color: "#D92D20"
+  },
   segmented: {
-    minHeight: 62,
+    minHeight: 52,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
@@ -733,7 +1090,7 @@ const styles = StyleSheet.create({
   },
   segmentButton: {
     flex: 1,
-    minHeight: 50,
+    minHeight: 42,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center"
@@ -754,7 +1111,7 @@ const styles = StyleSheet.create({
   },
   tile: {
     flex: 1,
-    minHeight: 122,
+    minHeight: 94,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
@@ -767,7 +1124,8 @@ const styles = StyleSheet.create({
     borderColor: colors.primary
   },
   tileTitle: {
-    ...typography.sectionTitle,
+    ...typography.bodyLarge,
+    fontWeight: "800",
     color: colors.primary
   },
   tileTitleActive: {
@@ -785,8 +1143,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
-    padding: spacing.lg,
-    gap: spacing.md
+    padding: spacing.md,
+    gap: spacing.sm
   },
   listHeader: {
     flexDirection: "row",
@@ -799,7 +1157,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs
   },
   sectionTitle: {
-    ...typography.title,
+    ...typography.sectionTitle,
     color: colors.textStrong
   },
   cardTitle: {
@@ -816,7 +1174,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     minWidth: 64,
-    minHeight: 52,
+    minHeight: 46,
     borderRadius: 8,
     backgroundColor: colors.primary,
     alignItems: "center",
@@ -830,9 +1188,87 @@ const styles = StyleSheet.create({
   infoLine: {
     gap: spacing.xs
   },
+  myDataSummary: {
+    minHeight: 70,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md
+  },
+  profileAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  healthChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  healthChip: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minHeight: 54,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    padding: spacing.sm,
+    justifyContent: "center",
+    gap: 2
+  },
+  healthChipLabel: {
+    ...typography.caption,
+    color: colors.textMuted
+  },
+  healthChipText: {
+    ...typography.body,
+    color: colors.textStrong,
+    fontWeight: "800"
+  },
+  emptyDataBox: {
+    minHeight: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
   buttonRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  miniMetricRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  miniMetric: {
+    flexBasis: "30%",
+    flexGrow: 1,
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.sm,
+    justifyContent: "center"
+  },
+  miniMetricValue: {
+    ...typography.bodyLarge,
+    color: colors.primary,
+    fontWeight: "800"
+  },
+  placeSummaryRow: {
+    flexDirection: "row",
     gap: spacing.sm
   },
   menuButton: {
@@ -867,7 +1303,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   profileChip: {
-    minHeight: 44,
+    minHeight: 38,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.primary,
@@ -935,6 +1371,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm
+  },
+  consentManageRow: {
+    minHeight: 66,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  consentState: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: "800"
+  },
+  consentStateActive: {
+    color: colors.primary
   },
   input: {
     minHeight: 52,

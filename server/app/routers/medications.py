@@ -15,6 +15,8 @@ from app.schemas import (
     MedicationRead,
     MedicationScheduleCreate,
     MedicationScheduleRead,
+    DurItemRead,
+    DurSafetyRead,
     MedicineSearchResultRead,
 )
 
@@ -32,6 +34,7 @@ MEDICINE_SEARCH_FALLBACK = [
         "color": "흰색",
         "imprint": "TYLENOL",
         "image_url": None,
+        "dur_warnings": ["용량주의 가능성: 아세트아미노펜 일일 최대용량을 확인하세요."],
         "source": "fallback",
     },
     {
@@ -45,6 +48,7 @@ MEDICINE_SEARCH_FALLBACK = [
         "color": "흰색",
         "imprint": "GB",
         "image_url": None,
+        "dur_warnings": ["효능군중복 가능성: 다른 해열진통제와 성분 중복 여부를 확인하세요."],
         "source": "fallback",
     },
     {
@@ -58,9 +62,23 @@ MEDICINE_SEARCH_FALLBACK = [
         "color": "분홍색",
         "imprint": "HMP",
         "image_url": None,
+        "dur_warnings": ["노인주의/병용주의 가능성: 혈압약 병용 여부를 전문가에게 확인하세요."],
         "source": "fallback",
     },
 ]
+
+DUR_SERVICE_BASE_URL = "https://apis.data.go.kr/1471000/DURPrdlstInfoService03"
+DUR_OPERATIONS = {
+    "병용금기": "getUsjntTabooInfoList03",
+    "노인주의": "getOdsnAtentInfoList03",
+    "DUR품목정보": "getDurPrdlstInfoList03",
+    "특정연령대금기": "getSpcifyAgrdeTabooInfoList03",
+    "용량주의": "getCpctyAtentInfoList03",
+    "투여기간주의": "getMdctnPdAtentInfoList03",
+    "효능군중복": "getEfcyDplctInfoList03",
+    "서방정분할주의": "getSeobangjeongPartitnAtentInfoList03",
+    "임부금기": "getPwnmTabooInfoList03",
+}
 
 
 @router.get("", response_model=list[MedicationRead])
@@ -93,6 +111,26 @@ def search_medicines(query: str, limit: int = 10) -> list[MedicineSearchResultRe
     return matches[:limit]
 
 
+@router.get("/dur/search", response_model=DurSafetyRead)
+def search_dur_safety(query: str, limit: int = 10) -> DurSafetyRead:
+    normalized = query.strip()
+    if not normalized:
+        return DurSafetyRead(query=query, source="empty", warnings=[], items=[])
+    settings = get_settings()
+    service_key = settings.public_data_service_key
+    if not service_key:
+        return DurSafetyRead(
+            query=normalized,
+            source="not_configured",
+            warnings=[],
+            items=[],
+            message="PUBLIC_DATA_SERVICE_KEY 설정이 필요합니다.",
+        )
+    items = fetch_dur_items(normalized, service_key, limit)
+    warnings = build_dur_warnings(items)
+    return DurSafetyRead(query=normalized, source="public-data", warnings=warnings, items=items)
+
+
 def search_e_drug_medicines(query: str, limit: int) -> list[MedicineSearchResultRead]:
     settings = get_settings()
     service_key = settings.e_drug_api_key or settings.public_data_service_key
@@ -107,6 +145,93 @@ def search_e_drug_medicines(query: str, limit: int) -> list[MedicineSearchResult
         if results:
             return results
     return []
+
+
+def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> list[DurItemRead]:
+    try:
+        response = httpx.get(
+            f"{DUR_SERVICE_BASE_URL}/getDurPrdlstInfoList03",
+            params={
+                "serviceKey": service_key,
+                "pageNo": 1,
+                "numOfRows": max(1, min(limit, 20)),
+                "itemName": query,
+                "type": "json",
+            },
+            timeout=7.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError):
+        return []
+
+    body = payload.get("body", payload.get("response", {}).get("body", {}))
+    items = body.get("items", [])
+    if isinstance(items, dict):
+        items = items.get("item", items)
+    if isinstance(items, dict):
+        items = [items]
+    if not isinstance(items, list):
+        return []
+
+    results: list[DurItemRead] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        type_name = first_value(item, "TYPE_NAME", "TYPE_NAME  ", "typeName") or "DUR 주의"
+        item_name = first_value(item, "ITEM_NAME", "itemName")
+        if not item_name:
+            continue
+        results.append(
+            DurItemRead(
+                item_seq=first_value(item, "ITEM_SEQ", "itemSeq"),
+                item_name=item_name,
+                manufacturer=first_value(item, "ENTP_NAME", "entpName"),
+                ingredient=first_value(item, "MATERIAL_NAME", "materialName"),
+                type_code=first_value(item, "TYPE_CODE", "typeCode"),
+                type_name=type_name,
+                class_name=first_value(item, "CLASS_NO", "classNo"),
+                storage_method=first_value(item, "STORAGE_METHOD", "storageMethod"),
+                change_date=first_value(item, "CHANGE_DATE", "changeDate"),
+            )
+        )
+    return results[:limit]
+
+
+def build_dur_warnings(items: list[DurItemRead]) -> list[str]:
+    warnings: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        type_names = [part.strip() for part in item.type_name.split(",") if part.strip()]
+        for type_name in type_names or [item.type_name]:
+            warning = dur_warning_text(type_name, item.item_name)
+            if warning not in seen:
+                seen.add(warning)
+                warnings.append(warning)
+    return warnings[:8]
+
+
+def dur_warning_text(type_name: str, item_name: str) -> str:
+    easy = {
+        "병용금기": "함께 복용하면 안 되는 조합 정보가 있을 수 있습니다. 현재 복용약과 함께 전문가 확인이 필요합니다.",
+        "노인주의": "고령자에게 주의가 필요한 약입니다. 부모님/노인 프로필에서는 복용 전 확인을 권장합니다.",
+        "특정연령대금기": "특정 연령대에서 사용이 제한될 수 있습니다. 자녀/청소년 프로필은 연령 확인이 필요합니다.",
+        "용량주의": "용량 주의 정보가 있습니다. 1회/1일 복용량과 처방 지시를 확인하세요.",
+        "투여기간주의": "복용 기간 주의 정보가 있습니다. 장기 복용 전 전문가 확인이 필요합니다.",
+        "효능군중복": "비슷한 효능의 약이 중복될 수 있습니다. 같은 계열 약과 함께 복용 중인지 확인하세요.",
+        "서방정분할주의": "서방정은 쪼개거나 갈아 복용하면 안 될 수 있습니다. 복용 방법을 확인하세요.",
+        "임부금기": "임신 중 주의가 필요한 약입니다. 임산부는 반드시 전문가에게 확인하세요.",
+        "첨가제주의": "첨가제 주의 정보가 있습니다. 알레르기나 과민반응 이력이 있으면 확인하세요.",
+    }
+    return f"{type_name}: {easy.get(type_name, f'{item_name}에 DUR 주의 정보가 있습니다. 전문가 확인을 권장합니다.')}"
+
+
+def first_value(item: dict, *keys: str) -> str | None:
+    for key in keys:
+        value = item.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
 
 
 def normalize_e_drug_queries(query: str) -> list[str]:
@@ -173,6 +298,7 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
         item_seq = str(item.get("itemSeq") or item_name or len(results))
         efficacy = plain_text(item.get("efcyQesitm"))
         warning = plain_text(item.get("atpnWarnQesitm")) or plain_text(item.get("atpnQesitm"))
+        dur_items = fetch_dur_items(str(item_name or query), service_key, 5)
         results.append(
             MedicineSearchResultRead(
                 id=f"edrug-{item_seq}",
@@ -191,6 +317,7 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
                 interaction=plain_text(item.get("intrcQesitm")),
                 side_effects=plain_text(item.get("seQesitm")),
                 storage_method=plain_text(item.get("depositMethodQesitm")),
+                dur_warnings=build_dur_warnings(dur_items),
                 source="e_drug",
             )
         )

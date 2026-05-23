@@ -47,6 +47,8 @@ export type MedicationSchedule = {
   instruction: string;
   adherenceRate: number;
   familyShared: boolean;
+  durWarnings?: string[];
+  highRisk?: boolean;
 };
 
 export type MedicineStatus = "taking" | "scheduled" | "ended";
@@ -70,6 +72,7 @@ export type MedicineSearchResult = {
   interaction?: string;
   sideEffects?: string;
   storageMethod?: string;
+  durWarnings?: string[];
   source: "e_drug" | "fallback";
 };
 

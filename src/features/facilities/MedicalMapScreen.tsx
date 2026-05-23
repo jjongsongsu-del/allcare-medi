@@ -319,7 +319,7 @@ export function MedicalMapScreen() {
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
-            <MaterialCommunityIcons name="map-outline" size={28} color={colors.primary} />
+            <MaterialCommunityIcons name="map-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.heroTitleGroup}>
             <Text style={styles.eyebrow}>병원약국</Text>
@@ -329,23 +329,23 @@ export function MedicalMapScreen() {
         <Text style={styles.description}>병원과 약국 운영시간은 예상값이며 방문 전 전화 확인을 권장합니다.</Text>
       </View>
 
-      <View style={styles.searchBox}>
-        <MaterialCommunityIcons name="magnify" size={24} color={colors.primary} />
-        <TextInput
-          accessibilityLabel="약국병원 상황 검색"
-          placeholder={recommendation.queryHints.join(", ")}
-          placeholderTextColor="#6B7280"
-          style={styles.searchInput}
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={() => loadFacilities(userLocation)}
-        />
-        <Pressable accessibilityRole="button" style={styles.searchSubmitButton} onPress={() => loadFacilities(userLocation)}>
-          <Text style={styles.searchSubmitText}>조회</Text>
-        </Pressable>
-      </View>
-
       <View style={styles.regionSearchPanel}>
+        <View style={styles.searchBox}>
+          <MaterialCommunityIcons name="magnify" size={20} color={colors.primary} />
+          <TextInput
+            accessibilityLabel="약국병원 상황 검색"
+            placeholder={recommendation.queryHints.join(", ")}
+            placeholderTextColor="#6B7280"
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={() => loadFacilities(userLocation)}
+          />
+          <Pressable accessibilityRole="button" style={styles.searchSubmitButton} onPress={() => loadFacilities(userLocation)}>
+            <Text style={styles.searchSubmitText}>조회</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.regionChipRow}>
           {regions.map((region) => (
             <Pressable
@@ -603,7 +603,7 @@ function QuickSaveButton({
 }) {
   return (
     <Pressable style={styles.quickSaveButton} onPress={onPress} onLongPress={onSave}>
-      <MaterialCommunityIcons name={icon} size={26} color={colors.primary} />
+      <MaterialCommunityIcons name={icon} size={22} color={colors.primary} />
       <Text style={styles.quickSaveText}>{label}</Text>
       <MaterialCommunityIcons name="content-save-outline" size={18} color={colors.textMuted} />
     </Pressable>
@@ -898,9 +898,14 @@ function facilityStatusText(facility: MedicalFacility) {
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
-    gap: spacing.lg
+    gap: spacing.md
   },
   hero: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
@@ -939,7 +944,7 @@ const styles = StyleSheet.create({
     lineHeight: 23
   },
   searchBox: {
-    minHeight: 56,
+    minHeight: 52,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
@@ -952,7 +957,7 @@ const styles = StyleSheet.create({
   searchInput: {
     ...typography.body,
     flex: 1,
-    minHeight: 52,
+    minHeight: 50,
     color: colors.textStrong
   },
   searchSubmitButton: {
@@ -1017,14 +1022,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
-    padding: spacing.lg,
+    padding: spacing.md,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.md
   },
   locationIconBox: {
-    width: 64,
-    height: 64,
+    width: 48,
+    height: 48,
     borderRadius: 8,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
@@ -1032,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   locationContent: {
     flex: 1,
-    gap: spacing.md
+    gap: spacing.sm
   },
   locationTitle: {
     ...typography.bodyLarge,
@@ -1056,7 +1061,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   quickSaveButton: {
-    minHeight: 54,
+    minHeight: 46,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
@@ -1067,7 +1072,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   quickSaveText: {
-    ...typography.button,
+    ...typography.caption,
+    fontWeight: "800",
     color: colors.primary
   },
   radiusRow: {
@@ -1240,7 +1246,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   sortChip: {
-    minHeight: 44,
+    minHeight: 38,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1270,7 +1276,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs
   },
   sectionTitle: {
-    ...typography.title,
+    ...typography.sectionTitle,
     color: colors.textStrong
   },
   sectionDescription: {
@@ -1301,7 +1307,7 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     flex: 1,
-    ...typography.title,
+    ...typography.sectionTitle,
     color: colors.textStrong
   },
   body: {

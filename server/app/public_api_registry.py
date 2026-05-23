@@ -95,6 +95,19 @@ API_ENDPOINTS = [
         doc_file="국가건강정보포털(건강정보 관련)정보.pdf",
         description="건강정보 콘텐츠 상세를 조회합니다. 별도 TOKEN 체계입니다."
     ),
+    ApiEndpoint(
+        id="mfds-dur-product-info",
+        provider="식품의약품안전처",
+        name="의약품안전사용서비스(DUR) 품목정보",
+        category="medication-safety",
+        method="GET",
+        url="https://apis.data.go.kr/1471000/DURPrdlstInfoService03/getDurPrdlstInfoList03",
+        operation="getDurPrdlstInfoList03",
+        auth_type="serviceKey",
+        enabled=True,
+        doc_file="식품의약품안전처_의약품안전사용서비스(DUR)품목정보.png",
+        description="약명 기준으로 DUR 품목 유형, 용량주의, 연령금기, 임부금기 등 안전사용 주의 정보를 조회합니다."
+    ),
 ]
 
 

@@ -1,0 +1,8 @@
+-r requirements.txt
+
+# Optional local OCR runtime for PRESCRIPTION_OCR_PROVIDER=local.
+# CPU-only PaddlePaddle wheels can be large and platform/Python-version specific,
+# so keep these unpinned until the deployment runtime is fixed.
+paddleocr
+paddlepaddle
+opencv-python-headless==4.10.0.84

@@ -2,7 +2,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { colors } from "@/theme/colors";
 
-const tabIconSize = 24;
+const tabIconSize = 22;
+const emergencyRed = "#D92D20";
 
 export default function TabLayout() {
   return (
@@ -12,14 +13,14 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          height: 68,
-          paddingBottom: 10,
-          paddingTop: 8,
+          height: 62,
+          paddingBottom: 8,
+          paddingTop: 6,
           borderTopColor: colors.border,
           backgroundColor: colors.surface
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: "700"
         }
       }}
@@ -39,13 +40,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="map"
-        options={{
-          title: "병원약국",
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="map-marker-radius" size={tabIconSize} color={color} />
-        }}
-      />
-      <Tabs.Screen
         name="medication"
         options={{
           title: "복약",
@@ -53,10 +47,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="map"
+        options={{
+          title: "병원약국",
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="map-marker-radius" size={tabIconSize} color={color} />
+        }}
+      />
+      <Tabs.Screen
         name="emergency"
         options={{
           title: "응급",
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="hospital-box" size={tabIconSize} color={color} />
+          tabBarActiveTintColor: emergencyRed,
+          tabBarIcon: () => <MaterialCommunityIcons name="hospital-box" size={tabIconSize} color={emergencyRed} />
         }}
       />
       <Tabs.Screen

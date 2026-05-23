@@ -13,8 +13,9 @@ import {
   saveLocalRegisteredMedicine,
   updateLocalRegisteredMedicine
 } from "@/services/localUserData";
+import { rescheduleLocalMedicationNotifications } from "@/services/medicationNotificationService";
 import { recognizePillFromImage } from "@/services/pillRecognitionService";
-import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
+import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, searchDurSafety, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -33,6 +34,7 @@ type MedicineDraft = {
   color: string;
   purpose: string;
   memo: string;
+  durWarnings: string[];
 };
 type ScheduleDraftState = {
   timesPerDay: number;
@@ -131,6 +133,8 @@ export function PillIdentificationScreen() {
   const [selectedPrescriptionMedicine, setSelectedPrescriptionMedicine] = useState<PrescriptionOcrMedicine | null>(null);
   const [prescriptionOcrLoading, setPrescriptionOcrLoading] = useState(false);
   const [prescriptionOcrError, setPrescriptionOcrError] = useState<string | null>(null);
+  const [durLoading, setDurLoading] = useState(false);
+  const [durMessage, setDurMessage] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [listFilter, setListFilter] = useState("전체");
   const [draft, setDraft] = useState<MedicineDraft>({
@@ -142,7 +146,8 @@ export function PillIdentificationScreen() {
     form: "정제",
     color: "",
     purpose: "",
-    memo: ""
+    memo: "",
+    durWarnings: []
   });
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftState>(defaultScheduleDraft);
   const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
@@ -242,6 +247,7 @@ export function PillIdentificationScreen() {
   const selectMedicineSearchResult = (medicine: MedicineSearchResult) => {
     setSelectedSearchMedicine(medicine);
     setRegistrationError(null);
+    const initialDurWarnings = medicine.durWarnings ?? [];
     setDraft((current) => ({
       ...current,
       name: medicine.productName ?? medicine.name,
@@ -251,9 +257,29 @@ export function PillIdentificationScreen() {
       form: medicine.form ?? current.form,
       color: medicine.color ?? current.color,
       purpose: medicine.efficacy ?? current.purpose,
-      memo: [medicine.usage, medicine.caution, medicine.interaction, medicine.sideEffects, medicine.storageMethod].filter(Boolean).join("\n\n") || current.memo
+      memo: [medicine.usage, medicine.caution, medicine.interaction, medicine.sideEffects, medicine.storageMethod].filter(Boolean).join("\n\n") || current.memo,
+      durWarnings: initialDurWarnings
     }));
+    refreshDurWarnings(medicine.productName ?? medicine.name);
     setActiveStep("confirm");
+  };
+
+  const refreshDurWarnings = async (query: string) => {
+    if (!query.trim()) return;
+    setDurLoading(true);
+    setDurMessage(null);
+    try {
+      const result = await searchDurSafety(query.trim());
+      setDraft((current) => ({ ...current, durWarnings: result.warnings }));
+      if (result.message) setDurMessage(result.message);
+      if (!result.warnings.length && result.source === "public-data") {
+        setDurMessage("DUR 주의 정보가 조회되지 않았습니다.");
+      }
+    } catch {
+      setDurMessage("DUR 정보를 불러오지 못했습니다. 저장 후 전문가 확인을 권장합니다.");
+    } finally {
+      setDurLoading(false);
+    }
   };
 
   const runPrescriptionOcr = async (source: "camera" | "library") => {
@@ -299,6 +325,7 @@ export function PillIdentificationScreen() {
       purpose: medicine.purpose ?? current.purpose,
       memo: [medicine.usage, medicine.memo].filter(Boolean).join("\n\n") || current.memo
     }));
+    refreshDurWarnings(medicine.name);
     setScheduleDraft((current) => ({
       ...current,
       timesPerDay: medicine.timesPerDay ?? current.timesPerDay,
@@ -324,6 +351,7 @@ export function PillIdentificationScreen() {
         return;
       }
       setRegistrationError(null);
+      refreshDurWarnings(draft.name);
       setActiveStep("confirm");
       return;
     }
@@ -399,11 +427,14 @@ export function PillIdentificationScreen() {
       takingMethod: scheduleDraft.doseMethod,
       schedule: withSchedule ? formatScheduleSummary(scheduleDraft) : undefined,
       memo: draft.memo,
-      durWarnings: duplicate ? ["이미 등록된 약과 이름이 비슷합니다. 중복 복용 여부를 확인하세요."] : [],
+      durWarnings: [
+        ...(duplicate ? ["이미 등록된 약과 이름이 비슷합니다. 중복 복용 여부를 확인하세요."] : []),
+        ...draft.durWarnings
+      ],
       status: withSchedule ? "taking" : "scheduled",
       source: selectedMethod,
       favorite: false,
-      highRisk: Boolean(duplicate),
+      highRisk: Boolean(duplicate || draft.durWarnings.length),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -420,7 +451,7 @@ export function PillIdentificationScreen() {
     }
     await loadMedicines();
     setMessage(duplicate ? "약을 저장했습니다. 다만 기존 등록 약과 중복 가능성이 있어 확인이 필요합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
-    setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "" });
+    setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "", durWarnings: [] });
     setScheduleDraft(defaultScheduleDraft());
     setSelectedSearchMedicine(null);
     setPrescriptionOcrResult(null);
@@ -458,6 +489,7 @@ export function PillIdentificationScreen() {
     } else {
       await saveLocalMedicineSchedule(schedule);
     }
+    await rescheduleLocalMedicationNotifications(selectedProfile);
   };
 
   const recordDose = async (medicine: RegisteredMedicine, status: MedicationEvent["status"]) => {
@@ -485,7 +517,7 @@ export function PillIdentificationScreen() {
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
-            <MaterialCommunityIcons name="archive-outline" size={28} color={colors.primary} />
+            <MaterialCommunityIcons name="archive-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.heroTitleGroup}>
             <Text style={styles.eyebrow}>내 약통</Text>
@@ -496,7 +528,7 @@ export function PillIdentificationScreen() {
       </View>
 
       <View style={styles.notice}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={28} color={noticeText} />
+        <MaterialCommunityIcons name="alert-circle-outline" size={22} color={noticeText} />
         <Text style={styles.noticeText}>
           OCR과 AI 판독 결과는 자동 저장하지 않습니다. 사용자가 후보와 상세 정보를 최종 확인한 뒤 저장하며, DUR 위험 정보는 쉬운 설명으로 표시합니다.
         </Text>
@@ -586,6 +618,8 @@ export function PillIdentificationScreen() {
         selectedPrescriptionMedicine={selectedPrescriptionMedicine}
         prescriptionOcrLoading={prescriptionOcrLoading}
         prescriptionOcrError={prescriptionOcrError}
+        durLoading={durLoading}
+        durMessage={durMessage}
         validationError={registrationError}
         scheduleDraft={scheduleDraft}
         onClose={closeRegistrationModal}
@@ -627,6 +661,8 @@ function MedicineRegistrationModal({
   selectedPrescriptionMedicine,
   prescriptionOcrLoading,
   prescriptionOcrError,
+  durLoading,
+  durMessage,
   validationError,
   scheduleDraft,
   onClose,
@@ -656,6 +692,8 @@ function MedicineRegistrationModal({
   selectedPrescriptionMedicine: PrescriptionOcrMedicine | null;
   prescriptionOcrLoading: boolean;
   prescriptionOcrError: string | null;
+  durLoading: boolean;
+  durMessage: string | null;
   validationError: string | null;
   scheduleDraft: ScheduleDraftState;
   onClose: () => void;
@@ -725,7 +763,7 @@ function MedicineRegistrationModal({
 
             {activeStep === "confirm" ? (
               <>
-                <CandidateConfirmation method={method} pills={pills} draftName={draft.name} selectedMedicine={selectedSearchMedicine} prescriptionMedicine={selectedPrescriptionMedicine} ocrResult={prescriptionOcrResult} />
+                <CandidateConfirmation method={method} pills={pills} draftName={draft.name} selectedMedicine={selectedSearchMedicine} prescriptionMedicine={selectedPrescriptionMedicine} ocrResult={prescriptionOcrResult} durWarnings={draft.durWarnings} durLoading={durLoading} durMessage={durMessage} />
                 <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
               </>
             ) : null}
@@ -909,7 +947,10 @@ function CandidateConfirmation({
   draftName,
   selectedMedicine,
   prescriptionMedicine,
-  ocrResult
+  ocrResult,
+  durWarnings,
+  durLoading,
+  durMessage
 }: {
   method: RegisterMethod;
   pills: Pill[];
@@ -917,6 +958,9 @@ function CandidateConfirmation({
   selectedMedicine?: MedicineSearchResult | null;
   prescriptionMedicine?: PrescriptionOcrMedicine | null;
   ocrResult?: PrescriptionOcrResult | null;
+  durWarnings: string[];
+  durLoading: boolean;
+  durMessage: string | null;
 }) {
   const title = method === "ai" ? "AI 후보 확인" : method === "prescription" ? "OCR 추출 결과 확인" : "약 상세 정보 확인";
 
@@ -927,6 +971,24 @@ function CandidateConfirmation({
       <View style={styles.warningRow}>
         <MaterialCommunityIcons name="alert-decagram-outline" size={18} color={noticeText} />
         <Text style={styles.warningText}>중복성분, 병용금기, 연령주의, 임부금기 정보가 있으면 쉬운 설명으로 표시합니다.</Text>
+      </View>
+      <View style={styles.durPanel}>
+        <View style={styles.resultTop}>
+          <View style={styles.resultText}>
+            <Text style={styles.cardTitle}>DUR 안전 사용 확인</Text>
+            <Text style={styles.meta}>식품의약품안전처 의약품안전사용서비스(DUR) 품목정보 기준</Text>
+          </View>
+          {durLoading ? <ActivityIndicator color={noticeText} /> : <StatusBadge status={durWarnings.length ? "taking" : "scheduled"} highRisk={durWarnings.length > 0} />}
+        </View>
+        {durWarnings.length ? durWarnings.map((warning) => (
+          <View key={warning} style={styles.warningRow}>
+            <MaterialCommunityIcons name="alert-outline" size={18} color={noticeText} />
+            <Text style={styles.warningText}>{warning}</Text>
+          </View>
+        )) : (
+          <Text style={styles.body}>{durMessage ?? "현재 조회된 DUR 주의 정보가 없습니다. 실제 복용 판단은 전문가에게 확인해 주세요."}</Text>
+        )}
+        {durWarnings.length ? <Text style={styles.meta}>DUR 정보는 복약 안전 안내이며 복용 가능 여부 판단은 의사·약사 확인이 필요합니다.</Text> : null}
       </View>
       {selectedMedicine ? (
         <View style={styles.candidateBox}>
@@ -1019,6 +1081,7 @@ function TodayDoseRow({ medicine, onTaken, onSkipped }: { medicine: RegisteredMe
         <Text style={styles.cardTitle}>{medicine.alias || medicine.name}</Text>
         <Text style={styles.body}>{medicine.dosage} · {medicine.form} · {medicine.purpose}</Text>
         {medicine.highRisk ? <Text style={styles.dangerText}>중요도 높은 약 · 복약 확인 권장</Text> : null}
+        {medicine.durWarnings?.length ? <Text style={styles.dangerText}>DUR 주의 · {medicine.durWarnings[0]}</Text> : null}
       </View>
       <View style={styles.statusActions}>
         <Pressable style={styles.iconAction} onPress={onTaken}>
@@ -1046,6 +1109,17 @@ function MedicineListItem({ medicine, onToggleFavorite, onEnd }: { medicine: Reg
         <StatusBadge status={medicine.status} highRisk={medicine.highRisk} />
       </View>
       <Text style={styles.body}>{medicine.manufacturer} · {medicine.dosage} · {medicine.timing} · {medicine.schedule}</Text>
+      {medicine.durWarnings?.length ? (
+        <View style={styles.durPanel}>
+          <Text style={styles.cardTitle}>DUR 주의 정보</Text>
+          {medicine.durWarnings.slice(0, 3).map((warning) => (
+            <View key={warning} style={styles.warningRow}>
+              <MaterialCommunityIcons name="alert-outline" size={18} color={noticeText} />
+              <Text style={styles.warningText}>{warning}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <View style={styles.resultActions}>
         <Pressable style={styles.secondaryButton}>
           <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.primary} />
@@ -1112,7 +1186,7 @@ function SegmentButton({ label, active, onPress }: { label: string; active: bool
 function RegistrationTile({ title, description, icon, active = false, onPress }: { title: string; description: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; active?: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[styles.tile, active && styles.tileActive]}>
-      <MaterialCommunityIcons name={icon} size={34} color={active ? "#FFFFFF" : colors.primary} />
+      <MaterialCommunityIcons name={icon} size={26} color={active ? "#FFFFFF" : colors.primary} />
       <Text style={[styles.tileTitle, active && styles.tileTitleActive]}>{title}</Text>
       <Text style={[styles.tileDescription, active && styles.tileDescriptionActive]}>{description}</Text>
     </Pressable>
@@ -1178,9 +1252,14 @@ const noticeText = "#A83B15";
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
-    gap: spacing.lg
+    gap: spacing.md
   },
   hero: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
@@ -1219,7 +1298,7 @@ const styles = StyleSheet.create({
     lineHeight: 23
   },
   notice: {
-    minHeight: 104,
+    minHeight: 78,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#FDBA74",
@@ -1234,10 +1313,10 @@ const styles = StyleSheet.create({
     flex: 1,
     color: noticeText,
     fontWeight: "800",
-    lineHeight: 24
+    lineHeight: 22
   },
   segmented: {
-    minHeight: 62,
+    minHeight: 52,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
@@ -1248,7 +1327,7 @@ const styles = StyleSheet.create({
   },
   segmentButton: {
     flex: 1,
-    minHeight: 50,
+    minHeight: 42,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center"
@@ -1272,7 +1351,7 @@ const styles = StyleSheet.create({
   tile: {
     flexBasis: "48%",
     flexGrow: 1,
-    minHeight: 122,
+    minHeight: 96,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
@@ -1285,7 +1364,8 @@ const styles = StyleSheet.create({
     borderColor: colors.primary
   },
   tileTitle: {
-    ...typography.sectionTitle,
+    ...typography.bodyLarge,
+    fontWeight: "800",
     color: colors.primary
   },
   tileTitleActive: {
@@ -1303,16 +1383,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
-    padding: spacing.lg,
-    gap: spacing.md
+    padding: spacing.md,
+    gap: spacing.sm
   },
   listCard: {
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
-    padding: spacing.lg,
-    gap: spacing.md
+    padding: spacing.md,
+    gap: spacing.sm
   },
   listHeader: {
     flexDirection: "row",
@@ -1325,7 +1405,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs
   },
   sectionTitle: {
-    ...typography.title,
+    ...typography.sectionTitle,
     color: colors.textStrong
   },
   cardTitle: {
@@ -1378,12 +1458,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   input: {
-    minHeight: 52,
+    minHeight: 48,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
-    ...typography.bodyLarge,
+    ...typography.body,
     color: colors.textStrong
   },
   twoColumn: {
@@ -1395,7 +1475,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   filterChip: {
-    minHeight: 42,
+    minHeight: 38,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
@@ -1420,13 +1500,21 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.xs
   },
+  durPanel: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+    backgroundColor: "#FFF7ED",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
   todayCard: {
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
-    padding: spacing.lg,
-    gap: spacing.md
+    padding: spacing.md,
+    gap: spacing.sm
   },
   todayBadge: {
     borderRadius: 8,

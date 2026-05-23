@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     prescription_ocr_provider: str = ""
     prescription_ocr_api_url: str = ""
     prescription_ocr_api_key: str = ""
+    prescription_ocr_min_confidence: float = 0.4
 
     model_config = SettingsConfigDict(env_file=(SERVER_DIR / ".env", ".env"), env_file_encoding="utf-8")
 

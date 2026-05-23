@@ -1,7 +1,10 @@
 import base64
+import os
 import re
+import tempfile
 import uuid
 from datetime import datetime
+from functools import lru_cache
 
 import httpx
 from fastapi import APIRouter, File, UploadFile
@@ -17,23 +20,36 @@ async def recognize_prescription(file: UploadFile = File(...)) -> PrescriptionOc
     image_bytes = await file.read()
     settings = get_settings()
     raw_text = ""
-    provider = "not_configured"
+    provider = settings.prescription_ocr_provider or "not_configured"
     message: str | None = None
 
-    if settings.prescription_ocr_api_url and settings.prescription_ocr_api_key:
-      provider = settings.prescription_ocr_provider or "clova"
-      raw_text = await call_ocr_provider(
-          provider=provider,
-          api_url=settings.prescription_ocr_api_url,
-          api_key=settings.prescription_ocr_api_key,
-          image_bytes=image_bytes,
-          filename=file.filename or "prescription.jpg",
-          content_type=file.content_type or "image/jpeg",
-      )
-      if not raw_text:
-          message = "OCR 공급자 응답에서 텍스트를 찾지 못했습니다. 이미지를 다시 촬영하거나 직접 입력해 주세요."
+    if provider.lower() in {"local", "paddle", "paddleocr"}:
+        provider = "local-paddleocr"
+        try:
+            raw_text = run_local_paddle_ocr(
+                image_bytes=image_bytes,
+                filename=file.filename or "prescription.jpg",
+                min_confidence=settings.prescription_ocr_min_confidence,
+            )
+            if not raw_text:
+                message = "PaddleOCR 결과에서 텍스트를 찾지 못했습니다. 이미지를 더 밝게 다시 촬영하거나 직접 입력해 주세요."
+        except RuntimeError as exc:
+            message = str(exc)
+    elif settings.prescription_ocr_api_url and settings.prescription_ocr_api_key:
+        provider = settings.prescription_ocr_provider or "clova"
+        raw_text = await call_ocr_provider(
+            provider=provider,
+            api_url=settings.prescription_ocr_api_url,
+            api_key=settings.prescription_ocr_api_key,
+            image_bytes=image_bytes,
+            filename=file.filename or "prescription.jpg",
+            content_type=file.content_type or "image/jpeg",
+        )
+        if not raw_text:
+            message = "OCR 공급자 응답에서 텍스트를 찾지 못했습니다. 이미지를 다시 촬영하거나 직접 입력해 주세요."
     else:
-      message = "처방전 OCR 공급자 키가 설정되지 않았습니다. PRESCRIPTION_OCR_API_URL/PRESCRIPTION_OCR_API_KEY 설정 후 실제 OCR이 실행됩니다."
+        provider = "not_configured"
+        message = "처방전 OCR 공급자 키가 설정되지 않았습니다. 자체 OCR은 PRESCRIPTION_OCR_PROVIDER=local 설정 후 PaddleOCR 패키지를 설치하면 실행됩니다."
 
     medicines = parse_prescription_text(raw_text)
     return PrescriptionOcrRead(
@@ -43,6 +59,87 @@ async def recognize_prescription(file: UploadFile = File(...)) -> PrescriptionOc
         medicines=medicines,
         message=message,
     )
+
+
+def run_local_paddle_ocr(image_bytes: bytes, filename: str, min_confidence: float) -> str:
+    suffix = image_suffix(filename)
+    temp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file.write(image_bytes)
+            temp_path = temp_file.name
+        ocr = get_paddle_ocr()
+        result = ocr.ocr(temp_path, cls=True)
+        return extract_paddle_text(result, min_confidence=min_confidence)
+    finally:
+        if temp_path:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+
+@lru_cache(maxsize=1)
+def get_paddle_ocr():
+    try:
+        from paddleocr import PaddleOCR
+    except ImportError as exc:
+        raise RuntimeError(
+            "PaddleOCR 패키지가 설치되어 있지 않습니다. server/requirements-ocr.txt 설치 후 PRESCRIPTION_OCR_PROVIDER=local 로 실행해 주세요."
+        ) from exc
+
+    try:
+        return PaddleOCR(lang="korean", use_angle_cls=True, show_log=False)
+    except TypeError:
+        return PaddleOCR(lang="korean", use_angle_cls=True)
+
+
+def extract_paddle_text(result: object, min_confidence: float) -> str:
+    lines: list[str] = []
+    for item in flatten_paddle_result(result):
+        parsed = parse_paddle_item(item)
+        if parsed is None:
+            continue
+        text, confidence = parsed
+        if text and confidence >= min_confidence:
+            lines.append(text)
+    return "\n".join(lines).strip()
+
+
+def flatten_paddle_result(value: object) -> list[object]:
+    if not isinstance(value, list):
+        return []
+    flattened: list[object] = []
+    for item in value:
+        if is_paddle_text_item(item):
+            flattened.append(item)
+        elif isinstance(item, list):
+            flattened.extend(flatten_paddle_result(item))
+    return flattened
+
+
+def is_paddle_text_item(item: object) -> bool:
+    if not isinstance(item, (list, tuple)) or len(item) < 2:
+        return False
+    text_info = item[1]
+    return isinstance(text_info, (list, tuple)) and len(text_info) >= 2 and isinstance(text_info[0], str)
+
+
+def parse_paddle_item(item: object) -> tuple[str, float] | None:
+    if not is_paddle_text_item(item):
+        return None
+    text_info = item[1]  # type: ignore[index]
+    text = str(text_info[0]).strip()
+    try:
+        confidence = float(text_info[1])
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return text, confidence
+
+
+def image_suffix(filename: str) -> str:
+    suffix = os.path.splitext(filename)[1].lower()
+    return suffix if suffix in {".jpg", ".jpeg", ".png", ".webp", ".bmp"} else ".jpg"
 
 
 async def call_ocr_provider(

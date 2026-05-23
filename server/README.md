@@ -28,6 +28,21 @@ uvicorn app.main:app --reload --port 8000
 
 `.env`에는 공공데이터포털 통합 인증키를 `PUBLIC_DATA_SERVICE_KEY`로 저장합니다. 이 값은 모바일 앱에 포함하지 않고 서버에서만 사용합니다.
 
+## 처방전 자체 OCR
+
+외부 OCR API 대신 서버에서 PaddleOCR을 직접 실행하려면 선택 의존성을 설치하고 OCR provider를 `local`로 설정합니다.
+
+```bash
+pip install -r requirements-ocr.txt
+```
+
+```env
+PRESCRIPTION_OCR_PROVIDER=local
+PRESCRIPTION_OCR_MIN_CONFIDENCE=0.4
+```
+
+`POST /prescriptions/ocr`는 업로드 이미지를 임시 파일로 저장한 뒤 PaddleOCR로 인식하고, 처리 후 원본 임시 파일을 삭제합니다. OCR 결과는 자동 저장하지 않고 앱에서 사용자가 확인한 약 정보와 스케줄만 저장하는 흐름을 권장합니다.
+
 ## API 관리
 
 - `GET /admin/apis`: 앱에서 사용하는 공공 API 목록
