@@ -219,6 +219,53 @@ class FacilitySearchResponse(BaseModel):
     message: str | None = None
 
 
+class EmergencyRoomSearchResult(BaseModel):
+    id: str
+    name: str
+    center_type: str
+    address: str
+    distance_km: float | None = None
+    available_beds: int = 0
+    emergency_general_beds: int = 0
+    operating_rooms: int = 0
+    icu_beds: int = 0
+    inpatient_beds: int = 0
+    pediatric_beds: int = 0
+    negative_isolation_beds: int = 0
+    general_isolation_beds: int = 0
+    emergency_icu_beds: int = 0
+    pediatric_icu_beds: int = 0
+    emergency_inpatient_beds: int = 0
+    pediatric_inpatient_beds: int = 0
+    delivery_room_beds: int = 0
+    trauma_resuscitation_beds: int = 0
+    trauma_care_area_beds: int = 0
+    pediatric_emergency: bool = False
+    delivery_room: bool = False
+    isolation_room: bool = False
+    severe_care: bool = False
+    ct_available: bool = False
+    mri_available: bool = False
+    angiography_available: bool = False
+    ventilator_available: bool = False
+    ambulance_available: bool = False
+    doctor_on_duty: str | None = None
+    emergency_direct_phone: str | None = None
+    pediatric_direct_phone: str | None = None
+    data_note: str
+    updated_at: str | None = None
+    phone: str
+    emergency_phone: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class EmergencyRoomSearchResponse(BaseModel):
+    source: str
+    results: list[EmergencyRoomSearchResult]
+    message: str | None = None
+
+
 class SocialLoginRequest(BaseModel):
     provider: str = Field(..., pattern="^(GOOGLE|KAKAO|NAVER)$")
     idToken: str = Field(..., min_length=8)
@@ -269,6 +316,10 @@ class FamilyProfileCreate(BaseModel):
     canEdit: bool = True
     canReceiveAlert: bool = False
     canViewEmergency: bool = True
+
+
+class FamilyProfileUpdate(FamilyProfileCreate):
+    pass
 
 
 class FamilyProfileRead(BaseModel):

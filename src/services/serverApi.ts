@@ -1,4 +1,4 @@
-import { MedicalFacility, MedicationEvent, MedicineSchedule, MedicineSearchResult, RegisteredMedicine } from "@/types/domain";
+import { EmergencyRoom, MedicalFacility, MedicationEvent, MedicineSchedule, MedicineSearchResult, RegisteredMedicine } from "@/types/domain";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -40,6 +40,8 @@ export type FamilyProfilePayload = {
   chronicDiseases?: string | null;
   currentMedications?: string | null;
   emergencyContact?: string | null;
+  favoriteHospital?: string | null;
+  favoritePharmacy?: string | null;
   canView?: boolean;
   canEdit?: boolean;
   canReceiveAlert?: boolean;
@@ -70,6 +72,53 @@ type FacilitySearchResult = {
 type FacilitySearchResponse = {
   source: string;
   results: FacilitySearchResult[];
+  message?: string | null;
+};
+
+type EmergencyRoomSearchResult = {
+  id: string;
+  name: string;
+  center_type: string;
+  address: string;
+  distance_km?: number | null;
+  available_beds: number;
+  emergency_general_beds: number;
+  operating_rooms: number;
+  icu_beds: number;
+  inpatient_beds: number;
+  pediatric_beds: number;
+  negative_isolation_beds: number;
+  general_isolation_beds: number;
+  emergency_icu_beds: number;
+  pediatric_icu_beds: number;
+  emergency_inpatient_beds: number;
+  pediatric_inpatient_beds: number;
+  delivery_room_beds: number;
+  trauma_resuscitation_beds: number;
+  trauma_care_area_beds: number;
+  pediatric_emergency: boolean;
+  delivery_room: boolean;
+  isolation_room: boolean;
+  severe_care: boolean;
+  ct_available: boolean;
+  mri_available: boolean;
+  angiography_available: boolean;
+  ventilator_available: boolean;
+  ambulance_available: boolean;
+  doctor_on_duty?: string | null;
+  emergency_direct_phone?: string | null;
+  pediatric_direct_phone?: string | null;
+  data_note: string;
+  updated_at?: string | null;
+  phone: string;
+  emergency_phone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+type EmergencyRoomSearchResponse = {
+  source: string;
+  results: EmergencyRoomSearchResult[];
   message?: string | null;
 };
 
@@ -139,6 +188,18 @@ export async function createFamilyProfile(userId: number, payload: FamilyProfile
   });
   if (!response.ok) {
     throw new Error("가족 프로필 저장에 실패했습니다.");
+  }
+  return response.json();
+}
+
+export async function updateFamilyProfile(userId: number, profileId: string | number, payload: FamilyProfilePayload): Promise<FamilyProfileResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/family-profiles/${profileId}?user_id=${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error("가족 프로필 수정에 실패했습니다.");
   }
   return response.json();
 }
@@ -251,12 +312,14 @@ export async function searchFacilitiesFromServer(params: {
   longitude?: number;
   query?: string;
   type?: string;
+  radiusKm?: number;
 }): Promise<MedicalFacility[]> {
   const url = new URL(`${API_BASE_URL}/facilities/search`);
   if (params.latitude !== undefined) url.searchParams.set("latitude", String(params.latitude));
   if (params.longitude !== undefined) url.searchParams.set("longitude", String(params.longitude));
   if (params.query) url.searchParams.set("query", params.query);
   if (params.type) url.searchParams.set("type", params.type);
+  if (params.radiusKm !== undefined) url.searchParams.set("radius_km", String(params.radiusKm));
 
   const response = await fetch(url.toString());
   if (!response.ok) {
@@ -268,6 +331,75 @@ export async function searchFacilitiesFromServer(params: {
     throw new Error(payload.message ?? "공공 API 결과가 없습니다.");
   }
   return payload.results.map(toMedicalFacility);
+}
+
+export async function searchEmergencyRoomsFromServer(params: {
+  latitude?: number;
+  longitude?: number;
+  stage1?: string;
+  stage2?: string;
+  query?: string;
+}): Promise<EmergencyRoom[]> {
+  const url = new URL(`${API_BASE_URL}/emergency/rooms`);
+  if (params.latitude !== undefined) url.searchParams.set("latitude", String(params.latitude));
+  if (params.longitude !== undefined) url.searchParams.set("longitude", String(params.longitude));
+  if (params.stage1) url.searchParams.set("stage1", params.stage1);
+  if (params.stage2) url.searchParams.set("stage2", params.stage2);
+  if (params.query) url.searchParams.set("query", params.query);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error("응급실 API 호출에 실패했습니다.");
+  }
+
+  const payload: EmergencyRoomSearchResponse = await response.json();
+  if (payload.source !== "public-data" || payload.results.length === 0) {
+    throw new Error(payload.message ?? "응급실 API 결과가 없습니다.");
+  }
+  return payload.results.map(toEmergencyRoom);
+}
+
+function toEmergencyRoom(item: EmergencyRoomSearchResult): EmergencyRoom {
+  return {
+    id: item.id,
+    name: item.name,
+    centerType: item.center_type,
+    address: item.address,
+    distanceKm: item.distance_km ?? 0,
+    availableBeds: item.available_beds,
+    emergencyGeneralBeds: item.emergency_general_beds ?? item.available_beds,
+    operatingRooms: item.operating_rooms,
+    icuBeds: item.icu_beds,
+    inpatientBeds: item.inpatient_beds,
+    pediatricBeds: item.pediatric_beds ?? 0,
+    negativeIsolationBeds: item.negative_isolation_beds ?? 0,
+    generalIsolationBeds: item.general_isolation_beds ?? 0,
+    emergencyIcuBeds: item.emergency_icu_beds ?? 0,
+    pediatricIcuBeds: item.pediatric_icu_beds ?? 0,
+    emergencyInpatientBeds: item.emergency_inpatient_beds ?? 0,
+    pediatricInpatientBeds: item.pediatric_inpatient_beds ?? 0,
+    deliveryRoomBeds: item.delivery_room_beds ?? 0,
+    traumaResuscitationBeds: item.trauma_resuscitation_beds ?? 0,
+    traumaCareAreaBeds: item.trauma_care_area_beds ?? 0,
+    pediatricEmergency: item.pediatric_emergency,
+    deliveryRoom: item.delivery_room,
+    isolationRoom: item.isolation_room,
+    severeCare: item.severe_care,
+    ctAvailable: item.ct_available ?? false,
+    mriAvailable: item.mri_available ?? false,
+    angiographyAvailable: item.angiography_available ?? false,
+    ventilatorAvailable: item.ventilator_available ?? false,
+    ambulanceAvailable: item.ambulance_available ?? false,
+    doctorOnDuty: item.doctor_on_duty ?? undefined,
+    emergencyDirectPhone: item.emergency_direct_phone ?? undefined,
+    pediatricDirectPhone: item.pediatric_direct_phone ?? undefined,
+    dataNote: item.data_note ?? "국립중앙의료원 응급의료정보조회서비스 V4 기준입니다.",
+    updatedAt: item.updated_at ?? new Date().toISOString(),
+    phone: item.phone,
+    emergencyPhone: item.emergency_phone ?? undefined,
+    latitude: item.latitude ?? undefined,
+    longitude: item.longitude ?? undefined
+  };
 }
 
 function toMedicalFacility(item: FacilitySearchResult): MedicalFacility {
@@ -289,6 +421,8 @@ function toMedicalFacility(item: FacilitySearchResult): MedicalFacility {
     hasPhone: Boolean(item.phone),
     phone: item.phone,
     address: item.address,
+    latitude: item.latitude ?? undefined,
+    longitude: item.longitude ?? undefined,
     tags: item.tags
   };
 }

@@ -5,9 +5,10 @@ import {
   getLocalFamilyProfiles,
   getSelectedFamilyProfileId,
   saveLocalFamilyProfile,
-  setSelectedFamilyProfileId
+  setSelectedFamilyProfileId,
+  updateLocalFamilyProfile
 } from "@/services/localUserData";
-import { createFamilyProfile, fetchFamilyProfiles } from "@/services/serverApi";
+import { createFamilyProfile, fetchFamilyProfiles, updateFamilyProfile } from "@/services/serverApi";
 
 type FamilyProfileContextValue = {
   profiles: FamilyProfile[];
@@ -16,6 +17,7 @@ type FamilyProfileContextValue = {
   reloadProfiles: () => Promise<void>;
   selectProfile: (profileId: string | number) => Promise<void>;
   addProfile: (profile: Omit<FamilyProfile, "profileId">) => Promise<FamilyProfile>;
+  updateProfile: (profile: FamilyProfile) => Promise<FamilyProfile>;
 };
 
 const FamilyProfileContext = createContext<FamilyProfileContextValue | null>(null);
@@ -67,6 +69,18 @@ export function FamilyProfileProvider({ children }: PropsWithChildren) {
     return saved;
   };
 
+  const updateProfile = async (profile: FamilyProfile) => {
+    const payload = normalizeProfileDraft(profile);
+    const saved = isMember && session?.userId
+      ? await updateFamilyProfile(session.userId, profile.profileId, payload)
+      : profile;
+    const nextProfiles = isMember && session?.userId
+      ? profiles.map((item) => String(item.profileId) === String(saved.profileId) ? saved : item)
+      : await updateLocalFamilyProfile(profile);
+    setProfiles(nextProfiles);
+    return saved;
+  };
+
   const value = useMemo(
     () => ({
       profiles,
@@ -74,7 +88,8 @@ export function FamilyProfileProvider({ children }: PropsWithChildren) {
       loading,
       reloadProfiles,
       selectProfile,
-      addProfile
+      addProfile,
+      updateProfile
     }),
     [loading, profiles, selectedProfile]
   );

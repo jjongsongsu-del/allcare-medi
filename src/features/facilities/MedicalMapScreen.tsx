@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
@@ -22,6 +24,13 @@ const filters = ["내 주변", "영업중", "약국", "병원", "응급", "야�
 const radiusOptions = ["1km", "3km", "5km"];
 const sortOptions = ["거리순", "영업중 우선", "마감 임박 제외", "주말 운영 우선", "전화번호 우선"];
 type ViewMode = "map" | "list";
+const emergencyMapRed = "#D92D20";
+const defaultLocation = { latitude: 37.5665, longitude: 126.978 };
+const defaultRegion: Region = {
+  ...defaultLocation,
+  latitudeDelta: 0.035,
+  longitudeDelta: 0.035
+};
 
 export function MedicalMapScreen() {
   const { selectedProfile } = useFamilyProfile();
@@ -33,18 +42,65 @@ export function MedicalMapScreen() {
   const [sort, setSort] = useState(sortOptions[0]);
   const [radius, setRadius] = useState("3km");
   const [locationRequested, setLocationRequested] = useState(false);
+  const [userLocation, setUserLocation] = useState(defaultLocation);
+  const [mapRegion, setMapRegion] = useState<Region>(defaultRegion);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [facilityLoading, setFacilityLoading] = useState(false);
   const [favoritePlaces, setFavoritePlaces] = useState<StoredPlace[]>([]);
   const [recentPlaces, setRecentPlaces] = useState<StoredPlace[]>([]);
   const recommendation = useMemo(() => familyRecommendation(selectedProfile), [selectedProfile]);
 
   useEffect(() => {
-    findNearbyFacilities().then((items) => {
-      setFacilities(items);
-      setSelectedFacility(items[0] ?? null);
-    });
+    loadFacilities(userLocation);
     getLocalFavoritePlaces().then(setFavoritePlaces);
     getLocalRecentPlaces().then(setRecentPlaces);
-  }, [selectedProfile?.profileId]);
+  }, [selectedProfile?.profileId, radius]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => loadFacilities(userLocation), 350);
+    return () => clearTimeout(timer);
+  }, [query, activeFilters.join("|")]);
+
+  const loadFacilities = async (location = userLocation) => {
+    setFacilityLoading(true);
+    const activeType = activeFilters.includes("약국")
+      ? "pharmacy"
+      : activeFilters.includes("병원")
+        ? "hospital"
+        : activeFilters.includes("응급")
+          ? "emergency"
+          : undefined;
+    const items = await findNearbyFacilities({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      query: query.trim() || undefined,
+      type: activeType,
+      radiusKm: Number(radius.replace("km", ""))
+    });
+    setFacilities(items);
+    setSelectedFacility(items[0] ?? null);
+    setFacilityLoading(false);
+  };
+
+  const requestCurrentLocation = async () => {
+    setLocationMessage(null);
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== "granted") {
+      setLocationRequested(false);
+      setLocationMessage("위치 권한이 없어 기본 위치 기준으로 검색합니다. 주소 검색으로도 이용할 수 있습니다.");
+      await loadFacilities(defaultLocation);
+      return;
+    }
+    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const nextLocation = {
+      latitude: current.coords.latitude,
+      longitude: current.coords.longitude
+    };
+    setLocationRequested(true);
+    setUserLocation(nextLocation);
+    setMapRegion({ ...nextLocation, latitudeDelta: 0.035, longitudeDelta: 0.035 });
+    await loadFacilities(nextLocation);
+  };
 
   const visibleFacilities = useMemo(() => {
     const normalizedQuery = query.trim();
@@ -123,7 +179,11 @@ export function MedicalMapScreen() {
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
+          onSubmitEditing={() => loadFacilities(userLocation)}
         />
+        <Pressable accessibilityRole="button" style={styles.searchSubmitButton} onPress={() => loadFacilities(userLocation)}>
+          <Text style={styles.searchSubmitText}>조회</Text>
+        </Pressable>
       </View>
 
       {!locationRequested ? (
@@ -135,24 +195,17 @@ export function MedicalMapScreen() {
             <Text style={styles.locationTitle}>내 주변 병원과 약국을 찾기 위해 현재 위치가 필요합니다.</Text>
             <Text style={styles.locationDescription}>위치는 검색에만 사용되며 저장하지 않습니다.</Text>
             <View style={styles.locationActions}>
-              <MapButton label="현재 위치로 찾기" icon="crosshairs-gps" variant="filled" onPress={() => setLocationRequested(true)} />
+              <MapButton label="현재 위치로 찾기" icon="crosshairs-gps" variant="filled" onPress={requestCurrentLocation} />
               <MapButton label="주소로 검색하기" icon="home-search-outline" variant="outline" />
               <MapButton label="동/읍/면으로 검색하기" icon="map-search-outline" variant="outline" />
               <MapButton label="지도에서 직접 선택하기" icon="map-marker-radius-outline" variant="outline" />
             </View>
+            {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
           </View>
         </View>
       ) : null}
 
       <CurrentFamilyBanner compact />
-
-      <View style={styles.primaryActionRow}>
-        <Pressable style={styles.bigPrimaryButton} onPress={() => setLocationRequested(true)}>
-          <MaterialCommunityIcons name="crosshairs-gps" size={28} color="#FFFFFF" />
-          <Text style={styles.bigPrimaryText}>현재 위치로 찾기</Text>
-        </Pressable>
-        <Text style={styles.radiusLabel}>반경 {radius}</Text>
-      </View>
 
       <View style={styles.savedRow}>
         <QuickSaveButton label="집 저장" icon="home-outline" />
@@ -201,18 +254,31 @@ export function MedicalMapScreen() {
 
       {viewMode === "map" ? (
         <View style={styles.mapPreview}>
-          <Image source={require("../../../app_img/allcaremedi_hp.png")} style={styles.previewImage} resizeMode="contain" />
-          {visibleFacilities.slice(0, 4).map((facility, index) => (
-            <Pressable
-              key={facility.id}
-              accessibilityRole="button"
-              style={[styles.marker, markerPositions[index], facility.type === "pharmacy" ? styles.pharmacyMarker : styles.hospitalMarker]}
-              onPress={() => selectFacility(facility)}
-            >
-              <MaterialCommunityIcons name={facility.type === "pharmacy" ? "pill" : "hospital-building"} size={16} color="#FFFFFF" />
-            </Pressable>
-          ))}
-          <Text style={styles.previewText}>마커를 누르면 상세 패널이 열립니다.</Text>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            region={mapRegion}
+            showsUserLocation={locationRequested}
+            showsMyLocationButton={false}
+            onRegionChangeComplete={setMapRegion}
+          >
+            {visibleFacilities.filter((facility) => facility.latitude && facility.longitude).map((facility) => (
+              <Marker
+                key={facility.id}
+                coordinate={{ latitude: facility.latitude!, longitude: facility.longitude! }}
+                title={facility.name}
+                description={facility.address}
+                onPress={() => selectFacility(facility)}
+              >
+                <View style={[styles.markerBubble, facility.type === "pharmacy" ? styles.pharmacyMarker : facility.type === "emergency" ? styles.emergencyMarker : styles.hospitalMarker]}>
+                  <MaterialCommunityIcons name={facility.type === "pharmacy" ? "pill" : facility.type === "emergency" ? "hospital-box-outline" : "hospital-building"} size={17} color="#FFFFFF" />
+                </View>
+              </Marker>
+            ))}
+          </MapView>
+          <View style={styles.mapOverlay}>
+            <Text style={styles.previewText}>{facilityLoading ? "공공 API 조회 중" : "마커를 누르면 상세 패널이 열립니다."}</Text>
+          </View>
         </View>
       ) : (
         <View style={styles.sortRow}>
@@ -293,6 +359,16 @@ function FacilityCard({ facility, onSelect }: { facility: MedicalFacility; onSel
 }
 
 function FacilityBottomSheet({ facility, onFavorite }: { facility: MedicalFacility; onFavorite: () => void }) {
+  const directionsUrl = facility.latitude && facility.longitude
+    ? `https://www.google.com/maps/dir/?api=1&destination=${facility.latitude},${facility.longitude}&travelmode=driving`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facility.name + " " + facility.address)}`;
+  const callFacility = () => {
+    if (facility.phone) {
+      Linking.openURL(`tel:${facility.phone.replace(/[^0-9+]/g, "")}`);
+    }
+  };
+  const openDirections = () => Linking.openURL(directionsUrl);
+
   return (
     <View style={styles.bottomSheet}>
       <View style={styles.sheetHandle} />
@@ -305,8 +381,8 @@ function FacilityBottomSheet({ facility, onFavorite }: { facility: MedicalFacili
       <Text style={styles.body}>전화번호 {facility.phone || "정보 없음"}</Text>
       <Text style={styles.notice}>운영시간은 변동될 수 있으니 방문 전 전화 확인을 권장합니다.</Text>
       <View style={styles.actionRow}>
-        <MapButton label="전화" icon="phone" variant="filled" />
-        <MapButton label="길찾기" icon="navigation-variant" variant="outline" />
+        <MapButton label="전화" icon="phone" variant="filled" onPress={callFacility} />
+        <MapButton label="길찾기" icon="navigation-variant" variant="outline" onPress={openDirections} />
         <MapButton label="공유" icon="share-variant" variant="outline" />
         <MapButton label="즐겨찾기" icon="star-outline" variant="outline" onPress={onFavorite} />
       </View>
@@ -354,13 +430,6 @@ function facilityStatusText(facility: MedicalFacility) {
   }
   return `${statusLabel(facility.operatingStatus)} · ${facility.hours}`;
 }
-
-const markerPositions: ViewStyle[] = [
-  { top: 34, left: "28%" },
-  { top: 74, right: "26%" },
-  { bottom: 64, left: "42%" },
-  { bottom: 38, right: "18%" }
-];
 
 const styles = StyleSheet.create({
   screen: {
@@ -422,6 +491,18 @@ const styles = StyleSheet.create({
     minHeight: 66,
     color: colors.textStrong
   },
+  searchSubmitButton: {
+    minWidth: 64,
+    minHeight: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary
+  },
+  searchSubmitText: {
+    ...typography.button,
+    color: "#FFFFFF"
+  },
   locationCard: {
     borderRadius: 8,
     borderWidth: 1,
@@ -454,33 +535,15 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 28
   },
+  locationMessage: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "800"
+  },
   locationActions: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
-  },
-  primaryActionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md
-  },
-  bigPrimaryButton: {
-    flex: 1,
-    minHeight: 64,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm
-  },
-  bigPrimaryText: {
-    ...typography.title,
-    color: "#FFFFFF"
-  },
-  radiusLabel: {
-    ...typography.sectionTitle,
-    color: colors.text
   },
   savedRow: {
     flexDirection: "row",
@@ -611,27 +674,35 @@ const styles = StyleSheet.create({
     minHeight: 240,
     borderRadius: 8,
     backgroundColor: colors.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
     overflow: "hidden"
   },
-  previewImage: {
-    width: 170,
-    height: 128,
-    opacity: 0.9
+  map: {
+    minHeight: 240,
+    width: "100%"
+  },
+  mapOverlay: {
+    position: "absolute",
+    left: spacing.sm,
+    right: spacing.sm,
+    bottom: spacing.sm,
+    minHeight: 34,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm
   },
   previewText: {
     ...typography.caption,
     color: colors.primaryStrong
   },
-  marker: {
-    position: "absolute",
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  markerBubble: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#FFFFFF"
   },
   pharmacyMarker: {
@@ -639,6 +710,9 @@ const styles = StyleSheet.create({
   },
   hospitalMarker: {
     backgroundColor: colors.primary
+  },
+  emergencyMarker: {
+    backgroundColor: emergencyMapRed
   },
   sortRow: {
     flexDirection: "row",

@@ -103,6 +103,7 @@ export function PillIdentificationScreen() {
   const [selectedSearchMedicine, setSelectedSearchMedicine] = useState<MedicineSearchResult | null>(null);
   const [medicineSearchLoading, setMedicineSearchLoading] = useState(false);
   const [medicineSearchError, setMedicineSearchError] = useState<string | null>(null);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [listFilter, setListFilter] = useState("전체");
   const [draft, setDraft] = useState<MedicineDraft>({
     name: "",
@@ -161,6 +162,7 @@ export function PillIdentificationScreen() {
     setActiveStep("input");
     setRegistrationModalVisible(true);
     setMedicineSearchError(null);
+    setRegistrationError(null);
     if (method !== "search") {
       setSelectedSearchMedicine(null);
       setMedicineSearchResults([]);
@@ -173,6 +175,7 @@ export function PillIdentificationScreen() {
     setMedicineSearchResults([]);
     setMedicineSearchQuery("");
     setActiveStep("input");
+    setRegistrationError(null);
   };
 
   const runMedicineSearch = async () => {
@@ -200,6 +203,7 @@ export function PillIdentificationScreen() {
 
   const selectMedicineSearchResult = (medicine: MedicineSearchResult) => {
     setSelectedSearchMedicine(medicine);
+    setRegistrationError(null);
     setDraft((current) => ({
       ...current,
       name: medicine.productName ?? medicine.name,
@@ -224,6 +228,11 @@ export function PillIdentificationScreen() {
       return;
     }
     if (activeStep === "input") {
+      if (!draft.name.trim()) {
+        setRegistrationError("약명은 필수입니다.");
+        return;
+      }
+      setRegistrationError(null);
       setActiveStep("confirm");
       return;
     }
@@ -232,6 +241,21 @@ export function PillIdentificationScreen() {
       return;
     }
     saveDraftMedicine({ withSchedule: true });
+  };
+
+  const changeRegistrationStep = (step: RegisterStep) => {
+    if (step !== "input" && activeStep === "input") {
+      if (selectedMethod === "search" && !selectedSearchMedicine) {
+        setMedicineSearchError("검색 결과에서 등록할 약을 먼저 선택해 주세요.");
+        return;
+      }
+      if (selectedMethod !== "search" && !draft.name.trim()) {
+        setRegistrationError("약명은 필수입니다.");
+        return;
+      }
+    }
+    setRegistrationError(null);
+    setActiveStep(step);
   };
 
   const persistMedicine = async (medicine: RegisteredMedicine) => {
@@ -260,7 +284,8 @@ export function PillIdentificationScreen() {
     const withSchedule = options?.withSchedule ?? activeStep === "schedule";
     const name = draft.name.trim();
     if (!name) {
-      setMessage("약명은 필수 입력값입니다.");
+      setRegistrationError("약명은 필수입니다.");
+      setMessage("약명은 필수입니다.");
       setActiveStep("input");
       return;
     }
@@ -348,8 +373,8 @@ export function PillIdentificationScreen() {
       scheduledAt: new Date().toISOString(),
       status,
       takenAt: status === "taken" ? new Date().toISOString() : null,
-      sharedWithGuardian: medicine.highRisk,
-      memo: medicine.highRisk ? "중요 약 복약 상태 보호자 공유 대상" : undefined
+      sharedWithGuardian: false,
+      memo: medicine.highRisk ? "중요 약 복약 상태 확인 필요" : undefined
     };
     if (isMember && session?.userId && !medicine.id.startsWith("local-")) {
       await createMedicationEvent(event).catch(() => saveLocalMedicationEvent(event));
@@ -408,7 +433,7 @@ export function PillIdentificationScreen() {
             <Text style={styles.body}>시간대별로 완료, 건너뜀, 지연 상태를 기록합니다.</Text>
           </View>
           <View style={styles.todayBadge}>
-            <Text style={styles.todayBadgeText}>보호자 공유 가능</Text>
+            <Text style={styles.todayBadgeText}>복약 기록</Text>
           </View>
         </View>
         {medicines.filter((medicine) => medicine.status !== "ended").map((medicine) => (
@@ -419,9 +444,6 @@ export function PillIdentificationScreen() {
       <View style={styles.listCard}>
         <View style={styles.listHeader}>
           <Text style={styles.sectionTitle}>등록된 약 목록</Text>
-          <Pressable style={styles.addButton} onPress={() => openRegistrationModal("manual")}>
-            <Text style={styles.addButtonText}>등록</Text>
-          </Pressable>
         </View>
 
         <View style={styles.searchBox}>
@@ -452,15 +474,6 @@ export function PillIdentificationScreen() {
         )}
       </View>
 
-      <View style={styles.candidateSection}>
-        <Text style={styles.sectionTitle}>AI 판독 후보</Text>
-        <Text style={styles.sectionDescription}>정확도가 낮은 경우 후보 목록을 보여주고, 사용자가 최종 선택합니다.</Text>
-      </View>
-
-      {pills.map((pill) => (
-        <AiCandidateCard key={pill.id} pill={pill} />
-      ))}
-
       <MedicineRegistrationModal
         visible={registrationModalVisible}
         method={selectedMethod}
@@ -473,9 +486,15 @@ export function PillIdentificationScreen() {
         selectedSearchMedicine={selectedSearchMedicine}
         searchLoading={medicineSearchLoading}
         searchError={medicineSearchError}
+        validationError={registrationError}
         onClose={closeRegistrationModal}
-        onStepChange={setActiveStep}
-        onDraftChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+        onStepChange={changeRegistrationStep}
+        onDraftChange={(patch) => {
+          setDraft((current) => ({ ...current, ...patch }));
+          if (patch.name?.trim()) {
+            setRegistrationError(null);
+          }
+        }}
         onSearchQueryChange={setMedicineSearchQuery}
         onSearch={runMedicineSearch}
         onSelectSearchResult={selectMedicineSearchResult}
@@ -500,6 +519,7 @@ function MedicineRegistrationModal({
   selectedSearchMedicine,
   searchLoading,
   searchError,
+  validationError,
   onClose,
   onStepChange,
   onDraftChange,
@@ -520,6 +540,7 @@ function MedicineRegistrationModal({
   selectedSearchMedicine: MedicineSearchResult | null;
   searchLoading: boolean;
   searchError: string | null;
+  validationError: string | null;
   onClose: () => void;
   onStepChange: (step: RegisterStep) => void;
   onDraftChange: (patch: Partial<MedicineDraft>) => void;
@@ -566,7 +587,10 @@ function MedicineRegistrationModal({
             ) : null}
 
             {activeStep === "input" && method !== "search" ? (
-              <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
+              <>
+                <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
+                {validationError ? <Text style={styles.validationText}>{validationError}</Text> : null}
+              </>
             ) : null}
 
             {activeStep === "confirm" ? (
@@ -761,7 +785,7 @@ function TodayDoseRow({ medicine, onTaken, onSkipped }: { medicine: RegisteredMe
       <View style={styles.flex}>
         <Text style={styles.cardTitle}>{medicine.alias || medicine.name}</Text>
         <Text style={styles.body}>{medicine.dosage} · {medicine.form} · {medicine.purpose}</Text>
-        {medicine.highRisk ? <Text style={styles.dangerText}>중요도 높은 약 · 보호자 공유 권장</Text> : null}
+        {medicine.highRisk ? <Text style={styles.dangerText}>중요도 높은 약 · 복약 확인 권장</Text> : null}
       </View>
       <View style={styles.statusActions}>
         <Pressable style={styles.iconAction} onPress={onTaken}>
@@ -1189,6 +1213,11 @@ const styles = StyleSheet.create({
   dangerText: {
     ...typography.caption,
     color: noticeText
+  },
+  validationText: {
+    ...typography.caption,
+    color: colors.danger,
+    fontWeight: "800"
   },
   statusActions: {
     gap: spacing.xs

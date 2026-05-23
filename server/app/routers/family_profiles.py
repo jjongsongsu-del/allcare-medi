@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import FamilyProfile
-from app.schemas import FamilyProfileCreate, FamilyProfileRead
+from app.schemas import FamilyProfileCreate, FamilyProfileRead, FamilyProfileUpdate
 
 router = APIRouter(prefix="/api/family-profiles", tags=["family-profiles"])
 
@@ -42,6 +42,36 @@ def create_family_profile(payload: FamilyProfileCreate, user_id: int, db: Sessio
         consent_status="LOCAL_ONLY" if payload.relationType in {"SELF", "CHILD"} else "PENDING",
     )
     db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    return _read(profile)
+
+
+@router.patch("/{profile_id}", response_model=FamilyProfileRead)
+def update_family_profile(profile_id: int, payload: FamilyProfileUpdate, user_id: int, db: Session = Depends(get_db)) -> FamilyProfileRead:
+    profile = db.query(FamilyProfile).filter(FamilyProfile.id == profile_id, FamilyProfile.user_id == user_id).first()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Family profile not found.")
+
+    profile.profile_name = payload.profileName
+    profile.relation_type = payload.relationType
+    profile.birth_date = payload.birthDate
+    profile.birth_year = payload.birthYear
+    profile.birth_month = payload.birthMonth
+    profile.gender = payload.gender
+    profile.phone = payload.phone
+    profile.memo = payload.memo
+    profile.blood_type = payload.bloodType
+    profile.allergies = payload.allergies
+    profile.chronic_diseases = payload.chronicDiseases
+    profile.current_medications = payload.currentMedications
+    profile.emergency_contact = payload.emergencyContact
+    profile.favorite_hospital = payload.favoriteHospital
+    profile.favorite_pharmacy = payload.favoritePharmacy
+    profile.can_view = payload.canView
+    profile.can_edit = payload.canEdit
+    profile.can_receive_alert = payload.canReceiveAlert
+    profile.can_view_emergency = payload.canViewEmergency
     db.commit()
     db.refresh(profile)
     return _read(profile)

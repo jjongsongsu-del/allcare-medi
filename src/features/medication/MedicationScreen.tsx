@@ -12,7 +12,7 @@ import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { HealthContent, MedicationSchedule } from "@/types/domain";
 
-const statusFilters = ["오늘", "예정", "복용완료", "건너뜀", "중요약", "가족공유"];
+const statusFilters = ["오늘", "예정", "복용완료", "건너뜀", "중요약", "개인관리"];
 
 export function MedicationScreen() {
   const { selectedProfile } = useFamilyProfile();
@@ -39,7 +39,7 @@ export function MedicationScreen() {
         time: medicine.schedule?.split(" ")[1] ?? "08:00",
         instruction: `${medicine.dosage ?? "1정"} · ${medicine.timing ?? "식후"}`,
         adherenceRate: medicine.highRisk ? 92 : 80,
-        familyShared: medicine.highRisk
+        familyShared: false
       }));
     setSchedules(medicineSchedules.length ? medicineSchedules : mockSchedules);
   };

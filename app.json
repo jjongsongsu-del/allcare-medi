@@ -25,6 +25,11 @@
         "foregroundImage": "./app_img/allcaremedi.png",
         "backgroundColor": "#FFFFFF"
       },
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      },
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",

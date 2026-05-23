@@ -1,29 +1,75 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import { FamilyProfile } from "@/services/localUserData";
 import { getNearbyEmergencyRooms } from "@/services/emergencyService";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { EmergencyRoom } from "@/types/domain";
 
-const regions = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "경기도"];
+const defaultLocation = { latitude: 37.5665, longitude: 126.978 };
+const defaultRegion: Region = {
+  ...defaultLocation,
+  latitudeDelta: 0.06,
+  longitudeDelta: 0.05
+};
+
+const regions = [
+  { label: "서울", value: "서울특별시" },
+  { label: "부산", value: "부산광역시" },
+  { label: "대구", value: "대구광역시" },
+  { label: "인천", value: "인천광역시" },
+  { label: "광주", value: "광주광역시" },
+  { label: "대전", value: "대전광역시" },
+  { label: "울산", value: "울산광역시" },
+  { label: "세종", value: "세종특별자치시" },
+  { label: "경기", value: "경기도" },
+  { label: "강원", value: "강원특별자치도" },
+  { label: "충북", value: "충청북도" },
+  { label: "충남", value: "충청남도" },
+  { label: "전북", value: "전북특별자치도" },
+  { label: "전남", value: "전라남도" },
+  { label: "경북", value: "경상북도" },
+  { label: "경남", value: "경상남도" },
+  { label: "제주", value: "제주특별자치도" }
+];
 
 export function EmergencyScreen() {
   const [emergencyRooms, setEmergencyRooms] = useState<EmergencyRoom[]>([]);
-  const [selectedRegion, setSelectedRegion] = useState("서울");
+  const [selectedRegion, setSelectedRegion] = useState(regions[0]);
   const [keyword, setKeyword] = useState("");
   const [district, setDistrict] = useState("");
-  const { selectedProfile } = useFamilyProfile();
+  const [mapRegion, setMapRegion] = useState<Region>(defaultRegion);
+  const [userLocation, setUserLocation] = useState(defaultLocation);
+  const [loading, setLoading] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("현재 위치 권한이 없어 서울시청 기준으로 표시합니다.");
+  const [selectedRoom, setSelectedRoom] = useState<EmergencyRoom | null>(null);
+  const [cardModalVisible, setCardModalVisible] = useState(false);
+  const [cardDraft, setCardDraft] = useState<FamilyProfile | null>(null);
+  const { selectedProfile, updateProfile } = useFamilyProfile();
 
   useEffect(() => {
-    getNearbyEmergencyRooms().then(setEmergencyRooms);
+    loadEmergencyRooms({
+      latitude: defaultLocation.latitude,
+      longitude: defaultLocation.longitude,
+      stage1: selectedRegion.value
+    });
   }, []);
 
+  useEffect(() => {
+    if (selectedProfile) {
+      setCardDraft(selectedProfile);
+    }
+  }, [selectedProfile]);
+
   const primaryRoom = emergencyRooms[0];
+  const focusedRoom = selectedRoom ?? primaryRoom;
   const profileAdvice = useMemo(() => getProfileEmergencyAdvice(selectedProfile?.relationType), [selectedProfile?.relationType]);
   const emergencyNotes = [
     selectedProfile?.bloodType ? `혈액형 ${selectedProfile.bloodType}` : "혈액형 미등록",
@@ -31,28 +77,82 @@ export function EmergencyScreen() {
     selectedProfile?.currentMedications ? `복용약 ${selectedProfile.currentMedications}` : "복용약 미등록"
   ];
 
+  const loadEmergencyRooms = async (params?: { latitude?: number; longitude?: number; stage1?: string; stage2?: string; query?: string }) => {
+    setLoading(true);
+    const rooms = await getNearbyEmergencyRooms({
+      latitude: params?.latitude ?? userLocation.latitude,
+      longitude: params?.longitude ?? userLocation.longitude,
+      stage1: params?.stage1 ?? selectedRegion.value,
+      stage2: params?.stage2 ?? (district.trim() || undefined),
+      query: params?.query ?? (keyword.trim() || undefined)
+    });
+    setEmergencyRooms(rooms);
+    setSelectedRoom(rooms[0] ?? null);
+    const firstWithLocation = rooms.find((room) => room.latitude && room.longitude);
+    if (firstWithLocation?.latitude && firstWithLocation.longitude) {
+      setMapRegion({
+        latitude: firstWithLocation.latitude,
+        longitude: firstWithLocation.longitude,
+        latitudeDelta: 0.06,
+        longitudeDelta: 0.05
+      });
+    }
+    setLoading(false);
+  };
+
+  const requestCurrentLocation = async () => {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== "granted") {
+      setLocationMessage("위치 권한이 없어 선택한 지역 기준으로 조회합니다.");
+      return;
+    }
+    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const nextLocation = {
+      latitude: current.coords.latitude,
+      longitude: current.coords.longitude
+    };
+    setUserLocation(nextLocation);
+    setMapRegion({ ...nextLocation, latitudeDelta: 0.06, longitudeDelta: 0.05 });
+    setLocationMessage("현재 위치 기준으로 가까운 응급실을 조회했습니다.");
+    await loadEmergencyRooms({
+      ...nextLocation,
+      stage1: selectedRegion.value,
+      stage2: district.trim() || undefined,
+      query: keyword.trim() || undefined
+    });
+  };
+
+  const openEmergencyCardModal = () => {
+    setCardDraft(selectedProfile);
+    setCardModalVisible(true);
+  };
+
+  const saveEmergencyCard = async () => {
+    if (!cardDraft) return;
+    await updateProfile(cardDraft);
+    setCardModalVisible(false);
+  };
+
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.alertIconBox}>
-            <MaterialCommunityIcons name="alert" size={28} color={emergencyRed} />
+            <MaterialCommunityIcons name="alert" size={26} color={emergencyRed} />
           </View>
           <View style={styles.heroTitleGroup}>
             <Text style={styles.eyebrow}>응급</Text>
-            <Text style={styles.title}>응급실 현황</Text>
+            <Text style={styles.title}>지금 갈 수 있는 응급실</Text>
           </View>
         </View>
         <Text style={styles.description}>
-          국립중앙의료원 응급의료정보를 기준으로 주변 응급실과 실시간 가용 병상, 주요 장비 상태를 확인합니다.
+          국립중앙의료원 응급의료정보조회서비스 V4 기준으로 가까운 응급실 위치와 실시간 가용 병상을 함께 확인합니다.
         </Text>
       </View>
 
       <View style={styles.priorityNotice}>
-        <MaterialCommunityIcons name="phone-alert" size={26} color={emergencyRed} />
-        <Text style={styles.priorityText}>
-          생명이 위급한 상황은 앱 확인보다 119 신고가 우선입니다. 방문 전 응급실 전화 확인을 권장합니다.
-        </Text>
+        <MaterialCommunityIcons name="phone-alert" size={24} color={emergencyRed} />
+        <Text style={styles.priorityText}>생명에 위협이 있거나 판단이 어려운 상황은 앱 조회보다 119 신고가 우선입니다.</Text>
       </View>
 
       <View style={styles.searchPanel}>
@@ -61,20 +161,24 @@ export function EmergencyScreen() {
           <TextInput
             value={keyword}
             onChangeText={setKeyword}
+            onSubmitEditing={() => loadEmergencyRooms()}
             placeholder="병원명, 지역, 중증진료 검색"
             placeholderTextColor="#B56A6A"
             style={styles.searchInput}
           />
+          <Pressable style={styles.searchSubmitButton} onPress={() => loadEmergencyRooms()}>
+            <Text style={styles.searchSubmitText}>조회</Text>
+          </Pressable>
         </View>
 
         <View style={styles.chipRow}>
           {regions.map((region) => (
             <Pressable
-              key={region}
+              key={region.value}
               onPress={() => setSelectedRegion(region)}
-              style={[styles.regionChip, selectedRegion === region && styles.regionChipActive]}
+              style={[styles.regionChip, selectedRegion.value === region.value && styles.regionChipActive]}
             >
-              <Text style={[styles.regionChipText, selectedRegion === region && styles.regionChipTextActive]}>{region}</Text>
+              <Text style={[styles.regionChipText, selectedRegion.value === region.value && styles.regionChipTextActive]}>{region.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -82,29 +186,68 @@ export function EmergencyScreen() {
         <TextInput
           value={district}
           onChangeText={setDistrict}
-          placeholder="시군구 선택 입력 예: 강남구"
+          onSubmitEditing={() => loadEmergencyRooms()}
+          placeholder="시군구 입력 예: 강남구"
           placeholderTextColor="#B56A6A"
           style={styles.districtInput}
         />
 
         <View style={styles.actionRow}>
-          <EmergencyButton label="조회" icon="clipboard-pulse-outline" variant="filled" />
-          <EmergencyButton label="내 위치 기준" icon="crosshairs-gps" variant="filled" />
-          <EmergencyButton label="NEMC 보기" icon="open-in-new" variant="outline" />
+          <EmergencyButton label={loading ? "조회 중" : "조회"} icon="clipboard-pulse-outline" variant="filled" onPress={() => loadEmergencyRooms()} />
+          <EmergencyButton label="내 위치 기준" icon="crosshairs-gps" variant="filled" onPress={requestCurrentLocation} />
+          <EmergencyButton label="NEMC 보기" icon="open-in-new" variant="outline" onPress={() => Linking.openURL("https://www.e-gen.or.kr/")} />
         </View>
-        <Text style={styles.updatedText}>마지막 조회: 04:00 · 병상 수는 공공데이터 응답 기준입니다.</Text>
+        <Text style={styles.updatedText}>{locationMessage}</Text>
+      </View>
+
+      <View style={styles.mapCard}>
+        <MapView
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          region={mapRegion}
+          liteMode={Platform.OS === "android"}
+          showsUserLocation
+          showsMyLocationButton={false}
+          onRegionChangeComplete={setMapRegion}
+        >
+          {emergencyRooms.filter((room) => room.latitude && room.longitude).map((room) => (
+            <Marker
+              key={room.id}
+              coordinate={{ latitude: room.latitude!, longitude: room.longitude! }}
+              title={room.name}
+              description={`응급실 일반 ${formatCapacityInline(room.emergencyGeneralBeds)} · ${room.distanceKm.toFixed(1)}km`}
+              onPress={() => setSelectedRoom(room)}
+            >
+              <View style={[styles.markerBubble, room.id === focusedRoom?.id && styles.markerBubbleActive]}>
+                <MaterialCommunityIcons name="hospital-box-outline" size={18} color="#FFFFFF" />
+              </View>
+            </Marker>
+          ))}
+        </MapView>
+        <View style={styles.mapOverlay}>
+          <Text style={styles.mapOverlayTitle}>{focusedRoom?.name ?? "응급실 정보 없음"}</Text>
+          <Text style={styles.mapOverlayText}>
+            {focusedRoom ? `${formatDistance(focusedRoom.distanceKm)} · 응급실 일반 ${formatCapacityInline(focusedRoom.emergencyGeneralBeds)}` : "지역 또는 위치를 바꿔 다시 조회해 주세요."}
+          </Text>
+        </View>
       </View>
 
       <CurrentFamilyBanner compact />
 
       <View style={styles.familyCard}>
         <View style={styles.cardHeader}>
-          <View>
+          <View style={styles.cardTitleArea}>
             <Text style={styles.cardEyebrow}>선택 가족 응급카드</Text>
             <Text style={styles.cardTitle}>{selectedProfile?.profileName ?? "나"} 기준 확인 정보</Text>
           </View>
-          <View style={styles.familyBadge}>
-            <Text style={styles.familyBadgeText}>{profileAdvice.badge}</Text>
+          <View style={styles.cardHeaderActions}>
+            <View style={styles.familyBadge}>
+              <Text style={styles.familyBadgeText}>{profileAdvice.badge}</Text>
+            </View>
+            <Pressable style={styles.editCardButton} onPress={openEmergencyCardModal}>
+              <MaterialCommunityIcons name="pencil" size={17} color={emergencyRed} />
+              <Text style={styles.editCardText}>수정</Text>
+            </Pressable>
           </View>
         </View>
         <Text style={styles.familyAdvice}>{profileAdvice.message}</Text>
@@ -116,44 +259,72 @@ export function EmergencyScreen() {
           ))}
         </View>
         <Text style={styles.helperText}>
-          보호자 연락처: {selectedProfile?.emergencyContact || selectedProfile?.phone || "미등록"} · 응급 정보는 마이페이지 가족관리에서 수정할 수 있습니다.
+          보호자 연락처: {selectedProfile?.emergencyContact || selectedProfile?.phone || "미등록"} · 응급실 방문 전 전화 확인을 권장합니다.
         </Text>
       </View>
 
       {emergencyRooms.map((room) => (
-        <EmergencyRoomCard key={room.id} room={room} highlighted={room.id === primaryRoom?.id} />
+        <EmergencyRoomCard key={room.id} room={room} highlighted={room.id === focusedRoom?.id} onSelect={() => setSelectedRoom(room)} />
       ))}
+
+      <EmergencyCardModal
+        visible={cardModalVisible}
+        draft={cardDraft}
+        onChange={(patch) => setCardDraft((current) => current ? { ...current, ...patch } : current)}
+        onClose={() => setCardModalVisible(false)}
+        onSave={saveEmergencyCard}
+      />
     </AppScreen>
   );
 }
 
-function EmergencyButton({ label, icon, variant }: { label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; variant: "filled" | "outline" }) {
+function EmergencyButton({
+  label,
+  icon,
+  variant,
+  onPress
+}: {
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  variant: "filled" | "outline";
+  onPress?: () => void;
+}) {
   const filled = variant === "filled";
   return (
-    <Pressable style={[styles.button, filled ? styles.buttonFilled : styles.buttonOutline]}>
+    <Pressable style={[styles.button, filled ? styles.buttonFilled : styles.buttonOutline]} onPress={onPress}>
       <MaterialCommunityIcons name={icon} size={18} color={filled ? "#FFFFFF" : emergencyRed} />
       <Text style={[styles.buttonText, filled ? styles.buttonTextFilled : styles.buttonTextOutline]}>{label}</Text>
     </Pressable>
   );
 }
 
-function EmergencyRoomCard({ room, highlighted }: { room: EmergencyRoom; highlighted: boolean }) {
-  const distance = room.distanceKm < 1 ? `${Math.round(room.distanceKm * 1000)}m` : `${room.distanceKm.toFixed(1)}km`;
+function EmergencyRoomCard({ room, highlighted, onSelect }: { room: EmergencyRoom; highlighted: boolean; onSelect: () => void }) {
+  const phone = room.emergencyPhone || room.phone;
+  const openDirections = () => {
+    const url = room.latitude && room.longitude
+      ? `https://www.google.com/maps/dir/?api=1&destination=${room.latitude},${room.longitude}&travelmode=driving`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${room.name} ${room.address}`)}`;
+    Linking.openURL(url);
+  };
 
   return (
-    <View style={[styles.roomCard, highlighted && styles.roomCardHighlighted]}>
+    <Pressable style={[styles.roomCard, highlighted && styles.roomCardHighlighted]} onPress={onSelect}>
       <View style={styles.roomTopRow}>
         <View style={styles.roomTitleArea}>
           <Text style={styles.roomName}>{room.name}</Text>
-          <Text style={styles.roomMeta}>{room.centerType} · {distance}</Text>
+          <Text style={styles.roomMeta}>{room.centerType} · {formatDistance(room.distanceKm)}</Text>
         </View>
         <View style={styles.bedBadge}>
-          <Text style={styles.bedCount}>{room.availableBeds}</Text>
+          <Text style={styles.bedCount}>{formatCapacityValue(room.emergencyGeneralBeds)}</Text>
           <Text style={styles.bedLabel}>응급실</Text>
         </View>
       </View>
       <Text style={styles.address}>{room.address}</Text>
 
+      <EmergencyRoomCapacityDetails room={room} />
+
+      {false && (
+        <>
       <View style={styles.metricRow}>
         <MetricBox value={room.operatingRooms} label="수술실" />
         <MetricBox value={room.icuBeds} label="중환자" />
@@ -163,22 +334,108 @@ function EmergencyRoomCard({ room, highlighted }: { room: EmergencyRoom; highlig
       <View style={styles.statusRow}>
         <StatusPill label="소아응급" active={room.pediatricEmergency} />
         <StatusPill label="분만실" active={room.deliveryRoom} />
-        <StatusPill label="음압격리" active={room.isolationRoom} />
+        <StatusPill label="격리실" active={room.isolationRoom} />
         <StatusPill label="중증진료" active={room.severeCare} />
       </View>
+
+        </>
+      )}
 
       <Text style={styles.roomNotice}>최근 업데이트: {room.updatedAt} · 실제 수용 가능 여부는 전화 확인이 필요합니다.</Text>
 
       <View style={styles.roomActions}>
-        <EmergencyButton label="전화" icon="phone" variant="filled" />
-        <EmergencyButton label="길찾기" icon="navigation-variant" variant="outline" />
-        <EmergencyButton label="보호자 공유" icon="share-variant" variant="outline" />
+        <EmergencyButton label="전화" icon="phone" variant="filled" onPress={() => phone && Linking.openURL(`tel:${phone}`)} />
+        <EmergencyButton label="길찾기" icon="navigation-variant" variant="outline" onPress={openDirections} />
+        <EmergencyButton label="공유" icon="share-variant" variant="outline" />
       </View>
+    </Pressable>
+  );
+}
+
+function EmergencyCardModal({
+  visible,
+  draft,
+  onChange,
+  onClose,
+  onSave
+}: {
+  visible: boolean;
+  draft: FamilyProfile | null;
+  onChange: (patch: Partial<FamilyProfile>) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>응급카드 수정</Text>
+            <Pressable style={styles.modalCloseButton} onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.textStrong} />
+            </Pressable>
+          </View>
+          <EmergencyInput label="혈액형" value={draft?.bloodType ?? ""} onChangeText={(value) => onChange({ bloodType: value })} placeholder="예: A+" />
+          <EmergencyInput label="알레르기" value={draft?.allergies ?? ""} onChangeText={(value) => onChange({ allergies: value })} placeholder="예: 페니실린, 땅콩" />
+          <EmergencyInput label="기저질환" value={draft?.chronicDiseases ?? ""} onChangeText={(value) => onChange({ chronicDiseases: value })} placeholder="예: 고혈압, 당뇨" />
+          <EmergencyInput label="복용 중인 약" value={draft?.currentMedications ?? ""} onChangeText={(value) => onChange({ currentMedications: value })} placeholder="예: 혈압약 아침 1정" />
+          <EmergencyInput label="응급 연락처" value={draft?.emergencyContact ?? ""} onChangeText={(value) => onChange({ emergencyContact: value })} placeholder="예: 010-0000-0000" />
+          <View style={styles.modalActions}>
+            <Pressable style={styles.cancelButton} onPress={onClose}>
+              <Text style={styles.cancelButtonText}>취소</Text>
+            </Pressable>
+            <Pressable style={styles.saveButton} onPress={onSave}>
+              <Text style={styles.saveButtonText}>저장</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function EmergencyInput({ label, value, onChangeText, placeholder }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string }) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.textMuted} style={styles.modalInput} />
     </View>
   );
 }
 
-function MetricBox({ value, label }: { value: number; label: string }) {
+function EmergencyRoomCapacityDetails({ room }: { room: EmergencyRoom }) {
+  return (
+    <View style={styles.capacityPanel}>
+      <Text style={styles.capacityTitle}>응급의료정보조회서비스 V4 병상 현황</Text>
+      <View style={styles.metricRow}>
+        <MetricBox value={formatCapacityValue(room.emergencyGeneralBeds)} label="응급실 일반" />
+        <MetricBox value={formatCapacityValue(room.pediatricBeds)} label="소아" />
+        <MetricBox value={formatCapacityValue(room.operatingRooms)} label="수술실" />
+      </View>
+      <View style={styles.metricRow}>
+        <MetricBox value={formatCapacityValue(room.icuBeds)} label="중환자실 일반" />
+        <MetricBox value={formatCapacityValue(room.emergencyIcuBeds)} label="응급전용 중환자" />
+        <MetricBox value={formatCapacityValue(room.inpatientBeds)} label="입원실 일반" />
+      </View>
+      <View style={styles.metricRow}>
+        <MetricBox value={formatCapacityValue(room.negativeIsolationBeds)} label="응급 음압격리" />
+        <MetricBox value={formatCapacityValue(room.generalIsolationBeds)} label="응급 일반격리" />
+        <MetricBox value={formatCapacityValue(room.deliveryRoomBeds)} label="분만실" />
+      </View>
+      <View style={styles.statusRow}>
+        <EquipmentPill label="CT" active={room.ctAvailable} />
+        <EquipmentPill label="MRI" active={room.mriAvailable} />
+        <EquipmentPill label="혈관촬영" active={room.angiographyAvailable} />
+        <EquipmentPill label="인공호흡기" active={room.ventilatorAvailable} />
+        <EquipmentPill label="구급차" active={room.ambulanceAvailable} />
+      </View>
+      <Text style={styles.roomNotice}>응급실 전화: {room.emergencyDirectPhone || room.emergencyPhone || room.phone || "확인 필요"}</Text>
+      <Text style={styles.roomNotice}>입력일시: {room.updatedAt} · {room.dataNote}</Text>
+    </View>
+  );
+}
+
+function MetricBox({ value, label }: { value: number | string; label: string }) {
   return (
     <View style={styles.metricBox}>
       <Text style={styles.metricValue}>{value}</Text>
@@ -197,9 +454,34 @@ function StatusPill({ label, active }: { label: string; active: boolean }) {
   );
 }
 
+function EquipmentPill({ label, active }: { label: string; active: boolean }) {
+  return (
+    <View style={[styles.statusPill, active ? styles.statusPillActive : styles.statusPillInactive]}>
+      <Text style={[styles.statusText, active ? styles.statusTextActive : styles.statusTextInactive]}>
+        {label} {active ? "가용" : "확인"}
+      </Text>
+    </View>
+  );
+}
+
+function formatDistance(distanceKm: number) {
+  if (!distanceKm) return "거리 확인";
+  return distanceKm < 1 ? `${Math.round(distanceKm * 1000)}m` : `${distanceKm.toFixed(1)}km`;
+}
+
+function formatCapacityValue(value: number) {
+  if (value < 0) return `초과 ${Math.abs(value)}`;
+  return value;
+}
+
+function formatCapacityInline(value: number) {
+  if (value < 0) return `초과 ${Math.abs(value)}병상`;
+  return `${value}병상`;
+}
+
 function getProfileEmergencyAdvice(relation?: string | null) {
   if (relation === "CHILD") {
-    return { badge: "소아 우선", message: "자녀 프로필이 선택되어 소아응급 가능 기관을 먼저 확인하는 흐름으로 안내합니다." };
+    return { badge: "소아 우선", message: "자녀 프로필이 선택되어 소아응급 가능 여부를 먼저 확인할 수 있습니다." };
   }
   if (relation === "PARENT") {
     return { badge: "보호자 확인", message: "부모님 프로필이 선택되어 복용약, 기저질환, 보호자 연락처 확인을 우선합니다." };
@@ -207,7 +489,7 @@ function getProfileEmergencyAdvice(relation?: string | null) {
   if (relation === "SPOUSE") {
     return { badge: "가족 공유", message: "배우자 응급정보와 보호자 연락처를 함께 확인할 수 있습니다." };
   }
-  return { badge: "본인", message: "현재 선택된 가족의 응급카드 정보를 기준으로 전화와 길찾기를 진행합니다." };
+  return { badge: "본인", message: "현재 선택 가족의 응급카드 정보를 기준으로 전화와 길찾기를 진행합니다." };
 }
 
 const emergencyRed = "#D92D20";
@@ -222,6 +504,11 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   hero: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FFB4AB",
+    backgroundColor: emergencySoft,
+    padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
   },
@@ -246,21 +533,18 @@ const styles = StyleSheet.create({
   eyebrow: {
     ...typography.caption,
     color: emergencyRed,
-    fontWeight: "800",
-    lineHeight: 22
+    fontWeight: "800"
   },
   title: {
     ...typography.title,
-    color: colors.textStrong,
-    lineHeight: 32
+    color: emergencyDark
   },
   description: {
     ...typography.body,
-    color: colors.text,
-    lineHeight: 23
+    color: emergencyDark
   },
   priorityNotice: {
-    minHeight: 78,
+    minHeight: 70,
     borderRadius: 8,
     backgroundColor: emergencyTint,
     borderWidth: 1,
@@ -274,8 +558,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     flex: 1,
     color: emergencyDark,
-    fontWeight: "700",
-    lineHeight: 22
+    fontWeight: "700"
   },
   searchPanel: {
     borderRadius: 8,
@@ -301,6 +584,18 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.textStrong,
     minHeight: 50
+  },
+  searchSubmitButton: {
+    minHeight: 40,
+    borderRadius: 8,
+    backgroundColor: emergencyRed,
+    paddingHorizontal: spacing.md,
+    justifyContent: "center"
+  },
+  searchSubmitText: {
+    ...typography.caption,
+    color: "#FFFFFF",
+    fontWeight: "800"
   },
   chipRow: {
     flexDirection: "row",
@@ -374,6 +669,50 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: mutedRed
   },
+  mapCard: {
+    height: 320,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: "#FFD0CC"
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject
+  },
+  markerBubble: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: emergencyRed,
+    borderWidth: 2,
+    borderColor: "#FFFFFF"
+  },
+  markerBubbleActive: {
+    backgroundColor: emergencyDark
+  },
+  mapOverlay: {
+    position: "absolute",
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.md,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: "#FFD0CC"
+  },
+  mapOverlayTitle: {
+    ...typography.sectionTitle,
+    color: colors.textStrong
+  },
+  mapOverlayText: {
+    ...typography.caption,
+    color: emergencyRed,
+    fontWeight: "800"
+  },
   familyCard: {
     borderRadius: 8,
     backgroundColor: "#FFFFFF",
@@ -387,6 +726,13 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: spacing.sm
+  },
+  cardTitleArea: {
+    flex: 1
+  },
+  cardHeaderActions: {
+    alignItems: "flex-end",
+    gap: spacing.xs
   },
   cardEyebrow: {
     ...typography.caption,
@@ -406,6 +752,21 @@ const styles = StyleSheet.create({
   familyBadgeText: {
     ...typography.caption,
     color: emergencyDark,
+    fontWeight: "800"
+  },
+  editCardButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: emergencyRed,
+    paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4
+  },
+  editCardText: {
+    ...typography.caption,
+    color: emergencyRed,
     fontWeight: "800"
   },
   familyAdvice: {
@@ -432,8 +793,7 @@ const styles = StyleSheet.create({
   },
   helperText: {
     ...typography.caption,
-    color: colors.textMuted,
-    lineHeight: 18
+    color: colors.textMuted
   },
   roomCard: {
     borderRadius: 8,
@@ -487,8 +847,20 @@ const styles = StyleSheet.create({
   },
   address: {
     ...typography.body,
-    color: colors.text,
-    lineHeight: 22
+    color: colors.text
+  },
+  capacityPanel: {
+    borderRadius: 8,
+    backgroundColor: "#FFF8F7",
+    borderWidth: 1,
+    borderColor: "#FFD0CC",
+    padding: spacing.sm,
+    gap: spacing.sm
+  },
+  capacityTitle: {
+    ...typography.caption,
+    color: emergencyRed,
+    fontWeight: "800"
   },
   metricRow: {
     flexDirection: "row",
@@ -541,12 +913,84 @@ const styles = StyleSheet.create({
   },
   roomNotice: {
     ...typography.caption,
-    color: colors.textMuted,
-    lineHeight: 18
+    color: colors.textMuted
   },
   roomActions: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    justifyContent: "flex-end"
+  },
+  modalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  modalTitle: {
+    ...typography.sectionTitle,
+    color: colors.textStrong
+  },
+  modalCloseButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  inputGroup: {
+    gap: spacing.xs
+  },
+  inputLabel: {
+    ...typography.caption,
+    color: colors.textStrong,
+    fontWeight: "800"
+  },
+  modalInput: {
+    ...typography.body,
+    minHeight: 50,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    color: colors.textStrong
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  cancelButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  cancelButtonText: {
+    ...typography.button,
+    color: colors.text
+  },
+  saveButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 8,
+    backgroundColor: emergencyRed,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  saveButtonText: {
+    ...typography.button,
+    color: "#FFFFFF"
   }
 });
