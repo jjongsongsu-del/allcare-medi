@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     e_drug_api_key: str = ""
     health_portal_api_key: str = ""
     ai_inference_url: str = "http://localhost:9000"
+    prescription_ocr_provider: str = ""
+    prescription_ocr_api_url: str = ""
+    prescription_ocr_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=(SERVER_DIR / ".env", ".env"), env_file_encoding="utf-8")
 

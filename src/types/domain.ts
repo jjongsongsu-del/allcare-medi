@@ -73,6 +73,33 @@ export type MedicineSearchResult = {
   source: "e_drug" | "fallback";
 };
 
+export type PrescriptionOcrMedicine = {
+  name: string;
+  dosage?: string;
+  form?: string;
+  purpose?: string;
+  usage?: string;
+  timing?: string;
+  timesPerDay?: number;
+  doseTimes: string[];
+  durationDays?: number | null;
+  memo?: string;
+  confidence?: number | null;
+};
+
+export type PrescriptionOcrResult = {
+  provider: string;
+  rawText: string;
+  common: {
+    patientName?: string | null;
+    prescribedOn?: string | null;
+    hospitalName?: string | null;
+    doctorName?: string | null;
+  };
+  medicines: PrescriptionOcrMedicine[];
+  message?: string | null;
+};
+
 export type RegisteredMedicine = {
   id: string;
   userId?: number | null;

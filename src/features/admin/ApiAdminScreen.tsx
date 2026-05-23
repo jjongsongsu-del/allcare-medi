@@ -1,21 +1,28 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { KrdsCard } from "@/components/KrdsCard";
 import { SectionHeader } from "@/components/SectionHeader";
-import { fetchManagedApis, ManagedApiEndpoint } from "@/services/serverApi";
+import { FacilityReport, fetchFacilityReports, fetchManagedApis, ManagedApiEndpoint, updateFacilityReportStatus } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 
 export function ApiAdminScreen() {
   const [apis, setApis] = useState<ManagedApiEndpoint[]>([]);
+  const [reports, setReports] = useState<FacilityReport[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchManagedApis().then(setApis).catch((reason: Error) => setError(reason.message));
+    fetchFacilityReports().then(setReports).catch(() => undefined);
   }, []);
+
+  const changeReportStatus = async (report: FacilityReport, status: FacilityReport["status"]) => {
+    const saved = await updateFacilityReportStatus(report.id, status);
+    setReports((current) => current.map((item) => item.id === saved.id ? saved : item));
+  };
 
   return (
     <AppScreen>
@@ -56,7 +63,43 @@ export function ApiAdminScreen() {
           <Text style={styles.meta}>문서: {api.doc_file}</Text>
         </KrdsCard>
       ))}
+
+      <SectionHeader
+        title="정보 오류 신고 검수"
+        description="사용자가 신고한 병원·약국 정보 변경 사항을 확인하고 처리 상태를 관리합니다."
+      />
+
+      {reports.length ? reports.map((report) => (
+        <KrdsCard key={report.id}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.cardTitle}>{report.facilityName}</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{report.status}</Text>
+            </View>
+          </View>
+          <Text style={styles.meta}>{report.facilityExternalId} · {report.reportType}</Text>
+          <Text style={styles.body}>{report.description || "상세 설명 없음"}</Text>
+          {report.reporterContact ? <Text style={styles.meta}>연락처: {report.reporterContact}</Text> : null}
+          <View style={styles.reportActionRow}>
+            <AdminButton label="검수중" onPress={() => changeReportStatus(report, "reviewing")} />
+            <AdminButton label="반영" onPress={() => changeReportStatus(report, "approved")} />
+            <AdminButton label="반려" onPress={() => changeReportStatus(report, "rejected")} />
+          </View>
+        </KrdsCard>
+      )) : (
+        <KrdsCard>
+          <Text style={styles.body}>접수된 정보 오류 신고가 없습니다.</Text>
+        </KrdsCard>
+      )}
     </AppScreen>
+  );
+}
+
+function AdminButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.adminButton} onPress={onPress}>
+      <Text style={styles.adminButtonText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -107,5 +150,24 @@ const styles = StyleSheet.create({
   badgeText: {
     ...typography.caption,
     color: colors.onPrimary
+  },
+  reportActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  adminButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF"
+  },
+  adminButtonText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "800"
   }
 });

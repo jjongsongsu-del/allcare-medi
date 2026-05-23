@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import admin_apis, auth, emergency, facilities, facility_reports, family_profiles, health, medications, migration
+from app.routers import admin_apis, auth, emergency, facilities, facility_reports, family_profiles, health, medications, migration, places, prescription_ocr
 
 app = FastAPI(
     title="AllCareMedi BFF",
@@ -30,6 +30,8 @@ app.include_router(admin_apis.router)
 app.include_router(facilities.router)
 app.include_router(emergency.router)
 app.include_router(medications.router)
+app.include_router(prescription_ocr.router)
+app.include_router(places.router)
 app.include_router(facility_reports.router)
 app.include_router(family_profiles.router)
 app.include_router(migration.router)

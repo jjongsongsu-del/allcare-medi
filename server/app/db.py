@@ -32,6 +32,8 @@ def init_db() -> None:
     if settings.database_url.startswith("sqlite"):
         _ensure_sqlite_user_columns()
         _ensure_sqlite_medication_columns()
+        _ensure_sqlite_place_columns()
+        _ensure_sqlite_emergency_columns()
 
 
 def _ensure_sqlite_user_columns() -> None:
@@ -117,3 +119,59 @@ def _ensure_sqlite_medication_columns() -> None:
         for name, ddl_type in schedule_columns.items():
             if name not in existing_schedules:
                 connection.exec_driver_sql(f"ALTER TABLE medication_schedules ADD COLUMN {name} {ddl_type}")
+
+
+def _ensure_sqlite_place_columns() -> None:
+    favorite_columns = {
+        "profile_id": "INTEGER",
+        "place_name": "VARCHAR(160) DEFAULT ''",
+        "address": "VARCHAR(255)",
+        "phone": "VARCHAR(80)",
+        "distance_km": "VARCHAR(20)",
+        "hours": "VARCHAR(160)",
+        "operating_status": "VARCHAR(30)",
+        "closes_at": "VARCHAR(20)",
+        "latitude": "VARCHAR(40)",
+        "longitude": "VARCHAR(40)",
+        "tags": "TEXT",
+    }
+    recent_columns = {
+        "profile_id": "INTEGER",
+        "distance_km": "VARCHAR(20)",
+        "hours": "VARCHAR(160)",
+        "operating_status": "VARCHAR(30)",
+        "closes_at": "VARCHAR(20)",
+        "latitude": "VARCHAR(40)",
+        "longitude": "VARCHAR(40)",
+        "tags": "TEXT",
+    }
+    with engine.begin() as connection:
+        existing_favorites = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(favorite_places)").fetchall()}
+        for name, ddl_type in favorite_columns.items():
+            if name not in existing_favorites:
+                connection.exec_driver_sql(f"ALTER TABLE favorite_places ADD COLUMN {name} {ddl_type}")
+        existing_recent = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(recent_places)").fetchall()}
+        for name, ddl_type in recent_columns.items():
+            if name not in existing_recent:
+                connection.exec_driver_sql(f"ALTER TABLE recent_places ADD COLUMN {name} {ddl_type}")
+
+
+def _ensure_sqlite_emergency_columns() -> None:
+    share_columns = {
+        "user_id": "INTEGER",
+        "profile_id": "INTEGER",
+        "profile_name": "VARCHAR(100)",
+        "guardian_contact": "VARCHAR(120)",
+        "room_id": "VARCHAR(100) DEFAULT ''",
+        "room_name": "VARCHAR(160) DEFAULT ''",
+        "room_phone": "VARCHAR(80)",
+        "latitude": "VARCHAR(40)",
+        "longitude": "VARCHAR(40)",
+        "message": "TEXT",
+        "created_at": "DATETIME",
+    }
+    with engine.begin() as connection:
+        existing = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(emergency_shares)").fetchall()}
+        for name, ddl_type in share_columns.items():
+            if name not in existing:
+                connection.exec_driver_sql(f"ALTER TABLE emergency_shares ADD COLUMN {name} {ddl_type}")

@@ -85,6 +85,28 @@ class MedicineSearchResultRead(BaseModel):
     source: str = "fallback"
 
 
+class PrescriptionOcrMedicineRead(BaseModel):
+    name: str
+    dosage: str | None = None
+    form: str | None = None
+    purpose: str | None = None
+    usage: str | None = None
+    timing: str | None = None
+    times_per_day: int | None = None
+    dose_times: list[str] = []
+    duration_days: int | None = None
+    memo: str | None = None
+    confidence: float | None = None
+
+
+class PrescriptionOcrRead(BaseModel):
+    provider: str
+    raw_text: str
+    common: dict[str, str | None] = {}
+    medicines: list[PrescriptionOcrMedicineRead] = []
+    message: str | None = None
+
+
 class MedicationScheduleCreate(BaseModel):
     medication_id: int = Field(..., ge=1)
     profile_id: int | None = None
@@ -155,6 +177,10 @@ class FacilityReportCreate(BaseModel):
     reporter_contact: str | None = Field(default=None, max_length=120)
 
 
+class FacilityReportUpdate(BaseModel):
+    status: str = Field(..., pattern="^(pending|reviewing|approved|rejected)$")
+
+
 class FacilityReportRead(BaseModel):
     id: int
     facility_external_id: str
@@ -165,6 +191,45 @@ class FacilityReportRead(BaseModel):
     status: str
 
     model_config = {"from_attributes": True}
+
+
+class StoredPlaceCreate(BaseModel):
+    user_id: int = Field(..., ge=1)
+    profile_id: int | None = None
+    place_id: str = Field(..., min_length=1, max_length=100)
+    place_name: str = Field(..., min_length=1, max_length=160)
+    place_type: str = Field(..., min_length=1, max_length=30)
+    address: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=80)
+    distance_km: float | None = None
+    hours: str | None = Field(default=None, max_length=160)
+    operating_status: str | None = Field(default=None, max_length=30)
+    closes_at: str | None = Field(default=None, max_length=20)
+    latitude: float | None = None
+    longitude: float | None = None
+    tags: list[str] = []
+    memo: str | None = Field(default=None, max_length=255)
+    viewed_at: str | None = Field(default=None, max_length=40)
+
+
+class StoredPlaceRead(BaseModel):
+    id: int
+    user_id: int
+    profile_id: int | None
+    place_id: str
+    place_name: str
+    place_type: str
+    address: str | None
+    phone: str | None
+    distance_km: float | None = None
+    hours: str | None
+    operating_status: str | None
+    closes_at: str | None
+    latitude: float | None = None
+    longitude: float | None = None
+    tags: list[str] = []
+    memo: str | None = None
+    viewed_at: str | None = None
 
 
 class ApiEndpointRead(BaseModel):
@@ -264,6 +329,33 @@ class EmergencyRoomSearchResponse(BaseModel):
     source: str
     results: list[EmergencyRoomSearchResult]
     message: str | None = None
+
+
+class EmergencyShareCreate(BaseModel):
+    user_id: int | None = None
+    profile_id: int | None = None
+    profile_name: str | None = Field(default=None, max_length=100)
+    guardian_contact: str | None = Field(default=None, max_length=120)
+    room_id: str = Field(..., min_length=1, max_length=100)
+    room_name: str = Field(..., min_length=1, max_length=160)
+    room_phone: str | None = Field(default=None, max_length=80)
+    latitude: float | None = None
+    longitude: float | None = None
+    message: str | None = None
+
+
+class EmergencyShareRead(BaseModel):
+    id: int
+    user_id: int | None
+    profile_id: int | None
+    profile_name: str | None
+    guardian_contact: str | None
+    room_id: str
+    room_name: str
+    room_phone: str | None
+    latitude: float | None = None
+    longitude: float | None = None
+    message: str | None
 
 
 class SocialLoginRequest(BaseModel):

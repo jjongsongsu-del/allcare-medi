@@ -115,17 +115,49 @@ def _endpoint(category: str) -> ApiEndpoint:
     return next(endpoint for endpoint in API_ENDPOINTS if endpoint.id == endpoint_id)
 
 
+def _list_endpoint(category: str) -> ApiEndpoint:
+    endpoint_id = {
+        "pharmacy": "nmc-pharmacy-list",
+        "hospital": "nmc-hospital-list",
+    }[category]
+    return next(endpoint for endpoint in API_ENDPOINTS if endpoint.id == endpoint_id)
+
+
 async def search_public_facilities(
     *,
     latitude: float | None,
     longitude: float | None,
     facility_type: str | None,
+    stage1: str | None = None,
+    stage2: str | None = None,
+    query: str | None = None,
     page: int,
     page_size: int,
 ) -> list[FacilitySearchResult]:
     settings = get_settings()
     if not settings.public_data_service_key:
         raise RuntimeError("PUBLIC_DATA_SERVICE_KEY is not configured.")
+    if stage1 or stage2:
+        if facility_type == "emergency":
+            return await _fetch_emergency_institutions_by_region(
+                latitude=latitude,
+                longitude=longitude,
+                stage1=stage1 or "",
+                stage2=stage2,
+                query=query,
+                page=page,
+                page_size=page_size,
+            )
+        return await _fetch_facilities_by_region(
+            latitude=latitude,
+            longitude=longitude,
+            facility_type=facility_type,
+            stage1=stage1,
+            stage2=stage2,
+            query=query,
+            page=page,
+            page_size=page_size,
+        )
     if latitude is None or longitude is None:
         raise RuntimeError("latitude and longitude are required for public facility search.")
 
@@ -164,6 +196,73 @@ async def search_public_facilities(
                     tags=_tags(category, item),
                 )
                 results.append(result)
+    return sorted(results, key=lambda item: item.distance_km if item.distance_km is not None else 9999)[:page_size]
+
+
+async def _fetch_facilities_by_region(
+    *,
+    latitude: float | None,
+    longitude: float | None,
+    facility_type: str | None,
+    stage1: str | None,
+    stage2: str | None,
+    query: str | None,
+    page: int,
+    page_size: int,
+) -> list[FacilitySearchResult]:
+    settings = get_settings()
+    if not settings.public_data_service_key:
+        raise RuntimeError("PUBLIC_DATA_SERVICE_KEY is not configured.")
+
+    categories = [facility_type] if facility_type in {"pharmacy", "hospital"} else ["pharmacy", "hospital"]
+    keyword = (query or "").strip()
+    results: list[FacilitySearchResult] = []
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        for category in categories:
+            endpoint = _list_endpoint(category)
+            params: dict[str, Any] = {
+                "serviceKey": settings.public_data_service_key,
+                "pageNo": page,
+                "numOfRows": page_size,
+            }
+            if stage1:
+                params["Q0"] = stage1
+            if stage2:
+                params["Q1"] = stage2
+            if keyword:
+                params["QN"] = keyword
+
+            response = await client.get(endpoint.url, params=params)
+            response.raise_for_status()
+            root = ElementTree.fromstring(response.content)
+            for item in root.findall(".//item"):
+                name = _text(item, "dutyName")
+                address = _text(item, "dutyAddr")
+                if not name:
+                    continue
+                if stage1 and not _matches_stage1(address, stage1):
+                    continue
+                if keyword and keyword not in name and keyword not in address and keyword not in _text(item, "dutyDivName"):
+                    continue
+                item_latitude = _float(_text(item, "latitude") or _text(item, "wgs84Lat"))
+                item_longitude = _float(_text(item, "longitude") or _text(item, "wgs84Lon"))
+                results.append(
+                    FacilitySearchResult(
+                        id=_text(item, "hpid") or _text(item, "phpid") or f"{category}-region-{len(results)}",
+                        name=name,
+                        type=category,
+                        department=_text(item, "dutyDivName") or _text(item, "dutyEmclsName") or None,
+                        distance_km=_haversine_km(latitude, longitude, item_latitude, item_longitude),
+                        operating_status=_status(item),
+                        hours=_hours(item),
+                        phone=_text(item, "dutyTel1") or _text(item, "dutyTel3"),
+                        address=address,
+                        latitude=item_latitude,
+                        longitude=item_longitude,
+                        last_updated=datetime.now().strftime("%Y.%m.%d"),
+                        tags=_tags(category, item),
+                    )
+                )
     return sorted(results, key=lambda item: item.distance_km if item.distance_km is not None else 9999)[:page_size]
 
 

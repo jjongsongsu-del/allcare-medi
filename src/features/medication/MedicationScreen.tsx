@@ -5,7 +5,7 @@ import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { getRecommendedHealthContents } from "@/services/healthContentService";
-import { getLocalRegisteredMedicines } from "@/services/localUserData";
+import { getLocalMedicineSchedules, getLocalRegisteredMedicines } from "@/services/localUserData";
 import { getMedicationSchedules } from "@/services/medicationService";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
@@ -27,17 +27,31 @@ export function MedicationScreen() {
   }, [selectedProfile?.profileId]);
 
   const loadSchedules = async () => {
-    const [mockSchedules, registeredMedicines] = await Promise.all([
+    const [mockSchedules, registeredMedicines, savedSchedules] = await Promise.all([
       getMedicationSchedules(),
-      getLocalRegisteredMedicines(selectedProfile)
+      getLocalRegisteredMedicines(selectedProfile),
+      getLocalMedicineSchedules(selectedProfile)
     ]);
-    const medicineSchedules = registeredMedicines
+    const medicineById = new Map(registeredMedicines.map((medicine) => [String(medicine.id), medicine]));
+    const scheduleRows = savedSchedules.flatMap((schedule) => {
+      const medicine = medicineById.get(String(schedule.medicineId));
+      if (!medicine || medicine.status === "ended") return [];
+      return (schedule.doseTimes.length ? schedule.doseTimes : ["필요 시"]).map((time, index) => ({
+        id: `${schedule.id}-${index}`,
+        pillName: medicine.alias || medicine.name,
+        time,
+        instruction: `${schedule.doseAmount} · ${schedule.doseMethod} · ${schedule.doseTiming}`,
+        adherenceRate: medicine.highRisk ? 92 : 80,
+        familyShared: false
+      }));
+    });
+    const medicineSchedules = scheduleRows.length ? scheduleRows : registeredMedicines
       .filter((medicine) => medicine.status !== "ended")
       .map((medicine) => ({
         id: `medicine-${medicine.id}`,
         pillName: medicine.alias || medicine.name,
-        time: medicine.schedule?.split(" ")[1] ?? "08:00",
-        instruction: `${medicine.dosage ?? "1정"} · ${medicine.timing ?? "식후"}`,
+        time: medicine.schedule?.match(/\d{2}:\d{2}/)?.[0] ?? "08:00",
+        instruction: `${medicine.dosage ?? "1정"} · ${medicine.takingMethod ?? "경구"} · ${medicine.timing ?? "식후"}`,
         adherenceRate: medicine.highRisk ? 92 : 80,
         familyShared: false
       }));

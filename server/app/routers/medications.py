@@ -81,6 +81,7 @@ def search_medicines(query: str, limit: int = 10) -> list[MedicineSearchResultRe
     live_results = search_e_drug_medicines(query.strip(), limit)
     if live_results:
         return live_results
+
     matches = []
     for item in MEDICINE_SEARCH_FALLBACK:
         haystack = " ".join(
@@ -89,8 +90,6 @@ def search_medicines(query: str, limit: int = 10) -> list[MedicineSearchResultRe
         ).lower()
         if normalized in haystack:
             matches.append(MedicineSearchResultRead(**item))
-    if not matches:
-        matches = [MedicineSearchResultRead(**item) for item in MEDICINE_SEARCH_FALLBACK[: min(limit, 3)]]
     return matches[:limit]
 
 
@@ -100,7 +99,11 @@ def search_e_drug_medicines(query: str, limit: int) -> list[MedicineSearchResult
     if not service_key:
         return []
     for api_query in normalize_e_drug_queries(query):
-        results = fetch_e_drug_medicines(api_query, service_key, limit)
+        results = fetch_e_drug_medicines(api_query, service_key, limit, "itemName")
+        if results:
+            return results
+    for api_query in normalize_e_drug_purpose_queries(query):
+        results = fetch_e_drug_medicines(api_query, service_key, limit, "efcyQesitm")
         if results:
             return results
     return []
@@ -120,7 +123,22 @@ def normalize_e_drug_queries(query: str) -> list[str]:
     return [candidate for candidate in candidates if candidate and not (candidate in seen or seen.add(candidate))]
 
 
-def fetch_e_drug_medicines(query: str, service_key: str, limit: int) -> list[MedicineSearchResultRead]:
+def normalize_e_drug_purpose_queries(query: str) -> list[str]:
+    compact = re.sub(r"\s+", "", query.strip())
+    aliases = {
+        "혈압약": "혈압",
+        "고혈압약": "혈압",
+        "두통약": "두통",
+        "감기약": "감기",
+        "소화제": "소화",
+        "진통제": "통증",
+    }
+    candidates = [aliases.get(compact, ""), re.sub(r"약$", "", compact), compact]
+    seen: set[str] = set()
+    return [candidate for candidate in candidates if len(candidate) >= 2 and not (candidate in seen or seen.add(candidate))]
+
+
+def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_param: str) -> list[MedicineSearchResultRead]:
     try:
         response = httpx.get(
             "http://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList",
@@ -128,7 +146,7 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int) -> list[Med
                 "serviceKey": service_key,
                 "pageNo": 1,
                 "numOfRows": max(1, min(limit, 20)),
-                "itemName": query,
+                search_param: query,
                 "type": "json",
             },
             timeout=5.0,

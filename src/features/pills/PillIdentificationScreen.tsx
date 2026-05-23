@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
@@ -13,11 +14,11 @@ import {
   updateLocalRegisteredMedicine
 } from "@/services/localUserData";
 import { recognizePillFromImage } from "@/services/pillRecognitionService";
-import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, searchMedicines, updateRegisteredMedicine } from "@/services/serverApi";
+import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
-import { MedicationEvent, MedicineSchedule, MedicineSearchResult, Pill, RegisteredMedicine } from "@/types/domain";
+import { MedicationEvent, MedicineSchedule, MedicineSearchResult, Pill, PrescriptionOcrMedicine, PrescriptionOcrResult, RegisteredMedicine } from "@/types/domain";
 
 type PillTab = "medicine" | "prescription";
 type RegisterMethod = "manual" | "search" | "prescription" | "ai";
@@ -33,6 +34,17 @@ type MedicineDraft = {
   purpose: string;
   memo: string;
 };
+type ScheduleDraftState = {
+  timesPerDay: number;
+  doseTimes: string[];
+  startDate: string;
+  durationDays: string;
+  repeatRule: MedicineSchedule["repeatRule"];
+  notifyEnabled: boolean;
+  notificationLevel: MedicineSchedule["notificationLevel"];
+  doseMethod: string;
+  doseTiming: string;
+};
 const registrationMethods: Array<{
   key: RegisterMethod;
   title: string;
@@ -47,6 +59,18 @@ const registrationMethods: Array<{
 
 const listFilters = ["전체", "복용중", "복용예정", "복용종료", "즐겨찾기", "고위험"];
 const scheduleTimes = ["아침 08:00", "점심 13:00", "저녁 19:00", "취침 전 22:00"];
+const defaultDoseTimes = ["08:00", "13:00", "19:00", "22:00"];
+const defaultScheduleDraft = (): ScheduleDraftState => ({
+  timesPerDay: 1,
+  doseTimes: ["08:00"],
+  startDate: new Date().toISOString().slice(0, 10),
+  durationDays: "",
+  repeatRule: "daily",
+  notifyEnabled: true,
+  notificationLevel: "normal",
+  doseMethod: "경구",
+  doseTiming: "식후"
+});
 
 const registeredMedicinesSeed: RegisteredMedicine[] = [
   {
@@ -103,6 +127,10 @@ export function PillIdentificationScreen() {
   const [selectedSearchMedicine, setSelectedSearchMedicine] = useState<MedicineSearchResult | null>(null);
   const [medicineSearchLoading, setMedicineSearchLoading] = useState(false);
   const [medicineSearchError, setMedicineSearchError] = useState<string | null>(null);
+  const [prescriptionOcrResult, setPrescriptionOcrResult] = useState<PrescriptionOcrResult | null>(null);
+  const [selectedPrescriptionMedicine, setSelectedPrescriptionMedicine] = useState<PrescriptionOcrMedicine | null>(null);
+  const [prescriptionOcrLoading, setPrescriptionOcrLoading] = useState(false);
+  const [prescriptionOcrError, setPrescriptionOcrError] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [listFilter, setListFilter] = useState("전체");
   const [draft, setDraft] = useState<MedicineDraft>({
@@ -116,6 +144,7 @@ export function PillIdentificationScreen() {
     purpose: "",
     memo: ""
   });
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftState>(defaultScheduleDraft);
   const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const isMember = session?.mode === "member" && Boolean(session.userId);
@@ -167,13 +196,22 @@ export function PillIdentificationScreen() {
       setSelectedSearchMedicine(null);
       setMedicineSearchResults([]);
     }
+    if (method !== "prescription") {
+      setPrescriptionOcrResult(null);
+      setSelectedPrescriptionMedicine(null);
+      setPrescriptionOcrError(null);
+    }
   };
 
   const closeRegistrationModal = () => {
     setRegistrationModalVisible(false);
     setSelectedSearchMedicine(null);
+    setPrescriptionOcrResult(null);
+    setSelectedPrescriptionMedicine(null);
+    setPrescriptionOcrError(null);
     setMedicineSearchResults([]);
     setMedicineSearchQuery("");
+    setScheduleDraft(defaultScheduleDraft());
     setActiveStep("input");
     setRegistrationError(null);
   };
@@ -216,6 +254,59 @@ export function PillIdentificationScreen() {
       memo: [medicine.usage, medicine.caution, medicine.interaction, medicine.sideEffects, medicine.storageMethod].filter(Boolean).join("\n\n") || current.memo
     }));
     setActiveStep("confirm");
+  };
+
+  const runPrescriptionOcr = async (source: "camera" | "library") => {
+    setPrescriptionOcrLoading(true);
+    setPrescriptionOcrError(null);
+    try {
+      const permission = source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setPrescriptionOcrError(source === "camera" ? "카메라 권한이 필요합니다." : "사진첩 접근 권한이 필요합니다.");
+        return;
+      }
+      const pickerResult = source === "camera"
+        ? await ImagePicker.launchCameraAsync({ quality: 0.85, allowsEditing: false })
+        : await ImagePicker.launchImageLibraryAsync({ quality: 0.85, allowsEditing: false, mediaTypes: ["images"] });
+      if (pickerResult.canceled || !pickerResult.assets[0]?.uri) {
+        return;
+      }
+      const result = await uploadPrescriptionOcr(pickerResult.assets[0].uri);
+      setPrescriptionOcrResult(result);
+      if (result.message) {
+        setPrescriptionOcrError(result.message);
+      }
+      if (result.medicines[0]) {
+        applyPrescriptionMedicine(result.medicines[0]);
+      }
+    } catch {
+      setPrescriptionOcrError("처방전 OCR을 처리하지 못했습니다. 잠시 후 다시 시도하거나 직접 입력해 주세요.");
+    } finally {
+      setPrescriptionOcrLoading(false);
+    }
+  };
+
+  const applyPrescriptionMedicine = (medicine: PrescriptionOcrMedicine) => {
+    setSelectedPrescriptionMedicine(medicine);
+    setRegistrationError(null);
+    setDraft((current) => ({
+      ...current,
+      name: medicine.name,
+      dosage: medicine.dosage ?? current.dosage,
+      form: medicine.form ?? current.form,
+      purpose: medicine.purpose ?? current.purpose,
+      memo: [medicine.usage, medicine.memo].filter(Boolean).join("\n\n") || current.memo
+    }));
+    setScheduleDraft((current) => ({
+      ...current,
+      timesPerDay: medicine.timesPerDay ?? current.timesPerDay,
+      doseTimes: medicine.doseTimes.length ? medicine.doseTimes : current.doseTimes,
+      durationDays: medicine.durationDays ? String(medicine.durationDays) : current.durationDays,
+      doseTiming: medicine.timing ?? current.doseTiming,
+      repeatRule: medicine.timesPerDay === 0 ? "as_needed" : current.repeatRule
+    }));
   };
 
   const proceedRegistrationStep = () => {
@@ -304,9 +395,9 @@ export function PillIdentificationScreen() {
       form: draft.form,
       color: draft.color,
       purpose: draft.purpose,
-      timing: "식후",
-      takingMethod: "경구",
-      schedule: withSchedule ? "매일 08:00" : undefined,
+      timing: scheduleDraft.doseTiming,
+      takingMethod: scheduleDraft.doseMethod,
+      schedule: withSchedule ? formatScheduleSummary(scheduleDraft) : undefined,
       memo: draft.memo,
       durWarnings: duplicate ? ["이미 등록된 약과 이름이 비슷합니다. 중복 복용 여부를 확인하세요."] : [],
       status: withSchedule ? "taking" : "scheduled",
@@ -330,7 +421,11 @@ export function PillIdentificationScreen() {
     await loadMedicines();
     setMessage(duplicate ? "약을 저장했습니다. 다만 기존 등록 약과 중복 가능성이 있어 확인이 필요합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
     setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "" });
+    setScheduleDraft(defaultScheduleDraft());
     setSelectedSearchMedicine(null);
+    setPrescriptionOcrResult(null);
+    setSelectedPrescriptionMedicine(null);
+    setPrescriptionOcrError(null);
     setMedicineSearchResults([]);
     setMedicineSearchQuery("");
     setActiveStep("input");
@@ -338,22 +433,23 @@ export function PillIdentificationScreen() {
   };
 
   const saveScheduleForMedicine = async (medicine: RegisteredMedicine) => {
+    const durationDays = Number(scheduleDraft.durationDays);
     const schedule: MedicineSchedule = {
       id: `local-schedule-${Date.now()}`,
       medicineId: medicine.id,
       profileId: selectedProfile?.profileId,
       doseAmount: medicine.dosage ?? "1정",
-      doseMethod: medicine.takingMethod ?? "경구",
-      doseTiming: medicine.timing ?? "식후",
+      doseMethod: scheduleDraft.doseMethod,
+      doseTiming: scheduleDraft.doseTiming,
       purpose: medicine.purpose,
-      timesPerDay: 1,
-      doseTimes: ["08:00"],
-      startDate: new Date().toISOString().slice(0, 10),
-      endDate: null,
-      durationDays: null,
-      repeatRule: "daily",
-      notifyEnabled: true,
-      notificationLevel: "normal",
+      timesPerDay: scheduleDraft.timesPerDay,
+      doseTimes: scheduleDraft.doseTimes,
+      startDate: scheduleDraft.startDate,
+      endDate: Number.isFinite(durationDays) && durationDays > 0 ? calculateEndDate(scheduleDraft.startDate, durationDays) : null,
+      durationDays: Number.isFinite(durationDays) && durationDays > 0 ? durationDays : null,
+      repeatRule: scheduleDraft.repeatRule,
+      notifyEnabled: scheduleDraft.notifyEnabled,
+      notificationLevel: scheduleDraft.notificationLevel,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -486,7 +582,12 @@ export function PillIdentificationScreen() {
         selectedSearchMedicine={selectedSearchMedicine}
         searchLoading={medicineSearchLoading}
         searchError={medicineSearchError}
+        prescriptionOcrResult={prescriptionOcrResult}
+        selectedPrescriptionMedicine={selectedPrescriptionMedicine}
+        prescriptionOcrLoading={prescriptionOcrLoading}
+        prescriptionOcrError={prescriptionOcrError}
         validationError={registrationError}
+        scheduleDraft={scheduleDraft}
         onClose={closeRegistrationModal}
         onStepChange={changeRegistrationStep}
         onDraftChange={(patch) => {
@@ -498,6 +599,9 @@ export function PillIdentificationScreen() {
         onSearchQueryChange={setMedicineSearchQuery}
         onSearch={runMedicineSearch}
         onSelectSearchResult={selectMedicineSearchResult}
+        onPrescriptionOcr={runPrescriptionOcr}
+        onSelectPrescriptionMedicine={applyPrescriptionMedicine}
+        onScheduleDraftChange={(patch) => setScheduleDraft((current) => ({ ...current, ...patch }))}
         onNext={proceedRegistrationStep}
         onSaveMedicineOnly={() => saveDraftMedicine({ withSchedule: false })}
       />
@@ -519,13 +623,21 @@ function MedicineRegistrationModal({
   selectedSearchMedicine,
   searchLoading,
   searchError,
+  prescriptionOcrResult,
+  selectedPrescriptionMedicine,
+  prescriptionOcrLoading,
+  prescriptionOcrError,
   validationError,
+  scheduleDraft,
   onClose,
   onStepChange,
   onDraftChange,
   onSearchQueryChange,
   onSearch,
   onSelectSearchResult,
+  onPrescriptionOcr,
+  onSelectPrescriptionMedicine,
+  onScheduleDraftChange,
   onNext,
   onSaveMedicineOnly
 }: {
@@ -540,13 +652,21 @@ function MedicineRegistrationModal({
   selectedSearchMedicine: MedicineSearchResult | null;
   searchLoading: boolean;
   searchError: string | null;
+  prescriptionOcrResult: PrescriptionOcrResult | null;
+  selectedPrescriptionMedicine: PrescriptionOcrMedicine | null;
+  prescriptionOcrLoading: boolean;
+  prescriptionOcrError: string | null;
   validationError: string | null;
+  scheduleDraft: ScheduleDraftState;
   onClose: () => void;
   onStepChange: (step: RegisterStep) => void;
   onDraftChange: (patch: Partial<MedicineDraft>) => void;
   onSearchQueryChange: (value: string) => void;
   onSearch: () => void;
   onSelectSearchResult: (medicine: MedicineSearchResult) => void;
+  onPrescriptionOcr: (source: "camera" | "library") => void;
+  onSelectPrescriptionMedicine: (medicine: PrescriptionOcrMedicine) => void;
+  onScheduleDraftChange: (patch: Partial<ScheduleDraftState>) => void;
   onNext: () => void;
   onSaveMedicineOnly: () => void;
 }) {
@@ -588,6 +708,16 @@ function MedicineRegistrationModal({
 
             {activeStep === "input" && method !== "search" ? (
               <>
+                {method === "prescription" ? (
+                  <PrescriptionOcrStep
+                    result={prescriptionOcrResult}
+                    selected={selectedPrescriptionMedicine}
+                    loading={prescriptionOcrLoading}
+                    error={prescriptionOcrError}
+                    onRunOcr={onPrescriptionOcr}
+                    onSelect={onSelectPrescriptionMedicine}
+                  />
+                ) : null}
                 <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
                 {validationError ? <Text style={styles.validationText}>{validationError}</Text> : null}
               </>
@@ -595,12 +725,12 @@ function MedicineRegistrationModal({
 
             {activeStep === "confirm" ? (
               <>
-                <CandidateConfirmation method={method} pills={pills} draftName={draft.name} selectedMedicine={selectedSearchMedicine} />
+                <CandidateConfirmation method={method} pills={pills} draftName={draft.name} selectedMedicine={selectedSearchMedicine} prescriptionMedicine={selectedPrescriptionMedicine} ocrResult={prescriptionOcrResult} />
                 <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
               </>
             ) : null}
 
-            {activeStep === "schedule" ? <ScheduleDraft /> : null}
+            {activeStep === "schedule" ? <ScheduleDraft schedule={scheduleDraft} onChange={onScheduleDraftChange} /> : null}
           </ScrollView>
 
           <View style={styles.modalActions}>
@@ -675,6 +805,64 @@ function SearchRegistrationStep({
   );
 }
 
+function PrescriptionOcrStep({
+  result,
+  selected,
+  loading,
+  error,
+  onRunOcr,
+  onSelect
+}: {
+  result: PrescriptionOcrResult | null;
+  selected: PrescriptionOcrMedicine | null;
+  loading: boolean;
+  error: string | null;
+  onRunOcr: (source: "camera" | "library") => void;
+  onSelect: (medicine: PrescriptionOcrMedicine) => void;
+}) {
+  return (
+    <View style={styles.inputStack}>
+      <Text style={styles.body}>처방전을 사진으로 촬영하거나 사진첩에서 선택하면 OCR로 공통 항목, 약명, 복용량, 복용 횟수, 복용일수를 추출합니다.</Text>
+      <View style={styles.resultActions}>
+        <Pressable style={styles.primaryButton} onPress={() => onRunOcr("camera")}>
+          <MaterialCommunityIcons name="camera-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.primaryButtonText}>{loading ? "인식 중" : "사진 찍기"}</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={() => onRunOcr("library")}>
+          <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
+          <Text style={styles.secondaryButtonText}>사진첩 선택</Text>
+        </Pressable>
+      </View>
+      {error ? <Text style={styles.dangerText}>{error}</Text> : null}
+      {result ? (
+        <View style={styles.candidateBox}>
+          <Text style={styles.cardTitle}>OCR 공통 항목</Text>
+          <Text style={styles.body}>
+            {[result.common.patientName, result.common.prescribedOn, result.common.hospitalName, result.common.doctorName].filter(Boolean).join(" · ") || "공통 항목은 직접 확인해 주세요."}
+          </Text>
+          <Text style={styles.meta}>공급자: {result.provider} · 추출 텍스트 {result.rawText.length}자</Text>
+        </View>
+      ) : null}
+      {result?.medicines.map((medicine) => {
+        const active = selected?.name === medicine.name;
+        return (
+          <Pressable key={`${medicine.name}-${medicine.usage}`} style={[styles.searchResultItem, active && styles.searchResultItemActive]} onPress={() => onSelect(medicine)}>
+            <View style={styles.pillIcon}>
+              <MaterialCommunityIcons name="file-document-edit-outline" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.resultText}>
+              <Text style={styles.resultTitle}>{medicine.name}</Text>
+              <Text style={styles.resultMeta}>{medicine.dosage ?? "용량 확인 필요"} · {medicine.timing ?? "복용시점 확인 필요"} · {medicine.durationDays ? `${medicine.durationDays}일` : "일수 확인 필요"}</Text>
+              <Text style={styles.meta}>{medicine.usage ?? "OCR 추출 내용을 확인해 주세요."}</Text>
+            </View>
+            {active ? <MaterialCommunityIcons name="check-circle" size={24} color={colors.success} /> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function RegistrationInput({
   method,
   draft,
@@ -715,7 +903,21 @@ function RegistrationInput({
   );
 }
 
-function CandidateConfirmation({ method, pills, draftName, selectedMedicine }: { method: RegisterMethod; pills: Pill[]; draftName: string; selectedMedicine?: MedicineSearchResult | null }) {
+function CandidateConfirmation({
+  method,
+  pills,
+  draftName,
+  selectedMedicine,
+  prescriptionMedicine,
+  ocrResult
+}: {
+  method: RegisterMethod;
+  pills: Pill[];
+  draftName: string;
+  selectedMedicine?: MedicineSearchResult | null;
+  prescriptionMedicine?: PrescriptionOcrMedicine | null;
+  ocrResult?: PrescriptionOcrResult | null;
+}) {
   const title = method === "ai" ? "AI 후보 확인" : method === "prescription" ? "OCR 추출 결과 확인" : "약 상세 정보 확인";
 
   return (
@@ -733,6 +935,21 @@ function CandidateConfirmation({ method, pills, draftName, selectedMedicine }: {
           <Text style={styles.meta}>e약은 검색 결과 선택 완료 · 저장 전 최종 확인</Text>
         </View>
       ) : null}
+      {prescriptionMedicine ? (
+        <View style={styles.candidateBox}>
+          <Text style={styles.cardTitle}>{prescriptionMedicine.name}</Text>
+          <Text style={styles.body}>{prescriptionMedicine.usage ?? "OCR 추출 내용을 확인해 주세요."}</Text>
+          <Text style={styles.meta}>
+            {prescriptionMedicine.dosage ?? "용량 확인 필요"} · {prescriptionMedicine.timing ?? "복용시점 확인 필요"} · {prescriptionMedicine.durationDays ? `${prescriptionMedicine.durationDays}일` : "복용일수 확인 필요"}
+          </Text>
+        </View>
+      ) : null}
+      {ocrResult?.rawText ? (
+        <View style={styles.candidateBox}>
+          <Text style={styles.cardTitle}>OCR 원문 메모</Text>
+          <Text style={styles.meta} numberOfLines={6}>{ocrResult.rawText}</Text>
+        </View>
+      ) : null}
       {(method === "ai" ? pills : pills.slice(0, 1)).map((pill) => (
         <View key={pill.id} style={styles.candidateBox}>
           <Text style={styles.cardTitle}>{draftName || pill.productName}</Text>
@@ -744,33 +961,49 @@ function CandidateConfirmation({ method, pills, draftName, selectedMedicine }: {
   );
 }
 
-function ScheduleDraft() {
+function ScheduleDraft({ schedule, onChange }: { schedule: ScheduleDraftState; onChange: (patch: Partial<ScheduleDraftState>) => void }) {
+  const setTimesPerDay = (timesPerDay: number) => {
+    const doseTimes = timesPerDay === 0 ? [] : defaultDoseTimes.slice(0, timesPerDay);
+    onChange({ timesPerDay, doseTimes, repeatRule: timesPerDay === 0 ? "as_needed" : schedule.repeatRule === "as_needed" ? "daily" : schedule.repeatRule });
+  };
+  const toggleDoseTime = (time: string) => {
+    const doseTimes = schedule.doseTimes.includes(time)
+      ? schedule.doseTimes.filter((item) => item !== time)
+      : [...schedule.doseTimes, time].sort();
+    onChange({ doseTimes, timesPerDay: doseTimes.length || schedule.timesPerDay });
+  };
+
   return (
     <View style={styles.inputStack}>
       <Text style={styles.cardTitle}>복약 스케줄 설정</Text>
       <Text style={styles.body}>스케줄 없이 약만 저장할 수 있고, 처방전 OCR 결과는 스케줄 초안으로 자동 생성됩니다.</Text>
       <View style={styles.filterRow}>
-        <MiniChoice label="1일 1회" active />
-        <MiniChoice label="1일 2회" />
-        <MiniChoice label="1일 3회" />
-        <MiniChoice label="필요 시" />
+        <MiniChoice label="1일 1회" active={schedule.timesPerDay === 1 && schedule.repeatRule !== "as_needed"} onPress={() => setTimesPerDay(1)} />
+        <MiniChoice label="1일 2회" active={schedule.timesPerDay === 2} onPress={() => setTimesPerDay(2)} />
+        <MiniChoice label="1일 3회" active={schedule.timesPerDay === 3} onPress={() => setTimesPerDay(3)} />
+        <MiniChoice label="필요 시" active={schedule.repeatRule === "as_needed"} onPress={() => setTimesPerDay(0)} />
       </View>
       <View style={styles.filterRow}>
-        {scheduleTimes.map((time, index) => (
-          <MiniChoice key={time} label={time} active={index === 0} />
+        {scheduleTimes.map((time) => (
+          <MiniChoice key={time} label={time} active={schedule.doseTimes.includes(time.slice(-5))} onPress={() => toggleDoseTime(time.slice(-5))} />
         ))}
       </View>
       <View style={styles.twoColumn}>
-        <TextInput style={styles.input} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={colors.textMuted} />
-        <TextInput style={styles.input} placeholder="복용일수 입력 시 종료일 자동 계산" placeholderTextColor={colors.textMuted} />
+        <TextInput style={styles.input} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={colors.textMuted} value={schedule.startDate} onChangeText={(value) => onChange({ startDate: value })} />
+        <TextInput style={styles.input} placeholder="복용일수 입력 시 종료일 자동 계산" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.durationDays} onChangeText={(value) => onChange({ durationDays: value.replace(/[^0-9]/g, "") })} />
+      </View>
+      <View style={styles.twoColumn}>
+        <TextInput style={styles.input} placeholder="복용 방법 예: 경구" placeholderTextColor={colors.textMuted} value={schedule.doseMethod} onChangeText={(value) => onChange({ doseMethod: value })} />
+        <TextInput style={styles.input} placeholder="복용 시점 예: 식후" placeholderTextColor={colors.textMuted} value={schedule.doseTiming} onChangeText={(value) => onChange({ doseTiming: value })} />
       </View>
       <View style={styles.filterRow}>
-        <MiniChoice label="매일" active />
-        <MiniChoice label="특정 요일" />
-        <MiniChoice label="격일" />
-        <MiniChoice label="알림 켜기" active />
-        <MiniChoice label="강한 알림" />
+        <MiniChoice label="매일" active={schedule.repeatRule === "daily"} onPress={() => onChange({ repeatRule: "daily" })} />
+        <MiniChoice label="특정 요일" active={schedule.repeatRule === "weekly"} onPress={() => onChange({ repeatRule: "weekly" })} />
+        <MiniChoice label="격일" active={schedule.repeatRule === "alternate_day"} onPress={() => onChange({ repeatRule: "alternate_day" })} />
+        <MiniChoice label="알림 켜기" active={schedule.notifyEnabled} onPress={() => onChange({ notifyEnabled: !schedule.notifyEnabled })} />
+        <MiniChoice label="강한 알림" active={schedule.notificationLevel === "strong"} onPress={() => onChange({ notificationLevel: schedule.notificationLevel === "strong" ? "normal" : "strong" })} />
       </View>
+      <Text style={styles.meta}>저장될 스케줄: {formatScheduleSummary(schedule)}</Text>
     </View>
   );
 }
@@ -894,12 +1127,33 @@ function StepPill({ label, active, onPress }: { label: string; active: boolean; 
   );
 }
 
-function MiniChoice({ label, active = false }: { label: string; active?: boolean }) {
+function MiniChoice({ label, active = false, onPress }: { label: string; active?: boolean; onPress?: () => void }) {
   return (
-    <View style={[styles.filterChip, active && styles.filterChipActive]}>
+    <Pressable onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
       <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
-    </View>
+    </Pressable>
   );
+}
+
+function formatScheduleSummary(schedule: ScheduleDraftState): string {
+  const repeatLabel = schedule.repeatRule === "daily"
+    ? "매일"
+    : schedule.repeatRule === "weekly"
+      ? "특정 요일"
+      : schedule.repeatRule === "alternate_day"
+        ? "격일"
+        : "필요 시";
+  const timeLabel = schedule.repeatRule === "as_needed" ? "필요 시" : schedule.doseTimes.join(", ") || "시간 미정";
+  const durationLabel = schedule.durationDays ? ` · ${schedule.durationDays}일` : "";
+  const alertLabel = schedule.notifyEnabled ? ` · ${schedule.notificationLevel === "strong" ? "강한 알림" : "알림"}` : " · 알림 꺼짐";
+  return `${repeatLabel} ${timeLabel}${durationLabel}${alertLabel}`;
+}
+
+function calculateEndDate(startDate: string, durationDays: number): string | null {
+  const start = new Date(`${startDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  start.setDate(start.getDate() + Math.max(0, durationDays - 1));
+  return start.toISOString().slice(0, 10);
 }
 
 function StatusBadge({ status, highRisk }: { status: RegisteredMedicine["status"]; highRisk: boolean }) {

@@ -12,6 +12,8 @@ async def search_facilities(
     longitude: float | None = Query(default=None),
     query: str | None = Query(default=None),
     type: str | None = Query(default=None),
+    stage1: str | None = Query(default=None),
+    stage2: str | None = Query(default=None),
     radius_km: float | None = Query(default=None, ge=0.1, le=50),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
@@ -21,6 +23,9 @@ async def search_facilities(
             latitude=latitude,
             longitude=longitude,
             facility_type=type,
+            stage1=stage1,
+            stage2=stage2,
+            query=query,
             page=page,
             page_size=page_size,
         )

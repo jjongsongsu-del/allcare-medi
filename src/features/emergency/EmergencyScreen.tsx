@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useEffect, useMemo, useState } from "react";
-import { Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
+import { useAuth } from "@/auth/AuthProvider";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
@@ -12,6 +13,7 @@ import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { EmergencyRoom } from "@/types/domain";
+import { createEmergencyShare } from "@/services/serverApi";
 
 const defaultLocation = { latitude: 37.5665, longitude: 126.978 };
 const defaultRegion: Region = {
@@ -40,7 +42,11 @@ const regions = [
   { label: "제주", value: "제주특별자치도" }
 ];
 
+type EmergencyFilter = "소아응급" | "분만실" | "음압격리" | "일반격리" | "중증진료" | "CT" | "MRI" | "인공호흡기";
+const emergencyFilters: EmergencyFilter[] = ["소아응급", "분만실", "음압격리", "일반격리", "중증진료", "CT", "MRI", "인공호흡기"];
+
 export function EmergencyScreen() {
+  const { session } = useAuth();
   const [emergencyRooms, setEmergencyRooms] = useState<EmergencyRoom[]>([]);
   const [selectedRegion, setSelectedRegion] = useState(regions[0]);
   const [keyword, setKeyword] = useState("");
@@ -50,8 +56,11 @@ export function EmergencyScreen() {
   const [loading, setLoading] = useState(false);
   const [locationMessage, setLocationMessage] = useState("현재 위치 권한이 없어 서울시청 기준으로 표시합니다.");
   const [selectedRoom, setSelectedRoom] = useState<EmergencyRoom | null>(null);
+  const [detailRoom, setDetailRoom] = useState<EmergencyRoom | null>(null);
   const [cardModalVisible, setCardModalVisible] = useState(false);
   const [cardDraft, setCardDraft] = useState<FamilyProfile | null>(null);
+  const [activeFilters, setActiveFilters] = useState<EmergencyFilter[]>([]);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
   const { selectedProfile, updateProfile } = useFamilyProfile();
 
   useEffect(() => {
@@ -68,7 +77,20 @@ export function EmergencyScreen() {
     }
   }, [selectedProfile]);
 
-  const primaryRoom = emergencyRooms[0];
+  const filteredRooms = useMemo(() => {
+    return emergencyRooms.filter((room) => {
+      if (activeFilters.includes("소아응급") && !room.pediatricEmergency) return false;
+      if (activeFilters.includes("분만실") && !room.deliveryRoom) return false;
+      if (activeFilters.includes("음압격리") && room.negativeIsolationBeds <= 0) return false;
+      if (activeFilters.includes("일반격리") && room.generalIsolationBeds <= 0) return false;
+      if (activeFilters.includes("중증진료") && !room.severeCare) return false;
+      if (activeFilters.includes("CT") && !room.ctAvailable) return false;
+      if (activeFilters.includes("MRI") && !room.mriAvailable) return false;
+      if (activeFilters.includes("인공호흡기") && !room.ventilatorAvailable) return false;
+      return true;
+    });
+  }, [activeFilters, emergencyRooms]);
+  const primaryRoom = filteredRooms[0];
   const focusedRoom = selectedRoom ?? primaryRoom;
   const profileAdvice = useMemo(() => getProfileEmergencyAdvice(selectedProfile?.relationType), [selectedProfile?.relationType]);
   const emergencyNotes = [
@@ -131,6 +153,40 @@ export function EmergencyScreen() {
     if (!cardDraft) return;
     await updateProfile(cardDraft);
     setCardModalVisible(false);
+  };
+
+  const toggleFilter = (filter: EmergencyFilter) => {
+    setActiveFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter]);
+  };
+
+  const shareGuardianLocation = async (room: EmergencyRoom) => {
+    const guardianContact = selectedProfile?.emergencyContact || selectedProfile?.phone || "";
+    const message = [
+      `[올케어메디 응급 위치 공유]`,
+      `대상: ${selectedProfile?.profileName ?? "나"}`,
+      `응급실: ${room.name}`,
+      `주소: ${room.address}`,
+      `전화: ${room.emergencyPhone || room.emergencyDirectPhone || room.phone || "확인 필요"}`,
+      room.latitude && room.longitude ? `위치: https://www.google.com/maps/search/?api=1&query=${room.latitude},${room.longitude}` : "",
+      guardianContact ? `보호자 연락처: ${guardianContact}` : "보호자 연락처 미등록"
+    ].filter(Boolean).join("\n");
+    setShareMessage(null);
+    if (session?.mode === "member") {
+      await createEmergencyShare({
+        userId: session.userId,
+        profileId: selectedProfile?.profileId,
+        profileName: selectedProfile?.profileName,
+        guardianContact,
+        roomId: room.id,
+        roomName: room.name,
+        roomPhone: room.emergencyPhone || room.emergencyDirectPhone || room.phone,
+        latitude: room.latitude,
+        longitude: room.longitude,
+        message
+      }).catch(() => undefined);
+    }
+    await Share.share({ message });
+    setShareMessage("보호자에게 공유할 응급 위치 정보를 열었습니다.");
   };
 
   return (
@@ -197,7 +253,18 @@ export function EmergencyScreen() {
           <EmergencyButton label="내 위치 기준" icon="crosshairs-gps" variant="filled" onPress={requestCurrentLocation} />
           <EmergencyButton label="NEMC 보기" icon="open-in-new" variant="outline" onPress={() => Linking.openURL("https://www.e-gen.or.kr/")} />
         </View>
+        <View style={styles.emergencyFilterRow}>
+          {emergencyFilters.map((filter) => {
+            const active = activeFilters.includes(filter);
+            return (
+              <Pressable key={filter} style={[styles.emergencyFilterChip, active && styles.emergencyFilterChipActive]} onPress={() => toggleFilter(filter)}>
+                <Text style={[styles.emergencyFilterText, active && styles.emergencyFilterTextActive]}>{filter}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
         <Text style={styles.updatedText}>{locationMessage}</Text>
+        {shareMessage ? <Text style={styles.updatedText}>{shareMessage}</Text> : null}
       </View>
 
       <View style={styles.mapCard}>
@@ -210,13 +277,16 @@ export function EmergencyScreen() {
           showsMyLocationButton={false}
           onRegionChangeComplete={setMapRegion}
         >
-          {emergencyRooms.filter((room) => room.latitude && room.longitude).map((room) => (
+          {filteredRooms.filter((room) => room.latitude && room.longitude).map((room) => (
             <Marker
               key={room.id}
               coordinate={{ latitude: room.latitude!, longitude: room.longitude! }}
               title={room.name}
               description={`응급실 일반 ${formatCapacityInline(room.emergencyGeneralBeds)} · ${room.distanceKm.toFixed(1)}km`}
-              onPress={() => setSelectedRoom(room)}
+              onPress={() => {
+                setSelectedRoom(room);
+                setDetailRoom(room);
+              }}
             >
               <View style={[styles.markerBubble, room.id === focusedRoom?.id && styles.markerBubbleActive]}>
                 <MaterialCommunityIcons name="hospital-box-outline" size={18} color="#FFFFFF" />
@@ -263,9 +333,31 @@ export function EmergencyScreen() {
         </Text>
       </View>
 
-      {emergencyRooms.map((room) => (
-        <EmergencyRoomCard key={room.id} room={room} highlighted={room.id === focusedRoom?.id} onSelect={() => setSelectedRoom(room)} />
+      {filteredRooms.map((room) => (
+        <EmergencyRoomCard
+          key={room.id}
+          room={room}
+          highlighted={room.id === focusedRoom?.id}
+          onSelect={() => {
+            setSelectedRoom(room);
+            setDetailRoom(room);
+          }}
+          onShare={() => shareGuardianLocation(room)}
+        />
       ))}
+      {filteredRooms.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.roomName}>조건에 맞는 응급실이 없습니다.</Text>
+          <Text style={styles.address}>필터를 줄이거나 지역을 넓혀 다시 조회해 주세요. 위급 상황은 119 신고가 우선입니다.</Text>
+        </View>
+      ) : null}
+
+      <EmergencyRoomDetailModal
+        room={detailRoom}
+        selectedProfile={selectedProfile}
+        onClose={() => setDetailRoom(null)}
+        onShare={shareGuardianLocation}
+      />
 
       <EmergencyCardModal
         visible={cardModalVisible}
@@ -298,7 +390,17 @@ function EmergencyButton({
   );
 }
 
-function EmergencyRoomCard({ room, highlighted, onSelect }: { room: EmergencyRoom; highlighted: boolean; onSelect: () => void }) {
+function EmergencyRoomCard({
+  room,
+  highlighted,
+  onSelect,
+  onShare
+}: {
+  room: EmergencyRoom;
+  highlighted: boolean;
+  onSelect: () => void;
+  onShare: () => void;
+}) {
   const phone = room.emergencyPhone || room.phone;
   const openDirections = () => {
     const url = room.latitude && room.longitude
@@ -346,9 +448,79 @@ function EmergencyRoomCard({ room, highlighted, onSelect }: { room: EmergencyRoo
       <View style={styles.roomActions}>
         <EmergencyButton label="전화" icon="phone" variant="filled" onPress={() => phone && Linking.openURL(`tel:${phone}`)} />
         <EmergencyButton label="길찾기" icon="navigation-variant" variant="outline" onPress={openDirections} />
-        <EmergencyButton label="공유" icon="share-variant" variant="outline" />
+        <EmergencyButton label="공유" icon="share-variant" variant="outline" onPress={onShare} />
       </View>
     </Pressable>
+  );
+}
+
+function EmergencyRoomDetailModal({
+  room,
+  selectedProfile,
+  onClose,
+  onShare
+}: {
+  room: EmergencyRoom | null;
+  selectedProfile: FamilyProfile | null;
+  onClose: () => void;
+  onShare: (room: EmergencyRoom) => void;
+}) {
+  if (!room) return null;
+  const phone = room.emergencyPhone || room.emergencyDirectPhone || room.phone;
+  const directionsUrl = room.latitude && room.longitude
+    ? `https://www.google.com/maps/dir/?api=1&destination=${room.latitude},${room.longitude}&travelmode=driving`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${room.name} ${room.address}`)}`;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.detailBackdrop}>
+        <Pressable style={styles.detailScrim} onPress={onClose} />
+        <View style={styles.detailModal}>
+          <View style={styles.modalHeader}>
+            <View style={styles.detailTitleArea}>
+              <Text style={styles.cardEyebrow}>응급실 상세</Text>
+              <Text style={styles.modalTitle}>{room.name}</Text>
+              <Text style={styles.roomMeta}>{room.centerType} · {formatDistance(room.distanceKm)}</Text>
+            </View>
+            <Pressable style={styles.modalCloseButton} onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.textStrong} />
+            </Pressable>
+          </View>
+
+          <Text style={styles.address}>{room.address}</Text>
+          <Text style={styles.roomNotice}>전화: {phone || "확인 필요"} · 입력일시: {room.updatedAt}</Text>
+
+          <EmergencyRoomCapacityDetails room={room} />
+
+          <View style={styles.detailSection}>
+            <Text style={styles.capacityTitle}>선택 가족 응급정보</Text>
+            <View style={styles.noteGrid}>
+              <View style={styles.notePill}><Text style={styles.noteText}>대상 {selectedProfile?.profileName ?? "나"}</Text></View>
+              <View style={styles.notePill}><Text style={styles.noteText}>혈액형 {selectedProfile?.bloodType || "미등록"}</Text></View>
+              <View style={styles.notePill}><Text style={styles.noteText}>알레르기 {selectedProfile?.allergies || "미등록"}</Text></View>
+              <View style={styles.notePill}><Text style={styles.noteText}>복용약 {selectedProfile?.currentMedications || "미등록"}</Text></View>
+            </View>
+          </View>
+
+          <View style={styles.detailSection}>
+            <Text style={styles.capacityTitle}>특화 진료/장비</Text>
+            <View style={styles.statusRow}>
+              <StatusPill label="소아응급" active={room.pediatricEmergency} />
+              <StatusPill label="분만실" active={room.deliveryRoom} />
+              <StatusPill label="음압격리" active={room.negativeIsolationBeds > 0} />
+              <StatusPill label="일반격리" active={room.generalIsolationBeds > 0} />
+              <StatusPill label="중증진료" active={room.severeCare} />
+            </View>
+          </View>
+
+          <View style={styles.roomActions}>
+            <EmergencyButton label="전화" icon="phone" variant="filled" onPress={() => phone && Linking.openURL(`tel:${phone}`)} />
+            <EmergencyButton label="길찾기" icon="navigation-variant" variant="outline" onPress={() => Linking.openURL(directionsUrl)} />
+            <EmergencyButton label="보호자 공유" icon="share-variant" variant="outline" onPress={() => onShare(room)} />
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -669,6 +841,32 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: mutedRed
   },
+  emergencyFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs
+  },
+  emergencyFilterChip: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#F2B8B5",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.sm,
+    justifyContent: "center"
+  },
+  emergencyFilterChipActive: {
+    borderColor: emergencyRed,
+    backgroundColor: emergencyRed
+  },
+  emergencyFilterText: {
+    ...typography.caption,
+    color: emergencyDark,
+    fontWeight: "800"
+  },
+  emergencyFilterTextActive: {
+    color: "#FFFFFF"
+  },
   mapCard: {
     height: 320,
     borderRadius: 8,
@@ -810,6 +1008,14 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2
   },
+  emptyCard: {
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#FFD0CC",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
   roomTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -924,6 +1130,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.35)",
     justifyContent: "flex-end"
+  },
+  detailBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    padding: spacing.lg
+  },
+  detailScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.42)"
+  },
+  detailModal: {
+    maxHeight: "88%",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#FFD0CC",
+    padding: spacing.lg,
+    gap: spacing.md,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10
+  },
+  detailTitleArea: {
+    flex: 1,
+    gap: 2
+  },
+  detailSection: {
+    gap: spacing.sm
   },
   modalSheet: {
     backgroundColor: "#FFFFFF",

@@ -1,4 +1,5 @@
-import { EmergencyRoom, MedicalFacility, MedicationEvent, MedicineSchedule, MedicineSearchResult, RegisteredMedicine } from "@/types/domain";
+import { EmergencyRoom, MedicalFacility, MedicationEvent, MedicineSchedule, MedicineSearchResult, PrescriptionOcrResult, RegisteredMedicine } from "@/types/domain";
+import { StoredPlace } from "@/services/localUserData";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -120,6 +121,16 @@ type EmergencyRoomSearchResponse = {
   source: string;
   results: EmergencyRoomSearchResult[];
   message?: string | null;
+};
+
+export type FacilityReport = {
+  id: number;
+  facilityExternalId: string;
+  facilityName: string;
+  reportType: string;
+  description?: string | null;
+  reporterContact?: string | null;
+  status: "pending" | "reviewing" | "approved" | "rejected";
 };
 
 export async function fetchManagedApis(): Promise<ManagedApiEndpoint[]> {
@@ -247,6 +258,24 @@ export async function searchMedicines(query: string): Promise<MedicineSearchResu
   return payload.map(toMedicineSearchResult);
 }
 
+export async function uploadPrescriptionOcr(imageUri: string): Promise<PrescriptionOcrResult> {
+  const formData = new FormData();
+  formData.append("file", {
+    uri: imageUri,
+    name: `prescription-${Date.now()}.jpg`,
+    type: "image/jpeg"
+  } as unknown as Blob);
+
+  const response = await fetch(`${API_BASE_URL}/prescriptions/ocr`, {
+    method: "POST",
+    body: formData
+  });
+  if (!response.ok) {
+    throw new Error("처방전 OCR 인식에 실패했습니다.");
+  }
+  return toPrescriptionOcrResult(await response.json());
+}
+
 export async function createRegisteredMedicine(userId: number, medicine: RegisteredMedicine): Promise<RegisteredMedicine> {
   const response = await fetch(`${API_BASE_URL}/medications`, {
     method: "POST",
@@ -312,6 +341,8 @@ export async function searchFacilitiesFromServer(params: {
   longitude?: number;
   query?: string;
   type?: string;
+  stage1?: string;
+  stage2?: string;
   radiusKm?: number;
 }): Promise<MedicalFacility[]> {
   const url = new URL(`${API_BASE_URL}/facilities/search`);
@@ -319,6 +350,8 @@ export async function searchFacilitiesFromServer(params: {
   if (params.longitude !== undefined) url.searchParams.set("longitude", String(params.longitude));
   if (params.query) url.searchParams.set("query", params.query);
   if (params.type) url.searchParams.set("type", params.type);
+  if (params.stage1) url.searchParams.set("stage1", params.stage1);
+  if (params.stage2) url.searchParams.set("stage2", params.stage2);
   if (params.radiusKm !== undefined) url.searchParams.set("radius_km", String(params.radiusKm));
 
   const response = await fetch(url.toString());
@@ -357,6 +390,135 @@ export async function searchEmergencyRoomsFromServer(params: {
     throw new Error(payload.message ?? "응급실 API 결과가 없습니다.");
   }
   return payload.results.map(toEmergencyRoom);
+}
+
+export async function createEmergencyShare(payload: {
+  userId?: number | null;
+  profileId?: string | number | null;
+  profileName?: string | null;
+  guardianContact?: string | null;
+  roomId: string;
+  roomName: string;
+  roomPhone?: string | null;
+  latitude?: number;
+  longitude?: number;
+  message: string;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/emergency/shares`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: payload.userId,
+      profile_id: numericId(payload.profileId),
+      profile_name: payload.profileName,
+      guardian_contact: payload.guardianContact,
+      room_id: payload.roomId,
+      room_name: payload.roomName,
+      room_phone: payload.roomPhone,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      message: payload.message
+    })
+  });
+  if (!response.ok) {
+    throw new Error("보호자 위치 공유 기록 저장에 실패했습니다.");
+  }
+}
+
+export async function fetchFavoritePlaces(userId: number): Promise<StoredPlace[]> {
+  const response = await fetch(`${API_BASE_URL}/places/favorites?user_id=${userId}`);
+  if (!response.ok) {
+    throw new Error("즐겨찾기를 불러오지 못했습니다.");
+  }
+  const payload = await response.json();
+  return payload.map(toStoredPlace);
+}
+
+export async function saveFavoritePlaceToServer(userId: number, place: StoredPlace): Promise<StoredPlace> {
+  const response = await fetch(`${API_BASE_URL}/places/favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(toStoredPlacePayload(userId, place))
+  });
+  if (!response.ok) {
+    throw new Error("즐겨찾기 서버 저장에 실패했습니다.");
+  }
+  return toStoredPlace(await response.json());
+}
+
+export async function removeFavoritePlaceFromServer(userId: number, placeId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/places/favorites/${encodeURIComponent(placeId)}?user_id=${userId}`, {
+    method: "DELETE"
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new Error("즐겨찾기 서버 삭제에 실패했습니다.");
+  }
+}
+
+export async function fetchRecentPlaces(userId: number): Promise<StoredPlace[]> {
+  const response = await fetch(`${API_BASE_URL}/places/recent?user_id=${userId}`);
+  if (!response.ok) {
+    throw new Error("최근 본 장소를 불러오지 못했습니다.");
+  }
+  const payload = await response.json();
+  return payload.map(toStoredPlace);
+}
+
+export async function saveRecentPlaceToServer(userId: number, place: StoredPlace): Promise<StoredPlace> {
+  const response = await fetch(`${API_BASE_URL}/places/recent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(toStoredPlacePayload(userId, place))
+  });
+  if (!response.ok) {
+    throw new Error("최근 본 장소 서버 저장에 실패했습니다.");
+  }
+  return toStoredPlace(await response.json());
+}
+
+export async function createFacilityReport(payload: {
+  facilityExternalId: string;
+  facilityName: string;
+  reportType: string;
+  description?: string;
+  reporterContact?: string;
+}): Promise<FacilityReport> {
+  const response = await fetch(`${API_BASE_URL}/facility-reports`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      facility_external_id: payload.facilityExternalId,
+      facility_name: payload.facilityName,
+      report_type: payload.reportType,
+      description: payload.description,
+      reporter_contact: payload.reporterContact
+    })
+  });
+  if (!response.ok) {
+    throw new Error("정보 오류 신고 저장에 실패했습니다.");
+  }
+  return toFacilityReport(await response.json());
+}
+
+export async function fetchFacilityReports(): Promise<FacilityReport[]> {
+  const response = await fetch(`${API_BASE_URL}/facility-reports`);
+  if (!response.ok) {
+    throw new Error("정보 오류 신고 목록을 불러오지 못했습니다.");
+  }
+  const payload = await response.json();
+  return payload.map(toFacilityReport);
+}
+
+export async function updateFacilityReportStatus(reportId: number, status: FacilityReport["status"]): Promise<FacilityReport> {
+  const response = await fetch(`${API_BASE_URL}/facility-reports/${reportId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status })
+  });
+  if (!response.ok) {
+    throw new Error("정보 오류 신고 상태 변경에 실패했습니다.");
+  }
+  return toFacilityReport(await response.json());
 }
 
 function toEmergencyRoom(item: EmergencyRoomSearchResult): EmergencyRoom {
@@ -427,6 +589,59 @@ function toMedicalFacility(item: FacilitySearchResult): MedicalFacility {
   };
 }
 
+function toStoredPlace(item: any): StoredPlace {
+  return {
+    placeId: String(item.place_id),
+    placeName: item.place_name,
+    placeType: item.place_type,
+    profileId: item.profile_id ?? undefined,
+    address: item.address ?? "",
+    phone: item.phone ?? "",
+    distanceKm: item.distance_km ?? undefined,
+    hours: item.hours ?? undefined,
+    operatingStatus: item.operating_status ?? undefined,
+    closesAt: item.closes_at ?? undefined,
+    latitude: item.latitude ?? undefined,
+    longitude: item.longitude ?? undefined,
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    memo: item.memo ?? undefined,
+    viewedAt: item.viewed_at ?? undefined
+  };
+}
+
+function toStoredPlacePayload(userId: number, place: StoredPlace) {
+  return {
+    user_id: userId,
+    profile_id: numericId(place.profileId),
+    place_id: place.placeId,
+    place_name: place.placeName,
+    place_type: place.placeType,
+    address: place.address,
+    phone: place.phone,
+    distance_km: place.distanceKm,
+    hours: place.hours,
+    operating_status: place.operatingStatus,
+    closes_at: place.closesAt,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    tags: place.tags ?? [],
+    memo: place.memo,
+    viewed_at: place.viewedAt
+  };
+}
+
+function toFacilityReport(item: any): FacilityReport {
+  return {
+    id: item.id,
+    facilityExternalId: item.facility_external_id,
+    facilityName: item.facility_name,
+    reportType: item.report_type,
+    description: item.description ?? null,
+    reporterContact: item.reporter_contact ?? null,
+    status: item.status
+  };
+}
+
 function extractCloseTime(hours: string): string | undefined {
   const closeTime = hours.split("~")[1];
   return closeTime?.trim();
@@ -451,6 +666,35 @@ function toMedicineSearchResult(item: any): MedicineSearchResult {
     sideEffects: item.side_effects ?? undefined,
     storageMethod: item.storage_method ?? undefined,
     source: item.source ?? "fallback"
+  };
+}
+
+function toPrescriptionOcrResult(item: any): PrescriptionOcrResult {
+  return {
+    provider: item.provider ?? "unknown",
+    rawText: item.raw_text ?? "",
+    common: {
+      patientName: item.common?.patientName ?? item.common?.patient_name ?? null,
+      prescribedOn: item.common?.prescribedOn ?? item.common?.prescribed_on ?? null,
+      hospitalName: item.common?.hospitalName ?? item.common?.hospital_name ?? null,
+      doctorName: item.common?.doctorName ?? item.common?.doctor_name ?? null
+    },
+    medicines: Array.isArray(item.medicines)
+      ? item.medicines.map((medicine: any) => ({
+          name: medicine.name,
+          dosage: medicine.dosage ?? undefined,
+          form: medicine.form ?? undefined,
+          purpose: medicine.purpose ?? undefined,
+          usage: medicine.usage ?? undefined,
+          timing: medicine.timing ?? undefined,
+          timesPerDay: medicine.times_per_day ?? undefined,
+          doseTimes: Array.isArray(medicine.dose_times) ? medicine.dose_times : [],
+          durationDays: medicine.duration_days ?? null,
+          memo: medicine.memo ?? undefined,
+          confidence: medicine.confidence ?? null
+        }))
+      : [],
+    message: item.message ?? null
   };
 }
 

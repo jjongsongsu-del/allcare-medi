@@ -17,8 +17,19 @@ def migrate_guest_data(payload: GuestDataMigrationRequest, db: Session = Depends
             db.add(
                 FavoritePlace(
                     user_id=payload.userId,
+                    profile_id=coerce_int(favorite.get("profileId")),
                     place_id=str(favorite.get("placeId", "")),
+                    place_name=str(favorite.get("placeName") or favorite.get("placeId") or ""),
                     place_type=str(favorite.get("placeType", "")),
+                    address=favorite.get("address"),
+                    phone=favorite.get("phone"),
+                    distance_km=str(favorite.get("distanceKm")) if favorite.get("distanceKm") is not None else None,
+                    hours=favorite.get("hours"),
+                    operating_status=favorite.get("operatingStatus"),
+                    closes_at=favorite.get("closesAt"),
+                    latitude=str(favorite.get("latitude")) if favorite.get("latitude") is not None else None,
+                    longitude=str(favorite.get("longitude")) if favorite.get("longitude") is not None else None,
+                    tags=json.dumps(favorite.get("tags") or [], ensure_ascii=False),
                     memo=favorite.get("memo"),
                 )
             )
@@ -26,11 +37,19 @@ def migrate_guest_data(payload: GuestDataMigrationRequest, db: Session = Depends
             db.add(
                 RecentPlace(
                     user_id=payload.userId,
+                    profile_id=coerce_int(recent.get("profileId")),
                     place_id=str(recent.get("placeId", "")),
                     place_name=str(recent.get("placeName", "")),
                     place_type=str(recent.get("placeType", "")),
                     address=recent.get("address"),
                     phone=recent.get("phone"),
+                    distance_km=str(recent.get("distanceKm")) if recent.get("distanceKm") is not None else None,
+                    hours=recent.get("hours"),
+                    operating_status=recent.get("operatingStatus"),
+                    closes_at=recent.get("closesAt"),
+                    latitude=str(recent.get("latitude")) if recent.get("latitude") is not None else None,
+                    longitude=str(recent.get("longitude")) if recent.get("longitude") is not None else None,
+                    tags=json.dumps(recent.get("tags") or [], ensure_ascii=False),
                     viewed_at=recent.get("viewedAt"),
                 )
             )

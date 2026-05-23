@@ -34,9 +34,27 @@ export type StoredPlace = {
   profileName?: string;
   address: string;
   phone: string;
+  distanceKm?: number;
+  hours?: string;
+  operatingStatus?: MedicalFacility["operatingStatus"];
+  closesAt?: string;
+  latitude?: number;
+  longitude?: number;
+  tags?: string[];
   memo?: string;
   viewedAt?: string;
 };
+
+export type SavedBaseLocation = {
+  key: "home" | "work";
+  label: "집" | "회사";
+  latitude: number;
+  longitude: number;
+  address?: string;
+  savedAt: string;
+};
+
+export type DirectionsApp = "naver" | "kakao" | "kakaoNavi" | "google";
 
 export type ConsentSettings = {
   terms: boolean;
@@ -58,6 +76,8 @@ const selectedFamilyProfileKey = "allcaremedi.local.selectedFamilyProfile";
 const registeredMedicinesKey = "allcaremedi.local.registeredMedicines";
 const medicineSchedulesKey = "allcaremedi.local.medicineSchedules";
 const medicationEventsKey = "allcaremedi.local.medicationEvents";
+const savedBaseLocationsKey = "allcaremedi.local.savedBaseLocations";
+const defaultDirectionsAppKey = "allcaremedi.local.defaultDirectionsApp";
 
 export const defaultConsentSettings: ConsentSettings = {
   terms: false,
@@ -117,6 +137,13 @@ export async function saveLocalFavoritePlace(place: StoredPlace): Promise<Stored
   return next;
 }
 
+export async function removeLocalFavoritePlace(placeId: string): Promise<StoredPlace[]> {
+  const places = await getLocalFavoritePlaces();
+  const next = places.filter((item) => item.placeId !== placeId);
+  await AsyncStorage.setItem(favoritePlacesKey, JSON.stringify(next));
+  return next;
+}
+
 export async function getLocalRecentPlaces(): Promise<StoredPlace[]> {
   return readJson<StoredPlace[]>(recentPlacesKey, []);
 }
@@ -130,12 +157,38 @@ export async function saveLocalRecentPlace(facility: MedicalFacility, profile?: 
     profileName: profile?.profileName,
     address: facility.address,
     phone: facility.phone,
+    distanceKm: facility.distanceKm,
+    hours: facility.hours,
+    operatingStatus: facility.operatingStatus,
+    closesAt: facility.closesAt,
+    latitude: facility.latitude,
+    longitude: facility.longitude,
+    tags: facility.tags,
     viewedAt: new Date().toISOString()
   };
   const places = await getLocalRecentPlaces();
   const next = [place, ...places.filter((item) => item.placeId !== place.placeId)].slice(0, 30);
   await AsyncStorage.setItem(recentPlacesKey, JSON.stringify(next));
   return next;
+}
+
+export async function getSavedBaseLocations(): Promise<SavedBaseLocation[]> {
+  return readJson<SavedBaseLocation[]>(savedBaseLocationsKey, []);
+}
+
+export async function saveBaseLocation(location: SavedBaseLocation): Promise<SavedBaseLocation[]> {
+  const locations = await getSavedBaseLocations();
+  const next = [location, ...locations.filter((item) => item.key !== location.key)];
+  await AsyncStorage.setItem(savedBaseLocationsKey, JSON.stringify(next));
+  return next;
+}
+
+export async function getDefaultDirectionsApp(): Promise<DirectionsApp> {
+  return readJson<DirectionsApp>(defaultDirectionsAppKey, "google");
+}
+
+export async function saveDefaultDirectionsApp(app: DirectionsApp): Promise<void> {
+  await AsyncStorage.setItem(defaultDirectionsAppKey, JSON.stringify(app));
 }
 
 export async function getConsentSettings(): Promise<ConsentSettings> {

@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
+from app.db import get_db
+from app.models import EmergencyShare
 from app.public_facility_client import search_public_emergency_rooms
-from app.schemas import EmergencyRoomSearchResponse
+from app.schemas import EmergencyRoomSearchResponse, EmergencyShareCreate, EmergencyShareRead
 
 router = APIRouter(prefix="/emergency", tags=["emergency"])
 
@@ -29,3 +32,48 @@ async def search_emergency_rooms(
         return EmergencyRoomSearchResponse(source="public-data", results=results)
     except Exception as exc:
         return EmergencyRoomSearchResponse(source="fallback", results=[], message=str(exc))
+
+
+@router.post("/shares", response_model=EmergencyShareRead)
+def create_emergency_share(payload: EmergencyShareCreate, db: Session = Depends(get_db)) -> EmergencyShareRead:
+    share = EmergencyShare(
+        user_id=payload.user_id,
+        profile_id=payload.profile_id,
+        profile_name=payload.profile_name,
+        guardian_contact=payload.guardian_contact,
+        room_id=payload.room_id,
+        room_name=payload.room_name,
+        room_phone=payload.room_phone,
+        latitude=str(payload.latitude) if payload.latitude is not None else None,
+        longitude=str(payload.longitude) if payload.longitude is not None else None,
+        message=payload.message,
+    )
+    db.add(share)
+    db.commit()
+    db.refresh(share)
+    return emergency_share_to_read(share)
+
+
+def emergency_share_to_read(share: EmergencyShare) -> EmergencyShareRead:
+    return EmergencyShareRead(
+        id=share.id,
+        user_id=share.user_id,
+        profile_id=share.profile_id,
+        profile_name=share.profile_name,
+        guardian_contact=share.guardian_contact,
+        room_id=share.room_id,
+        room_name=share.room_name,
+        room_phone=share.room_phone,
+        latitude=parse_float(share.latitude),
+        longitude=parse_float(share.longitude),
+        message=share.message,
+    )
+
+
+def parse_float(value: str | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
