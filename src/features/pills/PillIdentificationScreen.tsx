@@ -5,8 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import { menuHelp } from "@/help/menuHelp";
 import {
   getLocalRegisteredMedicines,
   saveLocalMedicationEvent,
@@ -923,6 +925,7 @@ export function PillIdentificationScreen() {
             <Text style={styles.eyebrow}>내 약통</Text>
             <Text style={styles.title}>약관리</Text>
           </View>
+          <MenuHelpButton content={menuHelp.pills} />
         </View>
         <Text style={styles.description}>직접등록, 검색등록, 처방전등록, AI판독등록으로 약을 등록하고 복약 스케줄까지 이어서 설정합니다.</Text>
       </View>

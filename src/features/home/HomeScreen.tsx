@@ -4,8 +4,10 @@ import type { Href } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
+import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import { menuHelp } from "@/help/menuHelp";
 import {
   getLocalFavoritePlaces,
   getLocalMedicineSchedules,
@@ -187,6 +189,7 @@ export function HomeScreen() {
       <View style={styles.appHeader}>
         <Text style={styles.appName}>AllCareMedi</Text>
         <View style={styles.headerActions}>
+          <MenuHelpButton content={menuHelp.home} />
           <Pressable style={styles.headerIconButton} onPress={() => router.push("/(tabs)/family")}>
             <MaterialCommunityIcons name="account-heart-outline" size={24} color={colors.textStrong} />
           </Pressable>

@@ -6,8 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import { menuHelp } from "@/help/menuHelp";
 import {
   getLocalMedicationEvents,
   getLocalMedicineSchedules,
@@ -481,6 +483,7 @@ export function MedicationScreen() {
             <Text style={styles.eyebrow}>복약</Text>
             <Text style={styles.title}>오늘 먹을 약</Text>
           </View>
+          <MenuHelpButton content={menuHelp.medication} />
         </View>
         <Text style={styles.description} numberOfLines={2}>
           복약 시간과 알림을 한 곳에서 확인하고, 변경·중단·병용 여부는 방문 전 전문가 확인을 권장합니다.

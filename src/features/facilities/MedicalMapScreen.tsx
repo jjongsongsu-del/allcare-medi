@@ -6,8 +6,10 @@ import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { familyFacilityScore, familyRecommendation } from "@/family/familyRecommendations";
+import { menuHelp } from "@/help/menuHelp";
 import { findNearbyFacilities } from "@/services/medicalFacilityService";
 import {
   DirectionsApp,
@@ -332,6 +334,7 @@ export function MedicalMapScreen() {
             <Text style={styles.eyebrow}>병원약국</Text>
             <Text style={styles.title}>지금 갈 수 있는 곳</Text>
           </View>
+          <MenuHelpButton content={menuHelp.facilities} />
         </View>
         <Text style={styles.description}>병원과 약국 운영시간은 예상값이며 방문 전 전화 확인을 권장합니다.</Text>
       </View>

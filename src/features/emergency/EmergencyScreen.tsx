@@ -6,7 +6,9 @@ import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
+import { menuHelp } from "@/help/menuHelp";
 import { FamilyProfile } from "@/services/localUserData";
 import { getNearbyEmergencyRooms } from "@/services/emergencyService";
 import { colors } from "@/theme/colors";
@@ -207,6 +209,7 @@ export function EmergencyScreen() {
             <Text style={styles.eyebrow}>응급</Text>
             <Text style={styles.title}>지금 갈 수 있는 응급실</Text>
           </View>
+          <MenuHelpButton content={menuHelp.emergency} />
         </View>
         <Text style={styles.description}>
           국립중앙의료원 응급의료정보조회서비스 V4 기준으로 가까운 응급실 위치와 실시간 가용 병상을 함께 확인합니다.

@@ -3,7 +3,9 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
+import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
+import { menuHelp } from "@/help/menuHelp";
 import {
   clearLocalUserData,
   ConsentSettings,
@@ -241,6 +243,7 @@ export function FamilyMyPageScreen() {
             <Text style={styles.eyebrow}>전체 메뉴</Text>
             <Text style={styles.title}>가족 · 마이데이터</Text>
           </View>
+          <MenuHelpButton content={menuHelp.menu} />
         </View>
         <Text style={styles.description}>
           마이데이터와 가족 관리를 분리해서 관리합니다. 저장 방식은 로그인 상태에 따라 서버 또는 기기 내부로 나뉩니다.

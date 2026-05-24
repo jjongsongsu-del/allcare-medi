@@ -10,11 +10,27 @@ import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 
-const startupImages = [
-  require("../app_img/allcaremedi_ai.png"),
-  require("../app_img/allcaremedi_dr.png"),
-  require("../app_img/allcaremedi_hp.png"),
-  require("../app_img/allcaremedi_sh.png")
+const startupSteps = [
+  {
+    image: require("../app_img/allcaremedi_ai.png"),
+    label: "AI 건강 길잡이를 준비하고 있어요",
+    detail: "검색, 약 등록, 도움말 화면을 불러오는 중입니다."
+  },
+  {
+    image: require("../app_img/allcaremedi_hp.png"),
+    label: "병원약국 정보를 확인하고 있어요",
+    detail: "주변 의료기관과 지도 연결 상태를 점검합니다."
+  },
+  {
+    image: require("../app_img/allcaremedi_sh.png"),
+    label: "복약 기록을 연결하고 있어요",
+    detail: "등록약, 복약 일정, DUR 주의 정보를 준비합니다."
+  },
+  {
+    image: require("../app_img/allcaremedi_dr.png"),
+    label: "응급 정보를 안전하게 준비하고 있어요",
+    detail: "응급실 조회와 응급카드 화면을 점검합니다."
+  }
 ];
 
 type StartupState =
@@ -56,7 +72,7 @@ export default function IndexScreen() {
       return;
     }
     const timer = setInterval(() => {
-      setImageIndex((index) => (index + 1) % startupImages.length);
+      setImageIndex((index) => (index + 1) % startupSteps.length);
     }, 1100);
     return () => clearInterval(timer);
   }, [startupState.type]);
@@ -85,16 +101,19 @@ export default function IndexScreen() {
 }
 
 function StartupLoading({ imageIndex }: { imageIndex: number }) {
-  const label = ["AI 건강 길잡이를 준비하고 있어요", "의료 정보를 확인하고 있어요", "가까운 병원과 약국을 연결하고 있어요", "안전한 복약 관리를 준비하고 있어요"][imageIndex];
+  const step = startupSteps[imageIndex];
   return (
     <View style={styles.startupContainer}>
-      <Image source={startupImages[imageIndex]} style={styles.startupImage} resizeMode="contain" />
+      <Image source={step.image} style={styles.startupImage} resizeMode="contain" />
       <View style={styles.startupTextBox}>
-        <Text style={styles.startupBrand}>AllCareMedi</Text>
-        <Text style={styles.startupTitle}>올케어메디 실행 중</Text>
-        <Text style={styles.startupSubtitle}>{label}</Text>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${38 + imageIndex * 16}%` }]} />
+        <Text style={styles.startupTitle}>올케어메디</Text>
+        <Text style={styles.startupBrand}>가족의 병원, 약국, 복약 기록을 한곳에서</Text>
+        <Text style={styles.startupSubtitle}>{step.label}</Text>
+        <Text style={styles.startupDetail}>{step.detail}</Text>
+        <View style={styles.progressDots}>
+          {startupSteps.map((item, index) => (
+            <View key={item.label} style={[styles.progressDot, index === imageIndex && styles.progressDotActive]} />
+          ))}
         </View>
       </View>
     </View>
@@ -165,47 +184,59 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.background,
-    padding: spacing.lg,
-    gap: spacing.lg
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    gap: spacing.xl
   },
   startupImage: {
     width: "100%",
-    height: 320
+    height: 390
   },
   startupTextBox: {
     width: "100%",
     alignItems: "center",
-    gap: spacing.sm
+    gap: spacing.xs
   },
   startupBrand: {
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: "800",
-    color: colors.primary
-  },
-  startupTitle: {
-    fontSize: 30,
-    lineHeight: 38,
-    fontWeight: "900",
-    color: colors.textStrong,
-    textAlign: "center"
-  },
-  startupSubtitle: {
-    ...typography.body,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: "700",
     color: colors.text,
     textAlign: "center"
   },
-  progressTrack: {
-    width: "78%",
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-    overflow: "hidden",
-    marginTop: spacing.sm
+  startupTitle: {
+    fontSize: 44,
+    lineHeight: 54,
+    fontWeight: "900",
+    color: colors.primary,
+    textAlign: "center"
   },
-  progressFill: {
-    height: "100%",
+  startupSubtitle: {
+    fontSize: 19,
+    lineHeight: 27,
+    fontWeight: "800",
+    color: colors.textStrong,
+    textAlign: "center",
+    marginTop: spacing.md
+  },
+  startupDetail: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: "center"
+  },
+  progressDots: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    marginTop: spacing.md
+  },
+  progressDot: {
+    width: 10,
+    height: 10,
     borderRadius: 4,
+    backgroundColor: colors.border
+  },
+  progressDotActive: {
+    width: 28,
     backgroundColor: colors.primary
   },
   noticeCard: {
