@@ -27,6 +27,8 @@ type TodayTask = {
   route: Href;
 };
 
+type SummaryTone = "medicine" | "schedule" | "warning" | "health";
+
 const situationChips = ["문 연 약국", "야간 약국", "소아과", "응급실", "처방전 OCR", "혈압약"];
 
 export function HomeScreen() {
@@ -141,6 +143,16 @@ export function HomeScreen() {
     ];
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
   }, [selectedProfile]);
+  const healthInfoCount = useMemo(() => {
+    const checks = [
+      selectedProfile?.bloodType,
+      selectedProfile?.allergies,
+      selectedProfile?.chronicDiseases,
+      selectedProfile?.currentMedications,
+      selectedProfile?.emergencyContact
+    ];
+    return checks.filter(Boolean).length;
+  }, [selectedProfile]);
 
   const submitSearch = () => {
     const normalized = searchText.trim();
@@ -210,10 +222,10 @@ export function HomeScreen() {
       </View>
 
       <View style={styles.summaryGrid}>
-        <SummaryMetric label="등록 약" value={`${activeMedicines.length}개`} icon="pill" />
-        <SummaryMetric label="오늘 복약" value={nextDose ? nextDose.time : "없음"} icon="clock-outline" />
-        <SummaryMetric label="DUR 주의" value={`${durMedicines.length}건`} icon="alert-outline" warning={durMedicines.length > 0} />
-        <SummaryMetric label="프로필" value={`${profileCompleteness}%`} icon="account-heart-outline" />
+        <SummaryMetric label="등록 약" value={`${activeMedicines.length}개`} description="관리 중인 약" icon="pill" tone="medicine" />
+        <SummaryMetric label="오늘 복약" value={nextDose ? nextDose.time : "없음"} description={nextDose ? "다음 복용 시간" : "예정 없음"} icon="clock-outline" tone="schedule" />
+        <SummaryMetric label="DUR 주의" value={`${durMedicines.length}건`} description={durMedicines.length ? "확인 필요" : "주의 없음"} icon="alert-outline" tone="warning" />
+        <SummaryMetric label="건강정보" value={`${healthInfoCount}/5`} description={`완성 ${profileCompleteness}%`} icon="heart-pulse" tone="health" />
       </View>
 
       <View style={styles.sectionHeader}>
@@ -258,18 +270,41 @@ function SummaryMetric({
   label,
   value,
   icon,
-  warning = false
+  description,
+  tone
 }: {
   label: string;
   value: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  warning?: boolean;
+  description: string;
+  tone: SummaryTone;
 }) {
+  const toneStyle =
+    tone === "warning"
+      ? styles.metricWarning
+      : tone === "health"
+        ? styles.metricHealth
+        : tone === "schedule"
+          ? styles.metricSchedule
+          : styles.metricMedicine;
+  const iconColor =
+    tone === "warning"
+      ? "#B45309"
+      : tone === "health"
+        ? "#047857"
+        : tone === "schedule"
+          ? "#5B21B6"
+          : colors.primary;
   return (
-    <View style={[styles.metricCard, warning && styles.metricWarning]}>
-      <MaterialCommunityIcons name={icon} size={18} color={warning ? colors.warning : colors.primary} />
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+    <View style={[styles.metricCard, toneStyle]}>
+      <View style={styles.metricIconBox}>
+        <MaterialCommunityIcons name={icon} size={22} color={iconColor} />
+      </View>
+      <View style={styles.metricTextGroup}>
+        <Text style={styles.metricLabel}>{label}</Text>
+        <Text style={styles.metricValue}>{value}</Text>
+        <Text style={styles.metricDescription}>{description}</Text>
+      </View>
     </View>
   );
 }
@@ -337,7 +372,7 @@ function PlaceRow({ title, place, empty }: { title: string; place?: StoredPlace;
 
 const styles = StyleSheet.create({
   screen: {
-    gap: spacing.sm,
+    gap: spacing.md,
     paddingHorizontal: 18,
     backgroundColor: colors.background
   },
@@ -346,7 +381,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md,
-    paddingTop: spacing.sm
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs
   },
   brandArea: {
     flex: 1,
@@ -355,21 +391,23 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   mascot: {
-    width: 48,
-    height: 48
+    width: 70,
+    height: 70
   },
   eyebrow: {
-    ...typography.caption,
+    ...typography.body,
     fontWeight: "800",
-    color: colors.primary
+    color: colors.primary,
+    lineHeight: 24
   },
   title: {
-    ...typography.sectionTitle,
-    color: colors.textStrong
+    ...typography.title,
+    color: colors.textStrong,
+    lineHeight: 34
   },
   profileButton: {
-    minWidth: 82,
-    minHeight: 46,
+    minWidth: 92,
+    minHeight: 56,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#CAD7EE",
@@ -441,24 +479,57 @@ const styles = StyleSheet.create({
   metricCard: {
     flexBasis: "48%",
     flexGrow: 1,
-    minHeight: 78,
+    minHeight: 104,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
-    padding: spacing.sm,
-    gap: spacing.xs
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  metricMedicine: {
+    borderColor: "#BFD7F2",
+    backgroundColor: "#F8FBFF"
+  },
+  metricSchedule: {
+    borderColor: "#DDD6FE",
+    backgroundColor: "#F5F3FF"
   },
   metricWarning: {
     borderColor: "#FDBA74",
     backgroundColor: "#FFF7ED"
   },
+  metricHealth: {
+    borderColor: "#A7F3D0",
+    backgroundColor: "#F0FDF4"
+  },
+  metricIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.72)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  metricTextGroup: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2
+  },
   metricValue: {
     ...typography.bodyLarge,
     fontWeight: "800",
-    color: colors.textStrong
+    color: colors.textStrong,
+    lineHeight: 26
   },
   metricLabel: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: "800"
+  },
+  metricDescription: {
     ...typography.caption,
     color: colors.textMuted
   },
