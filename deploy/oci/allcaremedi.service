@@ -1,0 +1,15 @@
+[Unit]
+Description=AllCareMedi FastAPI server
+After=network.target
+
+[Service]
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=/opt/allcare-medi/server
+EnvironmentFile=/etc/allcaremedi/server.env
+ExecStart=/opt/allcare-medi/server/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

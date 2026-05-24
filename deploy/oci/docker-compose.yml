@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: ../../server
+    env_file:
+      - ./server.env
+    environment:
+      DATABASE_URL: sqlite:////data/allcaremedi.db
+    volumes:
+      - allcaremedi-data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+volumes:
+  allcaremedi-data:
