@@ -9,7 +9,6 @@ import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { familyFacilityScore, familyRecommendation } from "@/family/familyRecommendations";
 import { findNearbyFacilities } from "@/services/medicalFacilityService";
-import { nearbyFacilities } from "@/services/mockData";
 import {
   DirectionsApp,
   getDefaultDirectionsApp,
@@ -155,8 +154,8 @@ export function MedicalMapScreen() {
       setFacilities(items);
       setLocationMessage(items.length ? null : "공공 API 조회는 정상이나 조건에 맞는 병원·약국 결과가 없습니다.");
     } catch (error) {
-      setFacilities(nearbyFacilities);
-      setLocationMessage(`병원·약국 공공 API에 문제가 있어 임시 데이터를 표시합니다. ${error instanceof Error ? error.message : ""}`.trim());
+      setFacilities([]);
+      setLocationMessage(`병원·약국 공공 API 연결에 문제가 있습니다. 실제 운영 정보를 확인할 수 없어 결과를 표시하지 않습니다. ${error instanceof Error ? error.message : ""}`.trim());
     } finally {
       setSelectedFacility(null);
       setFacilityLoading(false);

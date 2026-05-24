@@ -9,7 +9,6 @@ import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { FamilyProfile } from "@/services/localUserData";
 import { getNearbyEmergencyRooms } from "@/services/emergencyService";
-import { emergencyRooms as mockEmergencyRooms } from "@/services/mockData";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -123,9 +122,9 @@ export function EmergencyScreen() {
         });
       }
     } catch (error) {
-      setEmergencyRooms(mockEmergencyRooms);
-      setSelectedRoom(mockEmergencyRooms[0] ?? null);
-      setLocationMessage(`응급실 공공 API에 문제가 있어 임시 데이터를 표시합니다. ${error instanceof Error ? error.message : ""}`.trim());
+      setEmergencyRooms([]);
+      setSelectedRoom(null);
+      setLocationMessage(`응급실 공공 API 연결에 문제가 있습니다. 실제 응급실 정보를 확인할 수 없어 결과를 표시하지 않습니다. ${error instanceof Error ? error.message : ""}`.trim());
     }
     setLoading(false);
   };

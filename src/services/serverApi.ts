@@ -402,7 +402,7 @@ export async function searchFacilitiesFromServer(params: {
 
   const response = await fetch(url.toString());
   if (!response.ok) {
-    throw new Error("병원·약국 검색 API 호출에 실패했습니다.");
+    throw new Error(await errorMessageFromResponse(response, "병원·약국 검색 API 호출에 실패했습니다."));
   }
 
   const payload: FacilitySearchResponse = await response.json();
@@ -428,7 +428,7 @@ export async function searchEmergencyRoomsFromServer(params: {
 
   const response = await fetch(url.toString());
   if (!response.ok) {
-    throw new Error("응급실 API 호출에 실패했습니다.");
+    throw new Error(await errorMessageFromResponse(response, "응급실 API 호출에 실패했습니다."));
   }
 
   const payload: EmergencyRoomSearchResponse = await response.json();
@@ -436,6 +436,21 @@ export async function searchEmergencyRoomsFromServer(params: {
     throw new Error(payload.message ?? "응급실 공공 API 결과를 불러오지 못했습니다.");
   }
   return payload.results.map(toEmergencyRoom);
+}
+
+async function errorMessageFromResponse(response: Response, fallback: string) {
+  try {
+    const payload = await response.json();
+    if (typeof payload?.detail === "string" && payload.detail.trim()) {
+      return payload.detail;
+    }
+    if (typeof payload?.message === "string" && payload.message.trim()) {
+      return payload.message;
+    }
+  } catch {
+    // Use fallback below when the API returns non-JSON error content.
+  }
+  return fallback;
 }
 
 export async function createEmergencyShare(payload: {

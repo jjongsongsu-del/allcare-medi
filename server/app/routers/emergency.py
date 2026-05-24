@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -33,7 +33,7 @@ async def search_emergency_rooms(
         )
         return EmergencyRoomSearchResponse(source="public-data", results=results)
     except Exception as exc:
-        return EmergencyRoomSearchResponse(source="fallback", results=[], message=str(exc))
+        raise HTTPException(status_code=502, detail=f"응급실 공공 API 호출에 실패했습니다. {exc}") from exc
 
 
 @router.post("/shares", response_model=EmergencyShareRead)
