@@ -155,7 +155,7 @@ def search_e_drug_medicines(query: str, limit: int) -> list[MedicineSearchResult
 
 def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> tuple[list[DurItemRead], str | None]:
     try:
-        response = httpx.get(
+        response = public_api_get(
             f"{DUR_SERVICE_BASE_URL}/getDurPrdlstInfoList03",
             params={
                 "serviceKey": service_key,
@@ -164,7 +164,6 @@ def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> tuple[list
                 "itemName": query,
                 "type": "json",
             },
-            timeout=7.0,
         )
         response.raise_for_status()
         payload = response.json()
@@ -273,7 +272,7 @@ def normalize_e_drug_purpose_queries(query: str) -> list[str]:
 
 def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_param: str) -> tuple[list[MedicineSearchResultRead], str | None]:
     try:
-        response = httpx.get(
+        response = public_api_get(
             "http://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList",
             params={
                 "serviceKey": service_key,
@@ -282,7 +281,6 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
                 search_param: query,
                 "type": "json",
             },
-            timeout=5.0,
         )
         response.raise_for_status()
         payload = response.json()
@@ -332,6 +330,18 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
             )
         )
     return results[:limit], None
+
+
+def public_api_get(url: str, *, params: dict[str, object]) -> httpx.Response:
+    last_error: httpx.HTTPError | None = None
+    for timeout in (12.0, 20.0):
+        try:
+            return httpx.get(url, params=params, timeout=timeout)
+        except httpx.HTTPError as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    raise httpx.TimeoutException("공공 API 응답 시간이 초과되었습니다.")
 
 
 def plain_text(value: object) -> str | None:

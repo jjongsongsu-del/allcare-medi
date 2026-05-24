@@ -8,6 +8,16 @@ class HealthCheck(BaseModel):
     db: str
 
 
+class AppStartupRead(BaseModel):
+    status: str
+    minVersion: str
+    latestVersion: str
+    androidStoreUrl: str
+    iosStoreUrl: str | None = None
+    supportContactUrl: str
+    message: str
+
+
 class MedicationCreate(BaseModel):
     user_id: int = Field(..., ge=1)
     profile_id: int | None = None

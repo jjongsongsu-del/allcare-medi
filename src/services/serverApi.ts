@@ -17,6 +17,16 @@ export type ManagedApiEndpoint = {
   description: string;
 };
 
+export type AppStartupStatus = {
+  status: string;
+  minVersion: string;
+  latestVersion: string;
+  androidStoreUrl: string;
+  iosStoreUrl?: string | null;
+  supportContactUrl: string;
+  message: string;
+};
+
 export type SocialLoginResponse = {
   accessToken: string;
   refreshToken: string;
@@ -26,6 +36,14 @@ export type SocialLoginResponse = {
     nickname: string;
   };
 };
+
+export async function fetchAppStartupStatus(): Promise<AppStartupStatus> {
+  const response = await fetch(`${API_BASE_URL}/health/app-startup`);
+  if (!response.ok) {
+    throw new Error(`App startup check failed: ${response.status}`);
+  }
+  return response.json();
+}
 
 export type FamilyProfilePayload = {
   profileName: string;

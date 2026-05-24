@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     prescription_ocr_api_url: str = ""
     prescription_ocr_api_key: str = ""
     prescription_ocr_min_confidence: float = 0.4
+    app_min_version: str = "0.1.0"
+    app_latest_version: str = "0.1.0"
+    app_android_store_url: str = "market://details?id=kr.allcaremedi.app"
+    app_ios_store_url: str = ""
+    support_contact_url: str = "mailto:support@allcaremedi.local"
 
     model_config = SettingsConfigDict(env_file=(SERVER_DIR / ".env", ".env"), env_file_encoding="utf-8")
 
