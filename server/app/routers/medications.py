@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 import json
 import re
 
@@ -483,3 +485,4 @@ def json_list(value: str | None) -> list[int]:
     except json.JSONDecodeError:
         return []
     return parsed if isinstance(parsed, list) else []
+

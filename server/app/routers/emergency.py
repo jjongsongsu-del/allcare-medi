@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -77,3 +79,4 @@ def parse_float(value: str | None) -> float | None:
         return float(value)
     except ValueError:
         return None
+

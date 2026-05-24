@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 from datetime import datetime
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
@@ -448,3 +450,4 @@ async def _fetch_realtime_emergency_beds(*, stage1: str | None, stage2: str | No
             continue
         results[hpid] = {child.tag: (child.text or "").strip() for child in item}
     return results
+

@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -134,3 +136,4 @@ def parse_tags(value: str | None) -> list[str]:
         return parsed if isinstance(parsed, list) else []
     except json.JSONDecodeError:
         return []
+

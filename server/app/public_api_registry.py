@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -126,3 +128,4 @@ API_ENDPOINTS = [
 
 def get_api_endpoint(endpoint_id: str) -> ApiEndpoint | None:
     return next((endpoint for endpoint in API_ENDPOINTS if endpoint.id == endpoint_id), None)
+

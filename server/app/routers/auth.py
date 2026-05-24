@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 from datetime import datetime, timedelta
 import hashlib
 import secrets
@@ -130,3 +132,4 @@ def _active_refresh_token(token: str, db: Session) -> RefreshToken | None:
         )
         .first()
     )
+

@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 import json
 
 from fastapi import APIRouter, Depends
@@ -150,3 +152,4 @@ def coerce_int(value: object) -> int | None:
         return int(value) if value is not None and str(value).isdigit() else None
     except (TypeError, ValueError):
         return None
+

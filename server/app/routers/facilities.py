@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 from fastapi import APIRouter, Query
 
 from app.public_facility_client import search_public_facilities
@@ -38,3 +40,4 @@ async def search_facilities(
         results = [item for item in results if item.distance_km is None or item.distance_km <= radius_km]
 
     return FacilitySearchResponse(source="public-data", results=results)
+

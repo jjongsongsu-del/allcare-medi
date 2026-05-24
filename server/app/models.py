@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
@@ -352,3 +354,4 @@ class EmergencyShare(Base):
     longitude: Mapped[str | None] = mapped_column(String(40), nullable=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+

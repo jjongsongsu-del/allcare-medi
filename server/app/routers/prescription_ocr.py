@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 import base64
 import os
 import re
@@ -316,3 +318,4 @@ def dedupe_medicines(medicines: list[PrescriptionOcrMedicineRead]) -> list[Presc
         seen.add(key)
         result.append(medicine)
     return result
+
