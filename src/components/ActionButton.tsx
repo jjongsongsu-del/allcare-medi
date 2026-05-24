@@ -29,7 +29,7 @@ export function ActionButton({ label, icon, tone = "primary", onPress }: ActionB
 const styles = StyleSheet.create({
   button: {
     minHeight: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     paddingHorizontal: spacing.lg,

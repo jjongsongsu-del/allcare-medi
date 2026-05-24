@@ -108,6 +108,19 @@ API_ENDPOINTS = [
         doc_file="식품의약품안전처_의약품안전사용서비스(DUR)품목정보.png",
         description="약명 기준으로 DUR 품목 유형, 용량주의, 연령금기, 임부금기 등 안전사용 주의 정보를 조회합니다."
     ),
+    ApiEndpoint(
+        id="mfds-easy-drug-info",
+        provider="식품의약품안전처",
+        name="의약품개요정보(e약은요)",
+        category="medication-info",
+        method="GET",
+        url="http://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList",
+        operation="getDrbEasyDrugList",
+        auth_type="serviceKey",
+        enabled=True,
+        doc_file="IROS_239_의약품개요정보(e약은요) 서비스_v1.0.docx",
+        description="약명, 효능, 사용법, 주의사항, 상호작용 등 e약은요 의약품 개요 정보를 조회합니다."
+    ),
 ]
 
 

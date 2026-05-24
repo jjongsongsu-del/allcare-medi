@@ -119,35 +119,39 @@ def search_dur_safety(query: str, limit: int = 10) -> DurSafetyRead:
     settings = get_settings()
     service_key = settings.public_data_service_key
     if not service_key:
-        return DurSafetyRead(
-            query=normalized,
-            source="not_configured",
-            warnings=[],
-            items=[],
-            message="PUBLIC_DATA_SERVICE_KEY 설정이 필요합니다.",
-        )
-    items = fetch_dur_items(normalized, service_key, limit)
+        raise HTTPException(status_code=503, detail="PUBLIC_DATA_SERVICE_KEY 설정이 필요합니다.")
+    items, api_error = fetch_dur_items(normalized, service_key, limit)
+    if api_error:
+        raise HTTPException(status_code=502, detail=f"DUR 공공 API 호출에 실패했습니다. {api_error}")
     warnings = build_dur_warnings(items)
-    return DurSafetyRead(query=normalized, source="public-data", warnings=warnings, items=items)
+    message = None if items else "DUR API 조회는 정상이나 조건에 맞는 품목이 없습니다."
+    return DurSafetyRead(query=normalized, source="public-data", warnings=warnings, items=items, message=message)
 
 
 def search_e_drug_medicines(query: str, limit: int) -> list[MedicineSearchResultRead]:
     settings = get_settings()
     service_key = settings.e_drug_api_key or settings.public_data_service_key
     if not service_key:
-        return []
+        raise HTTPException(status_code=503, detail="e약은요 API 인증키 설정이 필요합니다.")
+    api_errors: list[str] = []
     for api_query in normalize_e_drug_queries(query):
-        results = fetch_e_drug_medicines(api_query, service_key, limit, "itemName")
+        results, api_error = fetch_e_drug_medicines(api_query, service_key, limit, "itemName")
         if results:
             return results
+        if api_error:
+            api_errors.append(api_error)
     for api_query in normalize_e_drug_purpose_queries(query):
-        results = fetch_e_drug_medicines(api_query, service_key, limit, "efcyQesitm")
+        results, api_error = fetch_e_drug_medicines(api_query, service_key, limit, "efcyQesitm")
         if results:
             return results
+        if api_error:
+            api_errors.append(api_error)
+    if api_errors:
+        raise HTTPException(status_code=502, detail=f"e약은요 공공 API 호출에 실패했습니다. {api_errors[0]}")
     return []
 
 
-def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> list[DurItemRead]:
+def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> tuple[list[DurItemRead], str | None]:
     try:
         response = httpx.get(
             f"{DUR_SERVICE_BASE_URL}/getDurPrdlstInfoList03",
@@ -162,8 +166,10 @@ def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> list[DurIt
         )
         response.raise_for_status()
         payload = response.json()
-    except (httpx.HTTPError, ValueError):
-        return []
+    except httpx.HTTPError as exc:
+        return [], str(exc)
+    except ValueError as exc:
+        return [], f"응답 JSON 해석 실패: {exc}"
 
     body = payload.get("body", payload.get("response", {}).get("body", {}))
     items = body.get("items", [])
@@ -172,7 +178,7 @@ def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> list[DurIt
     if isinstance(items, dict):
         items = [items]
     if not isinstance(items, list):
-        return []
+        return [], None
 
     results: list[DurItemRead] = []
     for item in items:
@@ -195,7 +201,7 @@ def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> list[DurIt
                 change_date=first_value(item, "CHANGE_DATE", "changeDate"),
             )
         )
-    return results[:limit]
+    return results[:limit], None
 
 
 def build_dur_warnings(items: list[DurItemRead]) -> list[str]:
@@ -263,7 +269,7 @@ def normalize_e_drug_purpose_queries(query: str) -> list[str]:
     return [candidate for candidate in candidates if len(candidate) >= 2 and not (candidate in seen or seen.add(candidate))]
 
 
-def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_param: str) -> list[MedicineSearchResultRead]:
+def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_param: str) -> tuple[list[MedicineSearchResultRead], str | None]:
     try:
         response = httpx.get(
             "http://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList",
@@ -278,8 +284,10 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
         )
         response.raise_for_status()
         payload = response.json()
-    except (httpx.HTTPError, ValueError):
-        return []
+    except httpx.HTTPError as exc:
+        return [], str(exc)
+    except ValueError as exc:
+        return [], f"응답 JSON 해석 실패: {exc}"
 
     response_payload = payload.get("response", payload)
     items = response_payload.get("body", {}).get("items", [])
@@ -288,7 +296,7 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
     if isinstance(items, dict):
         items = [items]
     if not isinstance(items, list):
-        return []
+        return [], None
 
     results: list[MedicineSearchResultRead] = []
     for item in items:
@@ -298,7 +306,7 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
         item_seq = str(item.get("itemSeq") or item_name or len(results))
         efficacy = plain_text(item.get("efcyQesitm"))
         warning = plain_text(item.get("atpnWarnQesitm")) or plain_text(item.get("atpnQesitm"))
-        dur_items = fetch_dur_items(str(item_name or query), service_key, 5)
+        dur_items, _ = fetch_dur_items(str(item_name or query), service_key, 5)
         results.append(
             MedicineSearchResultRead(
                 id=f"edrug-{item_seq}",
@@ -321,7 +329,7 @@ def fetch_e_drug_medicines(query: str, service_key: str, limit: int, search_para
                 source="e_drug",
             )
         )
-    return results[:limit]
+    return results[:limit], None
 
 
 def plain_text(value: object) -> str | None:
@@ -388,7 +396,14 @@ def list_schedules(medication_id: int | None = None, profile_id: int | None = No
 
 @router.post("/schedules", response_model=MedicationScheduleRead)
 def create_schedule(payload: MedicationScheduleCreate, db: Session = Depends(get_db)) -> MedicationScheduleRead:
-    schedule = MedicationSchedule(**{**payload.model_dump(exclude={"dose_times"}), "dose_times": json.dumps(payload.dose_times, ensure_ascii=False)})
+    schedule = MedicationSchedule(
+        **{
+            **payload.model_dump(exclude={"dose_times", "weekdays", "month_days"}),
+            "dose_times": json.dumps(payload.dose_times, ensure_ascii=False),
+            "weekdays": json.dumps(payload.weekdays, ensure_ascii=False),
+            "month_days": json.dumps(payload.month_days, ensure_ascii=False),
+        }
+    )
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
@@ -419,6 +434,8 @@ def to_schedule_read(schedule: MedicationSchedule) -> MedicationScheduleRead:
         dose_times = json.loads(schedule.dose_times)
     except json.JSONDecodeError:
         dose_times = []
+    weekdays = json_list(schedule.weekdays)
+    month_days = json_list(schedule.month_days)
     return MedicationScheduleRead(
         id=schedule.id,
         medication_id=schedule.medication_id,
@@ -433,6 +450,36 @@ def to_schedule_read(schedule: MedicationSchedule) -> MedicationScheduleRead:
         ends_on=schedule.ends_on,
         duration_days=schedule.duration_days,
         repeat_rule=schedule.repeat_rule,
+        weekdays=weekdays,
+        week_interval=schedule.week_interval,
+        monthly_mode=schedule.monthly_mode,
+        month_days=month_days,
+        monthly_week_ordinal=schedule.monthly_week_ordinal,
+        monthly_weekday=schedule.monthly_weekday,
+        missing_date_policy=schedule.missing_date_policy,
+        interval_hours=schedule.interval_hours,
+        interval_days=schedule.interval_days,
+        cycle_active_days=schedule.cycle_active_days,
+        cycle_rest_days=schedule.cycle_rest_days,
+        max_daily_notifications=schedule.max_daily_notifications,
+        relation_offset_minutes=schedule.relation_offset_minutes,
+        reminder_enabled=schedule.reminder_enabled,
+        reminder_interval_minutes=schedule.reminder_interval_minutes,
+        reminder_max_count=schedule.reminder_max_count,
+        guardian_alert_enabled=schedule.guardian_alert_enabled,
+        guardian_alert_delay_minutes=schedule.guardian_alert_delay_minutes,
+        paused=schedule.paused,
+        pause_reason=schedule.pause_reason,
         notify_enabled=schedule.notify_enabled,
         notification_level=schedule.notification_level,
     )
+
+
+def json_list(value: str | None) -> list[int]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else []

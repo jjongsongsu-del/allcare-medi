@@ -225,6 +225,11 @@ export function FamilyMyPageScreen() {
     setMessage("이 기기에 저장된 기록을 삭제했습니다.");
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/");
+  };
+
   return (
     <AppScreen contentStyle={styles.screen}>
       <View style={styles.hero}>
@@ -285,7 +290,7 @@ export function FamilyMyPageScreen() {
           onOpenModal={() => setMyDataModalVisible(true)}
           onMigrate={migrateLocalData}
           onClearRecords={() => setClearConfirmVisible(true)}
-          onLogout={logout}
+          onLogout={handleLogout}
           dataSummary={dataSummary}
         />
       ) : activeMenu === "family" ? (
@@ -955,7 +960,7 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   hero: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#F8FBFF",
@@ -976,7 +981,7 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 54,
     height: 54,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center"
@@ -999,7 +1004,7 @@ const styles = StyleSheet.create({
   },
   notice: {
     minHeight: 78,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#FDBA74",
     backgroundColor: "#FFF7ED",
@@ -1024,7 +1029,7 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     minHeight: 82,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1057,7 +1062,7 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     minHeight: 46,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1080,7 +1085,7 @@ const styles = StyleSheet.create({
   },
   segmented: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
@@ -1091,7 +1096,7 @@ const styles = StyleSheet.create({
   segmentButton: {
     flex: 1,
     minHeight: 42,
-    borderRadius: 8,
+    borderRadius: 4,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -1112,7 +1117,7 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     minHeight: 94,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1139,7 +1144,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF"
   },
   listCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1175,7 +1180,7 @@ const styles = StyleSheet.create({
   addButton: {
     minWidth: 64,
     minHeight: 46,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
@@ -1190,7 +1195,7 @@ const styles = StyleSheet.create({
   },
   myDataSummary: {
     minHeight: 70,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.md,
     flexDirection: "row",
@@ -1200,7 +1205,7 @@ const styles = StyleSheet.create({
   profileAvatar: {
     width: 46,
     height: 46,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center"
@@ -1214,7 +1219,7 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     minHeight: 54,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     padding: spacing.sm,
@@ -1232,7 +1237,7 @@ const styles = StyleSheet.create({
   },
   emptyDataBox: {
     minHeight: 64,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#F8FBFF",
@@ -1255,7 +1260,7 @@ const styles = StyleSheet.create({
     flexBasis: "30%",
     flexGrow: 1,
     minHeight: 58,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
@@ -1273,7 +1278,7 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     minHeight: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
@@ -1304,7 +1309,7 @@ const styles = StyleSheet.create({
   },
   profileChip: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     paddingHorizontal: spacing.md,
@@ -1323,7 +1328,7 @@ const styles = StyleSheet.create({
   },
   inviteRow: {
     minHeight: 72,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.md,
     flexDirection: "row",
@@ -1331,7 +1336,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   statusBadge: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#E8F5EE",
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs
@@ -1347,7 +1352,7 @@ const styles = StyleSheet.create({
   },
   detailTab: {
     minHeight: 42,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.sm,
@@ -1374,7 +1379,7 @@ const styles = StyleSheet.create({
   },
   consentManageRow: {
     minHeight: 66,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1393,7 +1398,7 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
@@ -1402,7 +1407,7 @@ const styles = StyleSheet.create({
   },
   smallChip: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
@@ -1420,7 +1425,7 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong
   },
   flowBox: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.md,
     gap: spacing.xs
@@ -1433,7 +1438,7 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     maxHeight: "92%",
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     padding: spacing.lg,
     gap: spacing.md

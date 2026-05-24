@@ -30,7 +30,7 @@ function relationLabel(relation?: string | null) {
 const styles = StyleSheet.create({
   container: {
     minHeight: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,

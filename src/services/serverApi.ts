@@ -388,8 +388,8 @@ export async function searchFacilitiesFromServer(params: {
   }
 
   const payload: FacilitySearchResponse = await response.json();
-  if (payload.source !== "public-data" || payload.results.length === 0) {
-    throw new Error(payload.message ?? "공공 API 결과가 없습니다.");
+  if (payload.source !== "public-data") {
+    throw new Error(payload.message ?? "병원·약국 공공 API 결과를 불러오지 못했습니다.");
   }
   return payload.results.map(toMedicalFacility);
 }
@@ -414,8 +414,8 @@ export async function searchEmergencyRoomsFromServer(params: {
   }
 
   const payload: EmergencyRoomSearchResponse = await response.json();
-  if (payload.source !== "public-data" || payload.results.length === 0) {
-    throw new Error(payload.message ?? "응급실 API 결과가 없습니다.");
+  if (payload.source !== "public-data") {
+    throw new Error(payload.message ?? "응급실 공공 API 결과를 불러오지 못했습니다.");
   }
   return payload.results.map(toEmergencyRoom);
 }
@@ -825,7 +825,27 @@ function toMedicineSchedule(item: any): MedicineSchedule {
     startDate: item.starts_on,
     endDate: item.ends_on,
     durationDays: item.duration_days,
-    repeatRule: item.repeat_rule,
+    repeatRule: item.repeat_rule ?? "daily",
+    weekdays: item.weekdays ?? [],
+    weekInterval: item.week_interval ?? null,
+    monthlyMode: item.monthly_mode ?? null,
+    monthDays: item.month_days ?? [],
+    monthlyWeekOrdinal: item.monthly_week_ordinal ?? null,
+    monthlyWeekday: item.monthly_weekday ?? null,
+    missingDatePolicy: item.missing_date_policy ?? null,
+    intervalHours: item.interval_hours ?? null,
+    intervalDays: item.interval_days ?? null,
+    cycleActiveDays: item.cycle_active_days ?? null,
+    cycleRestDays: item.cycle_rest_days ?? null,
+    maxDailyNotifications: item.max_daily_notifications ?? null,
+    relationOffsetMinutes: item.relation_offset_minutes ?? null,
+    reminderEnabled: item.reminder_enabled ?? false,
+    reminderIntervalMinutes: item.reminder_interval_minutes ?? null,
+    reminderMaxCount: item.reminder_max_count ?? null,
+    guardianAlertEnabled: item.guardian_alert_enabled ?? false,
+    guardianAlertDelayMinutes: item.guardian_alert_delay_minutes ?? null,
+    paused: item.paused ?? false,
+    pauseReason: item.pause_reason ?? null,
     notifyEnabled: item.notify_enabled,
     notificationLevel: item.notification_level,
     createdAt: item.created_at ?? new Date().toISOString(),
@@ -847,6 +867,26 @@ function toSchedulePayload(schedule: MedicineSchedule) {
     ends_on: schedule.endDate,
     duration_days: schedule.durationDays,
     repeat_rule: schedule.repeatRule,
+    weekdays: schedule.weekdays ?? [],
+    week_interval: schedule.weekInterval,
+    monthly_mode: schedule.monthlyMode,
+    month_days: schedule.monthDays ?? [],
+    monthly_week_ordinal: schedule.monthlyWeekOrdinal,
+    monthly_weekday: schedule.monthlyWeekday,
+    missing_date_policy: schedule.missingDatePolicy,
+    interval_hours: schedule.intervalHours,
+    interval_days: schedule.intervalDays,
+    cycle_active_days: schedule.cycleActiveDays,
+    cycle_rest_days: schedule.cycleRestDays,
+    max_daily_notifications: schedule.maxDailyNotifications,
+    relation_offset_minutes: schedule.relationOffsetMinutes,
+    reminder_enabled: schedule.reminderEnabled,
+    reminder_interval_minutes: schedule.reminderIntervalMinutes,
+    reminder_max_count: schedule.reminderMaxCount,
+    guardian_alert_enabled: schedule.guardianAlertEnabled,
+    guardian_alert_delay_minutes: schedule.guardianAlertDelayMinutes,
+    paused: schedule.paused,
+    pause_reason: schedule.pauseReason,
     notify_enabled: schedule.notifyEnabled,
     notification_level: schedule.notificationLevel
   };

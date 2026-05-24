@@ -3,12 +3,11 @@ import { File, Paths } from "expo-file-system";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useAuth } from "@/auth/AuthProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
-import { getRecommendedHealthContents } from "@/services/healthContentService";
 import {
   getLocalMedicationEvents,
   getLocalMedicineSchedules,
@@ -29,7 +28,7 @@ import { createMedicationEvent, createMedicineSchedule } from "@/services/server
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
-import { HealthContent, MedicationEvent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
+import { MedicationEvent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
 
 const statusFilters = ["오늘", "예정", "복용완료", "건너뜀", "중요약", "개인관리"];
 const reportPeriods = [
@@ -38,11 +37,87 @@ const reportPeriods = [
   { label: "30일", days: 30 }
 ];
 const defaultDoseTimes = ["08:00", "13:00", "19:00"];
+const scheduleTimes = ["아침 08:00", "점심 13:00", "저녁 19:00", "취침 전 22:00"];
+const weekdayOptions = [
+  { label: "월", value: 1 },
+  { label: "화", value: 2 },
+  { label: "수", value: 3 },
+  { label: "목", value: 4 },
+  { label: "금", value: 5 },
+  { label: "토", value: 6 },
+  { label: "일", value: 0 }
+];
 const defaultNotificationSettings: MedicationNotificationSettings = {
   enabled: true,
   reminderMinutesBefore: 0,
   horizonDays: 7
 };
+
+type ScheduleDraftState = {
+  doseAmount: string;
+  doseTiming: string;
+  doseMethod: string;
+  timesPerDay: number;
+  doseTimes: string[];
+  startDate: string;
+  endDate: string;
+  durationDays: string;
+  repeatRule: MedicineSchedule["repeatRule"];
+  weekdays: number[];
+  weekInterval: string;
+  monthlyMode: NonNullable<MedicineSchedule["monthlyMode"]>;
+  monthDays: number[];
+  monthlyWeekOrdinal: string;
+  monthlyWeekday: string;
+  missingDatePolicy: NonNullable<MedicineSchedule["missingDatePolicy"]>;
+  intervalHours: string;
+  intervalDays: string;
+  cycleActiveDays: string;
+  cycleRestDays: string;
+  maxDailyNotifications: string;
+  relationOffsetMinutes: string;
+  notifyEnabled: boolean;
+  notificationLevel: MedicineSchedule["notificationLevel"];
+  reminderEnabled: boolean;
+  reminderIntervalMinutes: string;
+  reminderMaxCount: string;
+  guardianAlertEnabled: boolean;
+  guardianAlertDelayMinutes: string;
+  paused: boolean;
+};
+
+const defaultScheduleDraft = (): ScheduleDraftState => ({
+  doseAmount: "1정",
+  doseTiming: "식후",
+  doseMethod: "경구",
+  timesPerDay: 1,
+  doseTimes: ["08:00"],
+  startDate: new Date().toISOString().slice(0, 10),
+  endDate: "",
+  durationDays: "",
+  repeatRule: "daily",
+  weekdays: [new Date().getDay()],
+  weekInterval: "1",
+  monthlyMode: "date",
+  monthDays: [new Date().getDate()],
+  monthlyWeekOrdinal: "1",
+  monthlyWeekday: String(new Date().getDay()),
+  missingDatePolicy: "last_day",
+  intervalHours: "6",
+  intervalDays: "",
+  cycleActiveDays: "3",
+  cycleRestDays: "1",
+  maxDailyNotifications: "4",
+  relationOffsetMinutes: "30",
+  notifyEnabled: true,
+  notificationLevel: "normal",
+  reminderEnabled: false,
+  reminderIntervalMinutes: "10",
+  reminderMaxCount: "3",
+  guardianAlertEnabled: false,
+  guardianAlertDelayMinutes: "30",
+  paused: false
+});
 
 type DoseRow = {
   id: string;
@@ -71,7 +146,6 @@ export function MedicationScreen() {
   const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
   const [schedules, setSchedules] = useState<MedicineSchedule[]>([]);
   const [events, setEvents] = useState<MedicationEvent[]>([]);
-  const [contents, setContents] = useState<HealthContent[]>([]);
   const [searchText, setSearchText] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("오늘");
   const [activeTab, setActiveTab] = useState<"schedule" | "report">("schedule");
@@ -82,6 +156,7 @@ export function MedicationScreen() {
   const [doseTiming, setDoseTiming] = useState("식후");
   const [doseTimesText, setDoseTimesText] = useState("08:00");
   const [notifyEnabled, setNotifyEnabled] = useState(true);
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftState>(defaultScheduleDraft);
   const [notificationSettings, setNotificationSettings] = useState<MedicationNotificationSettings>(defaultNotificationSettings);
   const [notificationPermission, setNotificationPermission] = useState("undetermined");
   const [scheduledNotificationCount, setScheduledNotificationCount] = useState(0);
@@ -89,7 +164,6 @@ export function MedicationScreen() {
 
   useEffect(() => {
     loadMedicationData();
-    getRecommendedHealthContents().then(setContents);
   }, [selectedProfile?.profileId]);
 
   useEffect(() => {
@@ -292,8 +366,22 @@ export function MedicationScreen() {
   };
 
   const openScheduleModal = () => {
-    if (medicines[0]) setSelectedMedicineId(medicines[0].id);
+    setSelectedMedicineId("");
+    setScheduleDraft(defaultScheduleDraft());
     setScheduleModalVisible(true);
+  };
+
+  const selectScheduleMedicine = (medicineId: string) => {
+    const medicine = medicines.find((item) => item.id === medicineId);
+    setSelectedMedicineId(medicineId);
+    if (!medicine) return;
+    setScheduleDraft((current) => ({
+      ...current,
+      doseAmount: medicine.dosage ?? current.doseAmount,
+      doseTiming: medicine.timing ?? current.doseTiming,
+      doseMethod: medicine.takingMethod ?? current.doseMethod,
+      notificationLevel: medicine.highRisk ? "strong" : current.notificationLevel
+    }));
   };
 
   const saveSchedule = async () => {
@@ -302,23 +390,43 @@ export function MedicationScreen() {
       setMessage("스케줄을 등록할 약을 먼저 선택하세요.");
       return;
     }
-    const doseTimes = doseTimesText.split(/[,\s]+/).map((time) => time.trim()).filter(Boolean);
+    const durationDays = Number(scheduleDraft.durationDays);
     const schedule: MedicineSchedule = {
       id: `local-schedule-${Date.now()}`,
       medicineId: medicine.id,
       profileId: selectedProfile?.profileId ?? medicine.profileId,
-      doseAmount: doseAmount.trim() || "1정",
-      doseMethod: medicine.takingMethod ?? "경구",
-      doseTiming: doseTiming.trim() || "식후",
+      doseAmount: scheduleDraft.doseAmount.trim() || "1정",
+      doseMethod: scheduleDraft.doseMethod.trim() || medicine.takingMethod || "경구",
+      doseTiming: scheduleDraft.doseTiming.trim() || medicine.timing || "식후",
       purpose: medicine.purpose,
-      timesPerDay: Math.max(doseTimes.length, 1),
-      doseTimes: doseTimes.length ? doseTimes : ["08:00"],
-      startDate: today,
-      endDate: null,
-      durationDays: null,
-      repeatRule: "daily",
-      notifyEnabled,
-      notificationLevel: medicine.highRisk ? "strong" : "normal",
+      timesPerDay: scheduleDraft.repeatRule === "as_needed" ? 0 : Math.max(scheduleDraft.doseTimes.length, 1),
+      doseTimes: scheduleDraft.repeatRule === "as_needed" ? [] : scheduleDraft.doseTimes.length ? scheduleDraft.doseTimes : ["08:00"],
+      startDate: scheduleDraft.startDate,
+      endDate: scheduleDraft.endDate || (Number.isFinite(durationDays) && durationDays > 0 ? calculateEndDate(scheduleDraft.startDate, durationDays) : null),
+      durationDays: Number.isFinite(durationDays) && durationDays > 0 ? durationDays : null,
+      repeatRule: scheduleDraft.repeatRule,
+      weekdays: scheduleDraft.weekdays,
+      weekInterval: parseOptionalNumber(scheduleDraft.weekInterval),
+      monthlyMode: scheduleDraft.monthlyMode,
+      monthDays: scheduleDraft.monthDays,
+      monthlyWeekOrdinal: parseOptionalNumber(scheduleDraft.monthlyWeekOrdinal),
+      monthlyWeekday: parseOptionalNumber(scheduleDraft.monthlyWeekday),
+      missingDatePolicy: scheduleDraft.missingDatePolicy,
+      intervalHours: parseOptionalNumber(scheduleDraft.intervalHours),
+      intervalDays: parseOptionalNumber(scheduleDraft.intervalDays),
+      cycleActiveDays: parseOptionalNumber(scheduleDraft.cycleActiveDays),
+      cycleRestDays: parseOptionalNumber(scheduleDraft.cycleRestDays),
+      maxDailyNotifications: parseOptionalNumber(scheduleDraft.maxDailyNotifications),
+      relationOffsetMinutes: parseOptionalNumber(scheduleDraft.relationOffsetMinutes),
+      reminderEnabled: scheduleDraft.reminderEnabled,
+      reminderIntervalMinutes: parseOptionalNumber(scheduleDraft.reminderIntervalMinutes),
+      reminderMaxCount: parseOptionalNumber(scheduleDraft.reminderMaxCount),
+      guardianAlertEnabled: scheduleDraft.guardianAlertEnabled,
+      guardianAlertDelayMinutes: parseOptionalNumber(scheduleDraft.guardianAlertDelayMinutes),
+      paused: scheduleDraft.paused,
+      pauseReason: null,
+      notifyEnabled: scheduleDraft.notifyEnabled,
+      notificationLevel: scheduleDraft.notificationLevel,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -329,7 +437,7 @@ export function MedicationScreen() {
     }
     setScheduleModalVisible(false);
     setMessage(`${medicine.alias || medicine.name} 복약 일정을 추가했습니다.`);
-    await loadMedicationData({ requestNotificationPermission: notifyEnabled });
+    await loadMedicationData({ requestNotificationPermission: scheduleDraft.notifyEnabled });
   };
 
   const exportCsv = async () => {
@@ -492,32 +600,13 @@ export function MedicationScreen() {
         />
       )}
 
-      <View style={styles.contentSection}>
-        <Text style={styles.sectionTitle}>맞춤 건강백과</Text>
-        <Text style={styles.sectionDescription}>복약 상태와 관련 정보를 바탕으로 추천합니다.</Text>
-      </View>
-
-      {contents.slice(0, 2).map((content) => (
-        <View key={content.id} style={styles.contentCard}>
-          <Text style={styles.cardTitle}>{content.title}</Text>
-          <Text style={styles.meta}>{content.category} · {content.lifeStage}</Text>
-          <Text style={styles.body}>{content.summary}</Text>
-        </View>
-      ))}
-
-      <ScheduleModal
+      <EnhancedScheduleModal
         visible={scheduleModalVisible}
         medicines={medicines}
         selectedMedicineId={selectedMedicineId}
-        onSelectMedicine={setSelectedMedicineId}
-        doseAmount={doseAmount}
-        setDoseAmount={setDoseAmount}
-        doseTiming={doseTiming}
-        setDoseTiming={setDoseTiming}
-        doseTimesText={doseTimesText}
-        setDoseTimesText={setDoseTimesText}
-        notifyEnabled={notifyEnabled}
-        setNotifyEnabled={setNotifyEnabled}
+        onSelectMedicine={selectScheduleMedicine}
+        scheduleDraft={scheduleDraft}
+        onScheduleDraftChange={(patch) => setScheduleDraft((current) => ({ ...current, ...patch }))}
         onSave={saveSchedule}
         onClose={() => setScheduleModalVisible(false)}
       />
@@ -734,6 +823,259 @@ function QuickButton({ label, icon, onPress }: { label: string; icon: keyof type
   );
 }
 
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={[styles.filterChip, active && styles.filterChipActive]} onPress={onPress}>
+      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function ScheduleTypeChoice({ title, description, active, onPress }: { title: string; description: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={[styles.scheduleTypeChoice, active && styles.scheduleTypeChoiceActive]} onPress={onPress}>
+      <Text style={[styles.cardTitle, active && styles.scheduleTypeTextActive]}>{title}</Text>
+      <Text style={[styles.meta, active && styles.scheduleTypeMetaActive]}>{description}</Text>
+    </Pressable>
+  );
+}
+
+function EnhancedScheduleModal({
+  visible,
+  medicines,
+  selectedMedicineId,
+  onSelectMedicine,
+  scheduleDraft,
+  onScheduleDraftChange,
+  onSave,
+  onClose
+}: {
+  visible: boolean;
+  medicines: RegisteredMedicine[];
+  selectedMedicineId: string;
+  onSelectMedicine: (id: string) => void;
+  scheduleDraft: ScheduleDraftState;
+  onScheduleDraftChange: (patch: Partial<ScheduleDraftState>) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const selectedMedicine = medicines.find((medicine) => medicine.id === selectedMedicineId);
+  const canEditSchedule = Boolean(selectedMedicine);
+  const setRepeatRule = (repeatRule: MedicineSchedule["repeatRule"]) => {
+    onScheduleDraftChange({
+      repeatRule,
+      timesPerDay: repeatRule === "as_needed" ? 0 : Math.max(scheduleDraft.timesPerDay, 1),
+      doseTimes: repeatRule === "as_needed" ? [] : scheduleDraft.doseTimes.length ? scheduleDraft.doseTimes : ["08:00"]
+    });
+  };
+  const setTimesPerDay = (timesPerDay: number) => {
+    onScheduleDraftChange({
+      timesPerDay,
+      doseTimes: timesPerDay === 0 ? [] : defaultDoseTimes.slice(0, timesPerDay),
+      repeatRule: timesPerDay === 0 ? "as_needed" : scheduleDraft.repeatRule === "as_needed" ? "daily" : scheduleDraft.repeatRule
+    });
+  };
+  const toggleDoseTime = (time: string) => {
+    const doseTimes = scheduleDraft.doseTimes.includes(time)
+      ? scheduleDraft.doseTimes.filter((item) => item !== time)
+      : [...scheduleDraft.doseTimes, time].sort();
+    onScheduleDraftChange({ doseTimes, timesPerDay: doseTimes.length || scheduleDraft.timesPerDay });
+  };
+  const toggleWeekday = (weekday: number) => {
+    const weekdays = scheduleDraft.weekdays.includes(weekday)
+      ? scheduleDraft.weekdays.filter((day) => day !== weekday)
+      : [...scheduleDraft.weekdays, weekday].sort();
+    onScheduleDraftChange({ weekdays: weekdays.length ? weekdays : [weekday] });
+  };
+  const toggleMonthDay = (day: number) => {
+    const monthDays = scheduleDraft.monthDays.includes(day)
+      ? scheduleDraft.monthDays.filter((item) => item !== day)
+      : [...scheduleDraft.monthDays, day].sort((a, b) => a - b);
+    onScheduleDraftChange({ monthDays: monthDays.length ? monthDays : [day] });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.sectionTitle}>복약 일정 추가</Text>
+              <Text style={styles.meta}>반복 유형과 알림 방식을 함께 설정합니다.</Text>
+            </View>
+            <Pressable style={styles.iconButton} onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.textStrong} />
+            </Pressable>
+          </View>
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
+            <View style={styles.schedulePanel}>
+              <Text style={styles.cardTitle}>1. 등록된 약 선택</Text>
+              <Text style={styles.meta}>복약 일정은 선택한 약에 연결되어 저장됩니다.</Text>
+            </View>
+            <View style={styles.medicineChipRow}>
+              {medicines.map((medicine) => (
+                <Pressable key={medicine.id} style={[styles.medicineChip, selectedMedicineId === medicine.id && styles.medicineChipActive]} onPress={() => onSelectMedicine(medicine.id)}>
+                  <Text style={[styles.medicineChipText, selectedMedicineId === medicine.id && styles.medicineChipTextActive]} numberOfLines={1}>
+                    {medicine.alias || medicine.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {!medicines.length ? <Text style={styles.emptyDescription}>먼저 알약 메뉴에서 복용약을 등록하세요.</Text> : null}
+            {medicines.length && !selectedMedicine ? (
+              <View style={styles.scheduleEmptyBox}>
+                <MaterialCommunityIcons name="gesture-tap-button" size={22} color={colors.primary} />
+                <Text style={styles.cardTitle}>스케줄을 등록할 약을 먼저 선택하세요.</Text>
+                <Text style={styles.meta}>약을 선택하면 용량, 복용 시점, 중요 알림 기본값을 불러옵니다.</Text>
+              </View>
+            ) : null}
+
+            {canEditSchedule ? (
+              <>
+            <View style={styles.selectedMedicineBox}>
+              <MaterialCommunityIcons name="pill" size={20} color={colors.primary} />
+              <View style={styles.flex}>
+                <Text style={styles.cardTitle}>{selectedMedicine?.alias || selectedMedicine?.name}</Text>
+                <Text style={styles.meta}>
+                  {[selectedMedicine?.dosage, selectedMedicine?.timing, selectedMedicine?.takingMethod].filter(Boolean).join(" · ") || "복약 정보를 입력해 주세요."}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.cardTitle}>2. 스케줄 설정</Text>
+            <View style={styles.scheduleTypeGrid}>
+              <ScheduleTypeChoice title="매일" description="매일 같은 시간" active={scheduleDraft.repeatRule === "daily"} onPress={() => setRepeatRule("daily")} />
+              <ScheduleTypeChoice title="요일별" description="월/수/금 등" active={scheduleDraft.repeatRule === "weekday"} onPress={() => setRepeatRule("weekday")} />
+              <ScheduleTypeChoice title="매주" description="N주마다 반복" active={scheduleDraft.repeatRule === "weekly"} onPress={() => setRepeatRule("weekly")} />
+              <ScheduleTypeChoice title="매월" description="날짜/요일 기준" active={scheduleDraft.repeatRule === "monthly"} onPress={() => setRepeatRule("monthly")} />
+              <ScheduleTypeChoice title="수시" description="필요할 때 기록" active={scheduleDraft.repeatRule === "as_needed"} onPress={() => setRepeatRule("as_needed")} />
+              <ScheduleTypeChoice title="주기성" description="N시간/N일·휴약" active={scheduleDraft.repeatRule === "interval" || scheduleDraft.repeatRule === "cycle"} onPress={() => setRepeatRule("interval")} />
+            </View>
+
+            <View style={styles.filterRow}>
+              <FilterChip label="1일 1회" active={scheduleDraft.timesPerDay === 1 && scheduleDraft.repeatRule !== "as_needed"} onPress={() => setTimesPerDay(1)} />
+              <FilterChip label="1일 2회" active={scheduleDraft.timesPerDay === 2} onPress={() => setTimesPerDay(2)} />
+              <FilterChip label="1일 3회" active={scheduleDraft.timesPerDay === 3} onPress={() => setTimesPerDay(3)} />
+              <FilterChip label="필요 시" active={scheduleDraft.repeatRule === "as_needed"} onPress={() => setTimesPerDay(0)} />
+            </View>
+
+            {scheduleDraft.repeatRule !== "as_needed" ? (
+              <View style={styles.filterRow}>
+                {scheduleTimes.map((time) => (
+                  <FilterChip key={time} label={time} active={scheduleDraft.doseTimes.includes(time.slice(-5))} onPress={() => toggleDoseTime(time.slice(-5))} />
+                ))}
+              </View>
+            ) : null}
+
+            {(scheduleDraft.repeatRule === "weekday" || scheduleDraft.repeatRule === "weekly") ? (
+              <View style={styles.schedulePanel}>
+                <Text style={styles.cardTitle}>{scheduleDraft.repeatRule === "weekly" ? "반복 기준 요일" : "복약 요일"}</Text>
+                <View style={styles.filterRow}>
+                  {weekdayOptions.map((day) => (
+                    <FilterChip key={day.value} label={day.label} active={scheduleDraft.weekdays.includes(day.value)} onPress={() => toggleWeekday(day.value)} />
+                  ))}
+                </View>
+                {scheduleDraft.repeatRule === "weekly" ? (
+                  <TextInput style={styles.input} placeholder="반복 주기 예: 1=매주, 2=2주마다" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.weekInterval} onChangeText={(value) => onScheduleDraftChange({ weekInterval: value.replace(/[^0-9]/g, "") })} />
+                ) : <Text style={styles.meta}>선택한 요일마다 같은 복약 시간이 적용됩니다.</Text>}
+              </View>
+            ) : null}
+
+            {scheduleDraft.repeatRule === "monthly" ? (
+              <View style={styles.schedulePanel}>
+                <Text style={styles.cardTitle}>매월 반복 방식</Text>
+                <View style={styles.filterRow}>
+                  <FilterChip label="날짜" active={scheduleDraft.monthlyMode === "date"} onPress={() => onScheduleDraftChange({ monthlyMode: "date" })} />
+                  <FilterChip label="N번째 요일" active={scheduleDraft.monthlyMode === "weekday"} onPress={() => onScheduleDraftChange({ monthlyMode: "weekday" })} />
+                  <FilterChip label="말일" active={scheduleDraft.monthlyMode === "last_day"} onPress={() => onScheduleDraftChange({ monthlyMode: "last_day" })} />
+                </View>
+                {scheduleDraft.monthlyMode === "date" ? (
+                  <>
+                    <View style={styles.filterRow}>
+                      {[1, 5, 10, 15, 20, 25, 30, 31].map((day) => (
+                        <FilterChip key={day} label={`${day}일`} active={scheduleDraft.monthDays.includes(day)} onPress={() => toggleMonthDay(day)} />
+                      ))}
+                    </View>
+                    <View style={styles.filterRow}>
+                      <FilterChip label="없는 날짜는 말일" active={scheduleDraft.missingDatePolicy === "last_day"} onPress={() => onScheduleDraftChange({ missingDatePolicy: "last_day" })} />
+                      <FilterChip label="없는 달은 건너뜀" active={scheduleDraft.missingDatePolicy === "skip"} onPress={() => onScheduleDraftChange({ missingDatePolicy: "skip" })} />
+                    </View>
+                  </>
+                ) : null}
+                {scheduleDraft.monthlyMode === "weekday" ? (
+                  <View style={styles.twoColumn}>
+                    <TextInput style={styles.input} placeholder="N번째 예: 1, 2, 3, 4" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.monthlyWeekOrdinal} onChangeText={(value) => onScheduleDraftChange({ monthlyWeekOrdinal: value.replace(/[^0-9]/g, "") })} />
+                    <TextInput style={styles.input} placeholder="요일 숫자 0=일, 1=월" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.monthlyWeekday} onChangeText={(value) => onScheduleDraftChange({ monthlyWeekday: value.replace(/[^0-9]/g, "") })} />
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {(scheduleDraft.repeatRule === "interval" || scheduleDraft.repeatRule === "cycle") ? (
+              <View style={styles.schedulePanel}>
+                <Text style={styles.cardTitle}>주기성 복약</Text>
+                <View style={styles.filterRow}>
+                  <FilterChip label="시간 간격" active={scheduleDraft.repeatRule === "interval"} onPress={() => setRepeatRule("interval")} />
+                  <FilterChip label="복용+휴약" active={scheduleDraft.repeatRule === "cycle"} onPress={() => setRepeatRule("cycle")} />
+                </View>
+                {scheduleDraft.repeatRule === "interval" ? (
+                  <View style={styles.twoColumn}>
+                    <TextInput style={styles.input} placeholder="N시간마다 예: 6" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.intervalHours} onChangeText={(value) => onScheduleDraftChange({ intervalHours: value.replace(/[^0-9]/g, "") })} />
+                    <TextInput style={styles.input} placeholder="N일마다 예: 2" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.intervalDays} onChangeText={(value) => onScheduleDraftChange({ intervalDays: value.replace(/[^0-9]/g, "") })} />
+                  </View>
+                ) : (
+                  <View style={styles.twoColumn}>
+                    <TextInput style={styles.input} placeholder="복용일 예: 3" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.cycleActiveDays} onChangeText={(value) => onScheduleDraftChange({ cycleActiveDays: value.replace(/[^0-9]/g, "") })} />
+                    <TextInput style={styles.input} placeholder="휴약일 예: 1" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.cycleRestDays} onChangeText={(value) => onScheduleDraftChange({ cycleRestDays: value.replace(/[^0-9]/g, "") })} />
+                  </View>
+                )}
+                <TextInput style={styles.input} placeholder="하루 최대 알림 횟수" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.maxDailyNotifications} onChangeText={(value) => onScheduleDraftChange({ maxDailyNotifications: value.replace(/[^0-9]/g, "") })} />
+              </View>
+            ) : null}
+
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="복용량 예: 1정" placeholderTextColor={colors.textMuted} value={scheduleDraft.doseAmount} onChangeText={(value) => onScheduleDraftChange({ doseAmount: value })} />
+              <TextInput style={styles.input} placeholder="복용 방법 예: 경구" placeholderTextColor={colors.textMuted} value={scheduleDraft.doseMethod} onChangeText={(value) => onScheduleDraftChange({ doseMethod: value })} />
+            </View>
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="복용 시점 예: 식후" placeholderTextColor={colors.textMuted} value={scheduleDraft.doseTiming} onChangeText={(value) => onScheduleDraftChange({ doseTiming: value })} />
+              <TextInput style={styles.input} placeholder="식전/식후 offset 분" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.relationOffsetMinutes} onChangeText={(value) => onScheduleDraftChange({ relationOffsetMinutes: value.replace(/[^0-9]/g, "") })} />
+            </View>
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={colors.textMuted} value={scheduleDraft.startDate} onChangeText={(value) => onScheduleDraftChange({ startDate: value })} />
+              <TextInput style={styles.input} placeholder="종료일 미설정 시 계속 반복" placeholderTextColor={colors.textMuted} value={scheduleDraft.endDate} onChangeText={(value) => onScheduleDraftChange({ endDate: value })} />
+            </View>
+            <TextInput style={styles.input} placeholder="복용일수 예: 7, 14, 30" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.durationDays} onChangeText={(value) => onScheduleDraftChange({ durationDays: value.replace(/[^0-9]/g, "") })} />
+            <View style={styles.filterRow}>
+              <FilterChip label="알림 켜기" active={scheduleDraft.notifyEnabled} onPress={() => onScheduleDraftChange({ notifyEnabled: !scheduleDraft.notifyEnabled })} />
+              <FilterChip label="강한 알림" active={scheduleDraft.notificationLevel === "strong"} onPress={() => onScheduleDraftChange({ notificationLevel: scheduleDraft.notificationLevel === "strong" ? "normal" : "strong" })} />
+              <FilterChip label="재알림" active={scheduleDraft.reminderEnabled} onPress={() => onScheduleDraftChange({ reminderEnabled: !scheduleDraft.reminderEnabled })} />
+              <FilterChip label="보호자 알림" active={scheduleDraft.guardianAlertEnabled} onPress={() => onScheduleDraftChange({ guardianAlertEnabled: !scheduleDraft.guardianAlertEnabled })} />
+              <FilterChip label="일시중지" active={scheduleDraft.paused} onPress={() => onScheduleDraftChange({ paused: !scheduleDraft.paused })} />
+            </View>
+            {(scheduleDraft.reminderEnabled || scheduleDraft.guardianAlertEnabled) ? (
+              <View style={styles.twoColumn}>
+                <TextInput style={styles.input} placeholder="재알림 간격 분" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.reminderIntervalMinutes} onChangeText={(value) => onScheduleDraftChange({ reminderIntervalMinutes: value.replace(/[^0-9]/g, "") })} />
+                <TextInput style={styles.input} placeholder="보호자 알림 지연 분" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={scheduleDraft.guardianAlertDelayMinutes} onChangeText={(value) => onScheduleDraftChange({ guardianAlertDelayMinutes: value.replace(/[^0-9]/g, "") })} />
+              </View>
+            ) : null}
+            <View style={styles.schedulePreviewBox}>
+              <Text style={styles.cardTitle}>저장될 일정</Text>
+              <Text style={styles.meta}>{formatScheduleSummary(scheduleDraft)}</Text>
+            </View>
+              </>
+            ) : null}
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <MedicationButton label="저장" icon="content-save-outline" variant="filled" disabled={!canEditSchedule} onPress={onSave} />
+            <MedicationButton label="취소" icon="close-circle-outline" variant="outline" onPress={onClose} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function ScheduleModal({
   visible,
   medicines,
@@ -814,6 +1156,35 @@ function ScheduleModal({
   );
 }
 
+function parseOptionalNumber(value?: string | null): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function calculateEndDate(startDate: string, durationDays: number): string | null {
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) return null;
+  start.setDate(start.getDate() + Math.max(0, durationDays - 1));
+  return toDateKey(start);
+}
+
+function formatScheduleSummary(schedule: ScheduleDraftState): string {
+  const repeatLabel = {
+    daily: "매일",
+    weekday: `요일별 ${schedule.weekdays.map((day) => weekdayOptions.find((item) => item.value === day)?.label).filter(Boolean).join("/")}`,
+    weekly: `${schedule.weekInterval || 1}주마다 ${schedule.weekdays.map((day) => weekdayOptions.find((item) => item.value === day)?.label).filter(Boolean).join("/")}`,
+    monthly: schedule.monthlyMode === "last_day" ? "매월 말일" : schedule.monthlyMode === "weekday" ? `매월 ${schedule.monthlyWeekOrdinal}번째 요일` : `매월 ${schedule.monthDays.join(", ")}일`,
+    interval: schedule.intervalHours ? `${schedule.intervalHours}시간마다` : `${schedule.intervalDays || 1}일마다`,
+    cycle: `${schedule.cycleActiveDays || 0}일 복용 + ${schedule.cycleRestDays || 0}일 휴약`,
+    alternate_day: "격일",
+    as_needed: "필요 시"
+  }[schedule.repeatRule];
+  const timeLabel = schedule.repeatRule === "as_needed" ? "필요 시" : schedule.doseTimes.join(", ") || "시간 미정";
+  const durationLabel = schedule.endDate ? ` · ${schedule.endDate}까지` : schedule.durationDays ? ` · ${schedule.durationDays}일` : " · 계속 반복";
+  const alertLabel = schedule.notifyEnabled ? ` · ${schedule.notificationLevel === "strong" ? "강한 알림" : "알림"}` : " · 알림 꺼짐";
+  return `${repeatLabel} ${timeLabel}${durationLabel}${alertLabel}`;
+}
+
 function toDateKey(date: Date) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -830,7 +1201,7 @@ function startDateForPeriod(days: number) {
 function isScheduleActiveToday(schedule: MedicineSchedule, today: string) {
   if (schedule.startDate > today) return false;
   if (schedule.endDate && schedule.endDate < today) return false;
-  return ["daily", "weekly", "alternate_day", "as_needed"].includes(schedule.repeatRule);
+  return ["daily", "weekday", "weekly", "monthly", "interval", "cycle", "alternate_day", "as_needed"].includes(schedule.repeatRule);
 }
 
 function buildStats(rows: DoseRow[]) {
@@ -1033,7 +1404,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   hero: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#F8FBFF",
@@ -1054,7 +1425,7 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 54,
     height: 54,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center"
@@ -1076,7 +1447,7 @@ const styles = StyleSheet.create({
   },
   searchBox: {
     minHeight: 46,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1100,7 +1471,7 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     minHeight: 76,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1121,7 +1492,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted
   },
   messageBox: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#E8F5EE",
     padding: spacing.sm,
     flexDirection: "row",
@@ -1141,7 +1512,7 @@ const styles = StyleSheet.create({
   bigPrimaryButton: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primary,
     flexDirection: "row",
     alignItems: "center",
@@ -1154,7 +1525,7 @@ const styles = StyleSheet.create({
   },
   outlinePrimaryButton: {
     minHeight: 44,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: "#FFFFFF",
@@ -1176,7 +1547,7 @@ const styles = StyleSheet.create({
   },
   quickButton: {
     minHeight: 42,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1191,7 +1562,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   notificationCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#F8FBFF",
@@ -1217,7 +1588,7 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     minHeight: 36,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#D1D5DB",
     backgroundColor: "#FFFFFF",
@@ -1236,9 +1607,77 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: "#FFFFFF"
   },
+  flex: {
+    flex: 1
+  },
+  twoColumn: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  scheduleTypeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  scheduleTypeChoice: {
+    flexBasis: "31%",
+    flexGrow: 1,
+    minHeight: 76,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.sm,
+    gap: spacing.xs,
+    justifyContent: "center"
+  },
+  scheduleTypeChoiceActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  scheduleTypeTextActive: {
+    color: "#FFFFFF"
+  },
+  scheduleTypeMetaActive: {
+    color: "#EAF3FF"
+  },
+  schedulePanel: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  schedulePreviewBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.md,
+    gap: spacing.xs
+  },
+  scheduleEmptyBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    gap: spacing.xs
+  },
+  selectedMedicineBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: "#F0F7FF",
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
   segmentShell: {
     minHeight: 44,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     flexDirection: "row",
@@ -1267,7 +1706,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   summaryCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1275,7 +1714,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   reportCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1295,7 +1734,7 @@ const styles = StyleSheet.create({
   },
   timeBox: {
     minWidth: 78,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
@@ -1328,7 +1767,7 @@ const styles = StyleSheet.create({
   },
   emptyBox: {
     minHeight: 82,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
@@ -1346,7 +1785,7 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   scheduleCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1380,7 +1819,7 @@ const styles = StyleSheet.create({
   },
   shareBadge: {
     minHeight: 30,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
@@ -1401,7 +1840,7 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   durNotice: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFF7ED",
     padding: spacing.sm,
     flexDirection: "row",
@@ -1425,7 +1864,7 @@ const styles = StyleSheet.create({
   },
   smallButton: {
     minHeight: 40,
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
@@ -1454,7 +1893,7 @@ const styles = StyleSheet.create({
     color: colors.primary
   },
   reportRow: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceAlt,
@@ -1464,7 +1903,7 @@ const styles = StyleSheet.create({
   },
   reportDateBox: {
     minWidth: 68,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1485,21 +1924,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md
   },
-  contentSection: {
-    gap: spacing.xs
-  },
-  sectionDescription: {
-    ...typography.body,
-    color: colors.text
-  },
-  contentCard: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: "#FFFFFF",
-    padding: spacing.md,
-    gap: spacing.xs
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(17, 24, 39, 0.35)",
@@ -1510,7 +1934,15 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 12,
     backgroundColor: "#FFFFFF",
     padding: spacing.lg,
-    gap: spacing.sm
+    gap: spacing.sm,
+    maxHeight: "88%"
+  },
+  modalScroll: {
+    maxHeight: "78%"
+  },
+  modalScrollContent: {
+    gap: spacing.sm,
+    paddingBottom: spacing.md
   },
   modalHeader: {
     flexDirection: "row",
@@ -1521,7 +1953,7 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 40,
     height: 40,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     alignItems: "center",
     justifyContent: "center"
@@ -1534,7 +1966,7 @@ const styles = StyleSheet.create({
   medicineChip: {
     minHeight: 36,
     maxWidth: "100%",
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     paddingHorizontal: spacing.md,
@@ -1554,7 +1986,7 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 46,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
@@ -1568,7 +2000,7 @@ const styles = StyleSheet.create({
   },
   presetChip: {
     minHeight: 34,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     paddingHorizontal: spacing.md,
@@ -1588,7 +2020,7 @@ const styles = StyleSheet.create({
   },
   switchRow: {
     minHeight: 44,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: spacing.md,
     flexDirection: "row",

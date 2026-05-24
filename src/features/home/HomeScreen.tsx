@@ -27,9 +27,10 @@ type TodayTask = {
   route: Href;
 };
 
-type SummaryTone = "medicine" | "schedule" | "warning" | "health";
+type SummaryTone = "medicine" | "schedule" | "warning";
 
 const situationChips = ["문 연 약국", "야간 약국", "소아과", "응급실", "처방전 OCR", "혈압약"];
+const healthInfoLabels = ["혈액형", "알레르기", "기저질환", "복용약", "응급연락처"];
 
 export function HomeScreen() {
   const { session } = useAuth();
@@ -183,12 +184,25 @@ export function HomeScreen() {
 
   return (
     <AppScreen contentStyle={styles.screen}>
-      <View style={styles.topBar}>
+      <View style={styles.appHeader}>
+        <Text style={styles.appName}>AllCareMedi</Text>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.headerIconButton} onPress={() => router.push("/(tabs)/family")}>
+            <MaterialCommunityIcons name="account-heart-outline" size={24} color={colors.textStrong} />
+          </Pressable>
+          <Pressable style={styles.headerIconButton} onPress={() => router.push("/(tabs)/emergency")}>
+            <MaterialCommunityIcons name="hospital-box" size={24} color="#D92D20" />
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.heroCard}>
         <View style={styles.brandArea}>
           <Image source={require("../../../app_img/allcaremedi.png")} style={styles.mascot} resizeMode="contain" />
-          <View>
+          <View style={styles.heroTextGroup}>
             <Text style={styles.eyebrow}>올케어메디</Text>
             <Text style={styles.title}>오늘 건강 대시보드</Text>
+            <Text style={styles.heroDescription}>{displayName} 기준으로 복약, DUR, 병원약국, 응급 정보를 한 번에 확인합니다.</Text>
           </View>
         </View>
         <Pressable style={styles.profileButton} onPress={() => router.push("/(tabs)/family")}>
@@ -197,52 +211,75 @@ export function HomeScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.searchBox}>
-        <MaterialCommunityIcons name="magnify" size={20} color={colors.primary} />
-        <TextInput
-          accessibilityLabel="상황별 통합 검색"
-          value={searchText}
-          onChangeText={setSearchText}
-          onSubmitEditing={submitSearch}
-          placeholder="야간 약국, 소아과, 혈압약, 응급실"
-          placeholderTextColor={colors.textMuted}
-          style={styles.searchInput}
-        />
-        <Pressable accessibilityRole="button" style={styles.searchButton} onPress={submitSearch}>
-          <Text style={styles.searchButtonText}>검색</Text>
+      <View style={styles.searchCard}>
+        <View style={styles.searchBox}>
+          <MaterialCommunityIcons name="magnify" size={22} color={colors.primary} />
+          <TextInput
+            accessibilityLabel="상황별 통합 검색"
+            value={searchText}
+            onChangeText={setSearchText}
+            onSubmitEditing={submitSearch}
+            placeholder="야간 약국, 소아과, 혈압약, 응급실"
+            placeholderTextColor={colors.textMuted}
+            style={styles.searchInput}
+          />
+          <Pressable accessibilityRole="button" style={styles.searchButton} onPress={submitSearch}>
+            <Text style={styles.searchButtonText}>검색</Text>
+          </Pressable>
+        </View>
+        <View style={styles.chipRow}>
+          {situationChips.map((chip) => (
+            <Pressable key={chip} style={styles.situationChip} onPress={() => openChip(chip)}>
+              <Text style={styles.situationChipText}>{chip}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.insightCard}>
+        <Text style={styles.insightText}>지금 필요한 건강 정보를 먼저 모아봤어요.</Text>
+        <Text style={styles.insightDescription}>
+          복약 시간, DUR 주의, 주변 병원약국, 응급카드를 상황에 맞게 바로 실행할 수 있습니다.
+        </Text>
+        <Pressable style={styles.insightButton} onPress={() => router.push("/(tabs)/family")}>
+          <Text style={styles.insightButtonText}>관리 대상 확인</Text>
         </Pressable>
       </View>
 
-      <View style={styles.chipRow}>
-        {situationChips.map((chip) => (
-          <Pressable key={chip} style={styles.situationChip} onPress={() => openChip(chip)}>
-            <Text style={styles.situationChipText}>{chip}</Text>
-          </Pressable>
+      <View style={styles.summaryCard}>
+        <View style={styles.rowBetween}>
+          <Text style={styles.sectionTitle}>건강 요약</Text>
+          <Text style={styles.sectionMeta}>{displayName} 기준</Text>
+        </View>
+        <View style={styles.summaryGrid}>
+          <SummaryMetric label="등록 약" value={`${activeMedicines.length}개`} description="관리 중" tone="medicine" />
+          <SummaryMetric label="오늘 복약" value={nextDose ? nextDose.time : "없음"} description={nextDose ? "다음 시간" : "일정 없음"} tone="schedule" />
+          <SummaryMetric label="DUR 주의" value={`${durMedicines.length}건`} description={durMedicines.length ? "확인 필요" : "주의 없음"} tone="warning" />
+        </View>
+      </View>
+
+      <View style={styles.quickCard}>
+        <Text style={styles.sectionTitle}>바로 실행</Text>
+        <View style={styles.quickActions}>
+          <QuickAction label="약 등록" icon="plus-circle-outline" route="/(tabs)/pills" primary />
+          <QuickAction label="복약" icon="calendar-check" route="/(tabs)/medication" />
+          <QuickAction label="처방전 OCR" icon="text-recognition" route="/(tabs)/pills" />
+          <QuickAction label="병원약국" icon="map-marker-radius" route="/(tabs)/map" />
+          <QuickAction label="응급실" icon="hospital-box" route="/(tabs)/emergency" danger />
+        </View>
+      </View>
+
+      <View style={styles.feedCard}>
+        <View style={styles.rowBetween}>
+          <View>
+            <Text style={styles.sectionTitle}>오늘 확인할 일</Text>
+            <Text style={styles.sectionDescription}>{displayName} 기준으로 먼저 볼 항목입니다.</Text>
+          </View>
+          <View style={styles.orangeDot} />
+        </View>
+        {todayTasks.map((task) => (
+          <TaskCard key={task.id} task={task} onPress={() => router.push(task.route)} />
         ))}
-      </View>
-
-      <View style={styles.summaryGrid}>
-        <SummaryMetric label="등록 약" value={`${activeMedicines.length}개`} description="관리 중인 약" icon="pill" tone="medicine" />
-        <SummaryMetric label="오늘 복약" value={nextDose ? nextDose.time : "없음"} description={nextDose ? "다음 복용 시간" : "예정 없음"} icon="clock-outline" tone="schedule" />
-        <SummaryMetric label="DUR 주의" value={`${durMedicines.length}건`} description={durMedicines.length ? "확인 필요" : "주의 없음"} icon="alert-outline" tone="warning" />
-        <SummaryMetric label="건강정보" value={`${healthInfoCount}/5`} description={`완성 ${profileCompleteness}%`} icon="heart-pulse" tone="health" />
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>오늘 확인할 일</Text>
-        <Text style={styles.sectionDescription}>{displayName} 기준으로 먼저 볼 항목입니다.</Text>
-      </View>
-
-      {todayTasks.map((task) => (
-        <TaskCard key={task.id} task={task} onPress={() => router.push(task.route)} />
-      ))}
-
-      <View style={styles.quickActions}>
-        <QuickAction label="약 등록" icon="plus-circle-outline" route="/(tabs)/pills" primary />
-        <QuickAction label="복약" icon="calendar-check" route="/(tabs)/medication" />
-        <QuickAction label="처방전 OCR" icon="text-recognition" route="/(tabs)/pills" />
-        <QuickAction label="병원약국" icon="map-marker-radius" route="/(tabs)/map" />
-        <QuickAction label="응급실" icon="hospital-box" route="/(tabs)/emergency" danger />
       </View>
 
       <View style={styles.savedCard}>
@@ -254,6 +291,30 @@ export function HomeScreen() {
         </View>
         <PlaceRow title="즐겨찾기" place={favorites[0]} empty="즐겨찾는 병원·약국이 없습니다." />
         <PlaceRow title="최근 본 장소" place={recentPlaces[0]} empty="최근 본 병원·약국이 없습니다." />
+      </View>
+
+      <View style={styles.healthRecordCard}>
+        <View style={styles.rowBetween}>
+          <View style={styles.recordTitleRow}>
+            <View style={styles.recordIcon}>
+              <MaterialCommunityIcons name="heart-pulse" size={20} color="#FFFFFF" />
+            </View>
+            <Text style={styles.sectionTitle}>건강정보</Text>
+          </View>
+          <Pressable style={styles.recordButton} onPress={() => router.push("/(tabs)/family")}>
+            <Text style={styles.recordButtonText}>수정</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.sectionDescription}>응급카드와 맞춤 추천에 쓰이는 기본 건강정보입니다.</Text>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${profileCompleteness}%` }]} />
+        </View>
+        <View style={styles.healthInfoRow}>
+          {healthInfoLabels.map((label, index) => (
+            <View key={label} style={[styles.healthInfoDot, index < healthInfoCount && styles.healthInfoDotActive]} />
+          ))}
+        </View>
+        <Text style={styles.healthInfoText}>{healthInfoCount}/5개 등록 · 완성 {profileCompleteness}%</Text>
       </View>
 
       <View style={styles.noticeCard}>
@@ -269,37 +330,22 @@ export function HomeScreen() {
 function SummaryMetric({
   label,
   value,
-  icon,
   description,
   tone
 }: {
   label: string;
   value: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
   description: string;
   tone: SummaryTone;
 }) {
   const toneStyle =
     tone === "warning"
       ? styles.metricWarning
-      : tone === "health"
-        ? styles.metricHealth
-        : tone === "schedule"
-          ? styles.metricSchedule
-          : styles.metricMedicine;
-  const iconColor =
-    tone === "warning"
-      ? "#B45309"
-      : tone === "health"
-        ? "#047857"
-        : tone === "schedule"
-          ? "#5B21B6"
-          : colors.primary;
+      : tone === "schedule"
+        ? styles.metricSchedule
+        : styles.metricMedicine;
   return (
     <View style={[styles.metricCard, toneStyle]}>
-      <View style={styles.metricIconBox}>
-        <MaterialCommunityIcons name={icon} size={22} color={iconColor} />
-      </View>
       <View style={styles.metricTextGroup}>
         <Text style={styles.metricLabel}>{label}</Text>
         <Text style={styles.metricValue}>{value}</Text>
@@ -373,26 +419,55 @@ function PlaceRow({ title, place, empty }: { title: string; place?: StoredPlace;
 const styles = StyleSheet.create({
   screen: {
     gap: spacing.md,
-    paddingHorizontal: 18,
-    backgroundColor: colors.background
+    paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF"
   },
-  topBar: {
+  appHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.xs
   },
+  appName: {
+    ...typography.sectionTitle,
+    color: colors.textStrong,
+    fontWeight: "900"
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  headerIconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 4,
+    backgroundColor: "#F7F7F7",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  heroCard: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
   brandArea: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md
   },
+  heroTextGroup: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3
+  },
   mascot: {
-    width: 70,
-    height: 70
+    width: 82,
+    height: 82
   },
   eyebrow: {
     ...typography.body,
@@ -405,16 +480,22 @@ const styles = StyleSheet.create({
     color: colors.textStrong,
     lineHeight: 34
   },
+  heroDescription: {
+    ...typography.caption,
+    color: colors.text,
+    lineHeight: 20
+  },
   profileButton: {
+    alignSelf: "flex-start",
     minWidth: 92,
-    minHeight: 56,
-    borderRadius: 8,
+    minHeight: 46,
+    borderRadius: 4,
     borderWidth: 1,
-    borderColor: "#CAD7EE",
+    borderColor: "#C7D6EA",
     backgroundColor: "#F8FBFF",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.sm
+    paddingHorizontal: spacing.md
   },
   profileButtonText: {
     ...typography.button,
@@ -424,12 +505,20 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textMuted
   },
+  searchCard: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
   searchBox: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
-    backgroundColor: colors.surface,
+    backgroundColor: "#F8FBFF",
     paddingLeft: spacing.md,
     flexDirection: "row",
     alignItems: "center",
@@ -442,11 +531,13 @@ const styles = StyleSheet.create({
     color: colors.textStrong
   },
   searchButton: {
-    width: 72,
+    width: 76,
     alignSelf: "stretch",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary
+    backgroundColor: colors.primary,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4
   },
   searchButtonText: {
     ...typography.button,
@@ -459,11 +550,11 @@ const styles = StyleSheet.create({
   },
   situationChip: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     justifyContent: "center"
   },
   situationChipText: {
@@ -471,85 +562,141 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "800"
   },
+  insightCard: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    gap: spacing.sm
+  },
+  insightText: {
+    ...typography.sectionTitle,
+    color: "#047857",
+    lineHeight: 30
+  },
+  insightDescription: {
+    ...typography.body,
+    color: colors.text,
+    lineHeight: 23
+  },
+  insightButton: {
+    alignSelf: "flex-end",
+    minHeight: 38,
+    borderRadius: 4,
+    backgroundColor: "#BBF7D0",
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  insightButtonText: {
+    ...typography.button,
+    color: "#047857"
+  },
+  summaryCard: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
   summaryGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: spacing.sm
   },
   metricCard: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    minHeight: 104,
-    borderRadius: 8,
+    flex: 1,
+    minWidth: 0,
+    minHeight: 126,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
-    padding: spacing.md,
-    flexDirection: "row",
+    padding: spacing.sm,
     alignItems: "center",
-    gap: spacing.sm
+    justifyContent: "center",
+    gap: spacing.xs
   },
   metricMedicine: {
-    borderColor: "#BFD7F2",
-    backgroundColor: "#F8FBFF"
+    borderColor: "#D1FAE5",
+    backgroundColor: "#F7FEFA"
   },
   metricSchedule: {
-    borderColor: "#DDD6FE",
-    backgroundColor: "#F5F3FF"
+    borderColor: "#BFDBFE",
+    backgroundColor: "#F8FBFF"
   },
   metricWarning: {
     borderColor: "#FDBA74",
     backgroundColor: "#FFF7ED"
   },
-  metricHealth: {
-    borderColor: "#A7F3D0",
-    backgroundColor: "#F0FDF4"
-  },
-  metricIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.72)",
-    alignItems: "center",
-    justifyContent: "center"
-  },
   metricTextGroup: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2
+    alignItems: "center",
+    gap: spacing.xs,
+    minWidth: 0
   },
   metricValue: {
-    ...typography.bodyLarge,
+    ...typography.title,
     fontWeight: "800",
     color: colors.textStrong,
-    lineHeight: 26
+    lineHeight: 36,
+    textAlign: "center"
   },
   metricLabel: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: "800"
+    ...typography.bodyLarge,
+    color: colors.textStrong,
+    fontWeight: "900",
+    lineHeight: 26,
+    textAlign: "center"
   },
   metricDescription: {
     ...typography.caption,
-    color: colors.textMuted
-  },
-  sectionHeader: {
-    gap: spacing.xs
+    color: colors.textMuted,
+    fontWeight: "800",
+    lineHeight: 18,
+    textAlign: "center"
   },
   sectionTitle: {
     ...typography.sectionTitle,
     color: colors.textStrong
   },
+  sectionMeta: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: "800"
+  },
   sectionDescription: {
     ...typography.body,
     color: colors.text
   },
+  quickCard: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  feedCard: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  orangeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#F97316"
+  },
   taskCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#D1D5DB",
-    backgroundColor: "#FFFFFF",
-    padding: spacing.sm,
+    backgroundColor: "#F9FAFB",
+    padding: spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md
@@ -570,9 +717,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0FFF4"
   },
   taskIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
+    width: 46,
+    height: 46,
+    borderRadius: 4,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center"
@@ -599,10 +746,10 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     minHeight: 58,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F9FAFB",
     padding: spacing.sm,
     flexDirection: "row",
     alignItems: "center",
@@ -624,12 +771,12 @@ const styles = StyleSheet.create({
     color: "#FFFFFF"
   },
   savedCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
-    borderColor: "#C7D6EA",
+    borderColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
-    padding: spacing.md,
-    gap: spacing.sm
+    padding: spacing.lg,
+    gap: spacing.md
   },
   rowBetween: {
     flexDirection: "row",
@@ -643,8 +790,8 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   placeRow: {
-    borderRadius: 8,
-    backgroundColor: colors.surfaceAlt,
+    borderRadius: 4,
+    backgroundColor: "#F9FAFB",
     padding: spacing.md,
     gap: spacing.xs
   },
@@ -662,10 +809,75 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textMuted
   },
+  healthRecordCard: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  recordTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  recordIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 4,
+    backgroundColor: "#858A91",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  recordButton: {
+    minHeight: 36,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  recordButtonText: {
+    ...typography.caption,
+    color: colors.textStrong,
+    fontWeight: "800"
+  },
+  progressTrack: {
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "#EEF0F2",
+    overflow: "hidden"
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
+    backgroundColor: "#22C55E"
+  },
+  healthInfoRow: {
+    flexDirection: "row",
+    gap: spacing.xs
+  },
+  healthInfoDot: {
+    flex: 1,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: "#E5E7EB"
+  },
+  healthInfoDotActive: {
+    backgroundColor: "#86EFAC"
+  },
+  healthInfoText: {
+    ...typography.caption,
+    color: colors.textMuted
+  },
   noticeCard: {
-    borderRadius: 8,
-    backgroundColor: colors.primarySoft,
-    padding: spacing.md,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.sm

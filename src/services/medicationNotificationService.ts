@@ -236,10 +236,41 @@ function nextDates(schedule: MedicineSchedule, horizonDays: number) {
     if (date < start) continue;
     const daysFromStart = Math.floor((date.getTime() - start.getTime()) / 86400000);
     if (schedule.repeatRule === "alternate_day" && daysFromStart % 2 !== 0) continue;
-    if (schedule.repeatRule === "weekly" && daysFromStart % 7 !== 0) continue;
+    if (schedule.repeatRule === "weekday" && schedule.weekdays?.length && !schedule.weekdays.includes(date.getDay())) continue;
+    if (schedule.repeatRule === "weekly") {
+      const interval = schedule.weekInterval ?? 1;
+      const weekIndex = Math.floor(daysFromStart / 7);
+      if (weekIndex % interval !== 0) continue;
+      if (schedule.weekdays?.length && !schedule.weekdays.includes(date.getDay())) continue;
+    }
+    if (schedule.repeatRule === "monthly" && !isMonthlyDoseDate(schedule, date)) continue;
+    if (schedule.repeatRule === "interval" && schedule.intervalDays && daysFromStart % schedule.intervalDays !== 0) continue;
+    if (schedule.repeatRule === "cycle") {
+      const activeDays = schedule.cycleActiveDays ?? 0;
+      const restDays = schedule.cycleRestDays ?? 0;
+      const cycleDays = activeDays + restDays;
+      if (cycleDays > 0 && daysFromStart % cycleDays >= activeDays) continue;
+    }
     dates.push(date);
   }
   return dates;
+}
+
+function isMonthlyDoseDate(schedule: MedicineSchedule, date: Date) {
+  if (schedule.monthlyMode === "last_day") {
+    return date.getDate() === new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  }
+  if (schedule.monthlyMode === "weekday") {
+    const ordinal = schedule.monthlyWeekOrdinal ?? 1;
+    const weekday = schedule.monthlyWeekday ?? date.getDay();
+    const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+    const offset = (weekday - firstDay.getDay() + 7) % 7;
+    const targetDate = 1 + offset + (ordinal - 1) * 7;
+    return date.getDate() === targetDate;
+  }
+  const days = schedule.monthDays?.length ? schedule.monthDays : [new Date(schedule.startDate).getDate()];
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  return days.some((day) => date.getDate() === (day > lastDay && schedule.missingDatePolicy === "last_day" ? lastDay : day));
 }
 
 function dateAtDoseTime(date: Date, time: string) {

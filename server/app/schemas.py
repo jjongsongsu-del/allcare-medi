@@ -135,12 +135,32 @@ class MedicationScheduleCreate(BaseModel):
     dose_method: str = Field(..., min_length=1, max_length=80)
     dose_timing: str = Field(..., min_length=1, max_length=80)
     purpose: str | None = Field(default=None, max_length=160)
-    times_per_day: int = Field(default=1, ge=1, le=12)
+    times_per_day: int = Field(default=1, ge=0, le=12)
     dose_times: list[str] = []
     starts_on: str = Field(..., min_length=4, max_length=10)
     ends_on: str | None = Field(default=None, max_length=10)
     duration_days: int | None = None
     repeat_rule: str = Field(default="daily", max_length=30)
+    weekdays: list[int] = []
+    week_interval: int | None = None
+    monthly_mode: str | None = Field(default=None, max_length=20)
+    month_days: list[int] = []
+    monthly_week_ordinal: int | None = None
+    monthly_weekday: int | None = None
+    missing_date_policy: str | None = Field(default=None, max_length=20)
+    interval_hours: int | None = None
+    interval_days: int | None = None
+    cycle_active_days: int | None = None
+    cycle_rest_days: int | None = None
+    max_daily_notifications: int | None = None
+    relation_offset_minutes: int | None = None
+    reminder_enabled: bool = False
+    reminder_interval_minutes: int | None = None
+    reminder_max_count: int | None = None
+    guardian_alert_enabled: bool = False
+    guardian_alert_delay_minutes: int | None = None
+    paused: bool = False
+    pause_reason: str | None = Field(default=None, max_length=160)
     notify_enabled: bool = True
     notification_level: str = Field(default="normal", max_length=20)
 
@@ -159,6 +179,26 @@ class MedicationScheduleRead(BaseModel):
     ends_on: str | None
     duration_days: int | None
     repeat_rule: str
+    weekdays: list[int] = []
+    week_interval: int | None = None
+    monthly_mode: str | None = None
+    month_days: list[int] = []
+    monthly_week_ordinal: int | None = None
+    monthly_weekday: int | None = None
+    missing_date_policy: str | None = None
+    interval_hours: int | None = None
+    interval_days: int | None = None
+    cycle_active_days: int | None = None
+    cycle_rest_days: int | None = None
+    max_daily_notifications: int | None = None
+    relation_offset_minutes: int | None = None
+    reminder_enabled: bool = False
+    reminder_interval_minutes: int | None = None
+    reminder_max_count: int | None = None
+    guardian_alert_enabled: bool = False
+    guardian_alert_delay_minutes: int | None = None
+    paused: bool = False
+    pause_reason: str | None = None
     notify_enabled: bool
     notification_level: str
 

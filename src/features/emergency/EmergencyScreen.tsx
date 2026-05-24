@@ -9,6 +9,7 @@ import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { FamilyProfile } from "@/services/localUserData";
 import { getNearbyEmergencyRooms } from "@/services/emergencyService";
+import { emergencyRooms as mockEmergencyRooms } from "@/services/mockData";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -101,23 +102,30 @@ export function EmergencyScreen() {
 
   const loadEmergencyRooms = async (params?: { latitude?: number; longitude?: number; stage1?: string; stage2?: string; query?: string }) => {
     setLoading(true);
-    const rooms = await getNearbyEmergencyRooms({
-      latitude: params?.latitude ?? userLocation.latitude,
-      longitude: params?.longitude ?? userLocation.longitude,
-      stage1: params?.stage1 ?? selectedRegion.value,
-      stage2: params?.stage2 ?? (district.trim() || undefined),
-      query: params?.query ?? (keyword.trim() || undefined)
-    });
-    setEmergencyRooms(rooms);
-    setSelectedRoom(rooms[0] ?? null);
-    const firstWithLocation = rooms.find((room) => room.latitude && room.longitude);
-    if (firstWithLocation?.latitude && firstWithLocation.longitude) {
-      setMapRegion({
-        latitude: firstWithLocation.latitude,
-        longitude: firstWithLocation.longitude,
-        latitudeDelta: 0.06,
-        longitudeDelta: 0.05
+    try {
+      const rooms = await getNearbyEmergencyRooms({
+        latitude: params?.latitude ?? userLocation.latitude,
+        longitude: params?.longitude ?? userLocation.longitude,
+        stage1: params?.stage1 ?? selectedRegion.value,
+        stage2: params?.stage2 ?? (district.trim() || undefined),
+        query: params?.query ?? (keyword.trim() || undefined)
       });
+      setEmergencyRooms(rooms);
+      setSelectedRoom(rooms[0] ?? null);
+      setLocationMessage(rooms.length ? "국립중앙의료원 응급실 API에서 실시간 정보를 불러왔습니다." : "응급실 API 조회는 정상이나 조건에 맞는 결과가 없습니다.");
+      const firstWithLocation = rooms.find((room) => room.latitude && room.longitude);
+      if (firstWithLocation?.latitude && firstWithLocation.longitude) {
+        setMapRegion({
+          latitude: firstWithLocation.latitude,
+          longitude: firstWithLocation.longitude,
+          latitudeDelta: 0.06,
+          longitudeDelta: 0.05
+        });
+      }
+    } catch (error) {
+      setEmergencyRooms(mockEmergencyRooms);
+      setSelectedRoom(mockEmergencyRooms[0] ?? null);
+      setLocationMessage(`응급실 공공 API에 문제가 있어 임시 데이터를 표시합니다. ${error instanceof Error ? error.message : ""}`.trim());
     }
     setLoading(false);
   };
@@ -676,7 +684,7 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   hero: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#FFB4AB",
     backgroundColor: emergencySoft,
@@ -697,7 +705,7 @@ const styles = StyleSheet.create({
   alertIconBox: {
     width: 54,
     height: 54,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: emergencyTint,
     alignItems: "center",
     justifyContent: "center"
@@ -717,7 +725,7 @@ const styles = StyleSheet.create({
   },
   priorityNotice: {
     minHeight: 70,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: emergencyTint,
     borderWidth: 1,
     borderColor: "#FFB4AB",
@@ -733,7 +741,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
   searchPanel: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: emergencySoft,
     borderWidth: 1,
     borderColor: "#FFD0CC",
@@ -742,7 +750,7 @@ const styles = StyleSheet.create({
   },
   searchBox: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#F7B5AF",
@@ -759,7 +767,7 @@ const styles = StyleSheet.create({
   },
   searchSubmitButton: {
     minHeight: 40,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: emergencyRed,
     paddingHorizontal: spacing.md,
     justifyContent: "center"
@@ -776,7 +784,7 @@ const styles = StyleSheet.create({
   },
   regionChip: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: spacing.md,
     alignItems: "center",
     justifyContent: "center",
@@ -799,7 +807,7 @@ const styles = StyleSheet.create({
   districtInput: {
     ...typography.body,
     minHeight: 50,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#F7B5AF",
@@ -813,7 +821,7 @@ const styles = StyleSheet.create({
   },
   button: {
     minHeight: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
@@ -848,7 +856,7 @@ const styles = StyleSheet.create({
   },
   emergencyFilterChip: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#F2B8B5",
     backgroundColor: "#FFFFFF",
@@ -869,7 +877,7 @@ const styles = StyleSheet.create({
   },
   mapCard: {
     height: 320,
-    borderRadius: 8,
+    borderRadius: 4,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
@@ -896,7 +904,7 @@ const styles = StyleSheet.create({
     left: spacing.md,
     right: spacing.md,
     bottom: spacing.md,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     padding: spacing.md,
     borderWidth: 1,
@@ -912,7 +920,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   familyCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#FFD0CC",
@@ -942,7 +950,7 @@ const styles = StyleSheet.create({
     color: colors.textStrong
   },
   familyBadge: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: emergencyTint,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs
@@ -954,7 +962,7 @@ const styles = StyleSheet.create({
   },
   editCardButton: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: emergencyRed,
     paddingHorizontal: spacing.sm,
@@ -978,7 +986,7 @@ const styles = StyleSheet.create({
   },
   notePill: {
     minHeight: 34,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: spacing.sm,
     alignItems: "center",
@@ -994,7 +1002,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted
   },
   roomCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: colors.border,
@@ -1009,7 +1017,7 @@ const styles = StyleSheet.create({
     elevation: 2
   },
   emptyCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#FFD0CC",
@@ -1037,7 +1045,7 @@ const styles = StyleSheet.create({
   },
   bedBadge: {
     minWidth: 70,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: emergencyTint,
     alignItems: "center",
     paddingVertical: spacing.xs
@@ -1056,7 +1064,7 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   capacityPanel: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFF8F7",
     borderWidth: 1,
     borderColor: "#FFD0CC",
@@ -1075,7 +1083,7 @@ const styles = StyleSheet.create({
   metricBox: {
     flex: 1,
     minHeight: 70,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
@@ -1097,7 +1105,7 @@ const styles = StyleSheet.create({
   },
   statusPill: {
     minHeight: 34,
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: spacing.sm,
     justifyContent: "center"
   },
@@ -1142,7 +1150,7 @@ const styles = StyleSheet.create({
   },
   detailModal: {
     maxHeight: "88%",
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#FFD0CC",
@@ -1194,7 +1202,7 @@ const styles = StyleSheet.create({
   modalInput: {
     ...typography.body,
     minHeight: 50,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
@@ -1207,7 +1215,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     minHeight: 50,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
@@ -1220,7 +1228,7 @@ const styles = StyleSheet.create({
   saveButton: {
     flex: 1,
     minHeight: 50,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: emergencyRed,
     alignItems: "center",
     justifyContent: "center"

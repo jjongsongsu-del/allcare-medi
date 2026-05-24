@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BarcodeScanningResult, Camera, CameraView } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -15,6 +16,7 @@ import {
 } from "@/services/localUserData";
 import { rescheduleLocalMedicationNotifications } from "@/services/medicationNotificationService";
 import { recognizePillFromImage } from "@/services/pillRecognitionService";
+import { parsePrescriptionQrPayload } from "@/services/prescriptionQrService";
 import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, searchDurSafety, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
@@ -36,12 +38,68 @@ type MedicineDraft = {
   memo: string;
   durWarnings: string[];
 };
+type PrescriptionMedicineDraft = PrescriptionOcrMedicine & {
+  localId: string;
+  selected: boolean;
+};
+type DurCompareSeverity = "danger" | "warning" | "safe";
+type DurCompareResult = {
+  id: string;
+  severity: DurCompareSeverity;
+  title: string;
+  description: string;
+  medicineNames: string[];
+};
+const prescriptionQrSamplePayload = JSON.stringify({
+  patientName: "홍길동",
+  prescriptionDate: "2026-05-24",
+  hospitalName: "올케어의원",
+  doctorName: "김케어",
+  medicines: [
+    {
+      medicineName: "아침 혈압약",
+      dosage: "1정",
+      timing: "아침 식후",
+      durationDays: 7,
+      doseTimes: ["08:00"],
+      usage: "하루 1회 아침 식후 복용"
+    },
+    {
+      medicineName: "저녁 위장약",
+      dosage: "1정",
+      timing: "저녁 식후",
+      durationDays: 7,
+      doseTimes: ["19:00"],
+      usage: "하루 1회 저녁 식후 복용"
+    }
+  ]
+});
 type ScheduleDraftState = {
   timesPerDay: number;
   doseTimes: string[];
   startDate: string;
+  endDate: string;
   durationDays: string;
   repeatRule: MedicineSchedule["repeatRule"];
+  weekdays: number[];
+  weekInterval: string;
+  monthlyMode: NonNullable<MedicineSchedule["monthlyMode"]>;
+  monthDays: number[];
+  monthlyWeekOrdinal: string;
+  monthlyWeekday: string;
+  missingDatePolicy: NonNullable<MedicineSchedule["missingDatePolicy"]>;
+  intervalHours: string;
+  intervalDays: string;
+  cycleActiveDays: string;
+  cycleRestDays: string;
+  maxDailyNotifications: string;
+  relationOffsetMinutes: string;
+  reminderEnabled: boolean;
+  reminderIntervalMinutes: string;
+  reminderMaxCount: string;
+  guardianAlertEnabled: boolean;
+  guardianAlertDelayMinutes: string;
+  paused: boolean;
   notifyEnabled: boolean;
   notificationLevel: MedicineSchedule["notificationLevel"];
   doseMethod: string;
@@ -62,12 +120,41 @@ const registrationMethods: Array<{
 const listFilters = ["전체", "복용중", "복용예정", "복용종료", "즐겨찾기", "고위험"];
 const scheduleTimes = ["아침 08:00", "점심 13:00", "저녁 19:00", "취침 전 22:00"];
 const defaultDoseTimes = ["08:00", "13:00", "19:00", "22:00"];
+const weekdayOptions = [
+  { label: "월", value: 1 },
+  { label: "화", value: 2 },
+  { label: "수", value: 3 },
+  { label: "목", value: 4 },
+  { label: "금", value: 5 },
+  { label: "토", value: 6 },
+  { label: "일", value: 0 }
+];
 const defaultScheduleDraft = (): ScheduleDraftState => ({
   timesPerDay: 1,
   doseTimes: ["08:00"],
   startDate: new Date().toISOString().slice(0, 10),
+  endDate: "",
   durationDays: "",
   repeatRule: "daily",
+  weekdays: [new Date().getDay()],
+  weekInterval: "1",
+  monthlyMode: "date",
+  monthDays: [new Date().getDate()],
+  monthlyWeekOrdinal: "1",
+  monthlyWeekday: String(new Date().getDay()),
+  missingDatePolicy: "last_day",
+  intervalHours: "6",
+  intervalDays: "",
+  cycleActiveDays: "3",
+  cycleRestDays: "1",
+  maxDailyNotifications: "4",
+  relationOffsetMinutes: "30",
+  reminderEnabled: false,
+  reminderIntervalMinutes: "10",
+  reminderMaxCount: "3",
+  guardianAlertEnabled: false,
+  guardianAlertDelayMinutes: "30",
+  paused: false,
   notifyEnabled: true,
   notificationLevel: "normal",
   doseMethod: "경구",
@@ -123,6 +210,12 @@ export function PillIdentificationScreen() {
   const [selectedMethod, setSelectedMethod] = useState<RegisterMethod>("manual");
   const [activeStep, setActiveStep] = useState<RegisterStep>("input");
   const [registrationModalVisible, setRegistrationModalVisible] = useState(false);
+  const [durCompareMode, setDurCompareMode] = useState(false);
+  const [durCompareSelectedIds, setDurCompareSelectedIds] = useState<string[]>([]);
+  const [durCompareModalVisible, setDurCompareModalVisible] = useState(false);
+  const [durCompareLoading, setDurCompareLoading] = useState(false);
+  const [durCompareResults, setDurCompareResults] = useState<DurCompareResult[]>([]);
+  const [durCompareMessage, setDurCompareMessage] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [medicineSearchQuery, setMedicineSearchQuery] = useState("");
   const [medicineSearchResults, setMedicineSearchResults] = useState<MedicineSearchResult[]>([]);
@@ -133,6 +226,14 @@ export function PillIdentificationScreen() {
   const [selectedPrescriptionMedicine, setSelectedPrescriptionMedicine] = useState<PrescriptionOcrMedicine | null>(null);
   const [prescriptionOcrLoading, setPrescriptionOcrLoading] = useState(false);
   const [prescriptionOcrError, setPrescriptionOcrError] = useState<string | null>(null);
+  const [prescriptionQrScannerVisible, setPrescriptionQrScannerVisible] = useState(false);
+  const [prescriptionQrScanned, setPrescriptionQrScanned] = useState(false);
+  const [prescriptionQrRaw, setPrescriptionQrRaw] = useState<string | null>(null);
+  const [prescriptionQrSampleText, setPrescriptionQrSampleText] = useState("");
+  const [prescriptionMedicineDrafts, setPrescriptionMedicineDrafts] = useState<PrescriptionMedicineDraft[]>([]);
+  const [prescriptionDurWarnings, setPrescriptionDurWarnings] = useState<Record<string, string[]>>({});
+  const [prescriptionDurLoading, setPrescriptionDurLoading] = useState(false);
+  const [prescriptionDurMessage, setPrescriptionDurMessage] = useState<string | null>(null);
   const [durLoading, setDurLoading] = useState(false);
   const [durMessage, setDurMessage] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
@@ -205,6 +306,13 @@ export function PillIdentificationScreen() {
       setPrescriptionOcrResult(null);
       setSelectedPrescriptionMedicine(null);
       setPrescriptionOcrError(null);
+      setPrescriptionQrScannerVisible(false);
+      setPrescriptionQrScanned(false);
+      setPrescriptionQrRaw(null);
+      setPrescriptionQrSampleText("");
+      setPrescriptionMedicineDrafts([]);
+      setPrescriptionDurWarnings({});
+      setPrescriptionDurMessage(null);
     }
   };
 
@@ -214,6 +322,13 @@ export function PillIdentificationScreen() {
     setPrescriptionOcrResult(null);
     setSelectedPrescriptionMedicine(null);
     setPrescriptionOcrError(null);
+    setPrescriptionQrScannerVisible(false);
+    setPrescriptionQrScanned(false);
+    setPrescriptionQrRaw(null);
+    setPrescriptionQrSampleText("");
+    setPrescriptionMedicineDrafts([]);
+    setPrescriptionDurWarnings({});
+    setPrescriptionDurMessage(null);
     setMedicineSearchResults([]);
     setMedicineSearchQuery("");
     setScheduleDraft(defaultScheduleDraft());
@@ -285,6 +400,7 @@ export function PillIdentificationScreen() {
   const runPrescriptionOcr = async (source: "camera" | "library") => {
     setPrescriptionOcrLoading(true);
     setPrescriptionOcrError(null);
+    setPrescriptionQrScannerVisible(false);
     try {
       const permission = source === "camera"
         ? await ImagePicker.requestCameraPermissionsAsync()
@@ -300,18 +416,122 @@ export function PillIdentificationScreen() {
         return;
       }
       const result = await uploadPrescriptionOcr(pickerResult.assets[0].uri);
-      setPrescriptionOcrResult(result);
+      applyPrescriptionResult(result);
       if (result.message) {
         setPrescriptionOcrError(result.message);
-      }
-      if (result.medicines[0]) {
-        applyPrescriptionMedicine(result.medicines[0]);
       }
     } catch {
       setPrescriptionOcrError("처방전 OCR을 처리하지 못했습니다. 잠시 후 다시 시도하거나 직접 입력해 주세요.");
     } finally {
       setPrescriptionOcrLoading(false);
     }
+  };
+
+  const runPrescriptionQrScan = async () => {
+    setPrescriptionOcrError(null);
+    const permission = await Camera.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      setPrescriptionOcrError("카메라 권한이 필요합니다.");
+      return;
+    }
+    setPrescriptionQrRaw(null);
+    setPrescriptionQrScanned(false);
+    setPrescriptionQrScannerVisible(true);
+  };
+
+  const handlePrescriptionQrScanned = (result: BarcodeScanningResult) => {
+    if (prescriptionQrScanned) return;
+    setPrescriptionQrScanned(true);
+    setPrescriptionQrScannerVisible(false);
+    applyPrescriptionQrPayload(result.data);
+  };
+
+  const applyPrescriptionQrPayload = (payload: string) => {
+    const value = payload.trim();
+    if (!value) {
+      setPrescriptionOcrError("QR 원문 또는 샘플 문자열을 입력해 주세요.");
+      return;
+    }
+    setPrescriptionQrRaw(value);
+    try {
+      const parsed = parsePrescriptionQrPayload(value);
+      applyPrescriptionResult(parsed);
+      setPrescriptionOcrError(parsed.message ?? null);
+    } catch {
+      setPrescriptionOcrError("QR 내용을 약 정보로 해석하지 못했습니다. OCR 또는 직접 입력으로 등록해 주세요.");
+    }
+  };
+
+  const applyPrescriptionQrSample = () => {
+    applyPrescriptionQrPayload(prescriptionQrSampleText);
+  };
+
+  const fillPrescriptionQrSample = () => {
+    setPrescriptionQrSampleText(prescriptionQrSamplePayload);
+    setPrescriptionOcrError(null);
+  };
+
+  const applyPrescriptionResult = (result: PrescriptionOcrResult) => {
+    setPrescriptionOcrResult(result);
+    const drafts = result.medicines.map((medicine, index) => ({
+      ...medicine,
+      localId: `${medicine.name || "medicine"}-${index}-${Date.now()}`,
+      selected: true
+    }));
+    setPrescriptionMedicineDrafts(drafts);
+    analyzePrescriptionDurWarnings(drafts);
+    if (drafts[0]) {
+      applyPrescriptionMedicine(drafts[0]);
+    }
+  };
+
+  const analyzePrescriptionDurWarnings = async (drafts: PrescriptionMedicineDraft[]) => {
+    if (!drafts.length) {
+      setPrescriptionDurWarnings({});
+      setPrescriptionDurMessage(null);
+      return;
+    }
+    setPrescriptionDurLoading(true);
+    setPrescriptionDurMessage(null);
+    const activeMedicines = medicines.filter((medicine) => medicine.status !== "ended");
+    const normalizedCounts = drafts.reduce<Record<string, number>>((acc, medicine) => {
+      const key = normalizeMedicineText(medicine.name);
+      if (key) acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+    const nextWarnings: Record<string, string[]> = {};
+
+    await Promise.all(drafts.map(async (medicine) => {
+      const normalizedName = normalizeMedicineText(medicine.name);
+      const warnings = [
+        ...buildExistingMedicineWarnings(medicine.name, undefined, activeMedicines),
+        ...(normalizedName && normalizedCounts[normalizedName] > 1 ? ["이번 처방전 안에 같은 약명이 중복되어 있습니다. 실제 중복 처방인지 약사에게 확인하세요."] : [])
+      ];
+      try {
+        const durResult = await searchDurSafety(medicine.name);
+        warnings.push(...durResult.warnings);
+      } catch {
+        warnings.push("DUR API 조회에 실패했습니다. 저장 후 약사에게 병용금기와 중복성분 여부를 확인하세요.");
+      }
+      nextWarnings[medicine.localId] = uniqueWarnings(warnings);
+    }));
+
+    setPrescriptionDurWarnings(nextWarnings);
+    setPrescriptionDurMessage("처방전 후보 약 기준으로 DUR과 중복 가능성을 확인했습니다.");
+    setPrescriptionDurLoading(false);
+  };
+
+  const updatePrescriptionMedicineDraft = (localId: string, patch: Partial<PrescriptionOcrMedicine>) => {
+    setPrescriptionMedicineDrafts((current) =>
+      current.map((medicine) => medicine.localId === localId ? { ...medicine, ...patch } : medicine)
+    );
+    setPrescriptionDurMessage("약 정보를 수정했습니다. 저장 전 DUR 재확인을 권장합니다.");
+  };
+
+  const togglePrescriptionMedicineDraft = (localId: string) => {
+    setPrescriptionMedicineDrafts((current) =>
+      current.map((medicine) => medicine.localId === localId ? { ...medicine, selected: !medicine.selected } : medicine)
+    );
   };
 
   const applyPrescriptionMedicine = (medicine: PrescriptionOcrMedicine) => {
@@ -399,6 +619,62 @@ export function PillIdentificationScreen() {
     setMessage("삭제 대신 복용종료로 처리했습니다. 연결된 스케줄과 이력은 보존됩니다.");
   };
 
+  const saveSelectedPrescriptionMedicines = async (options?: { withSchedule?: boolean }) => {
+    const selectedDrafts = prescriptionMedicineDrafts.filter((medicine) => medicine.selected && medicine.name.trim());
+    if (!selectedDrafts.length) {
+      setPrescriptionOcrError("등록할 약을 하나 이상 선택해 주세요.");
+      return;
+    }
+    for (const medicineDraft of selectedDrafts) {
+      const doseTimes = medicineDraft.doseTimes.length ? medicineDraft.doseTimes : scheduleDraft.doseTimes;
+      const durationDays = medicineDraft.durationDays ? String(medicineDraft.durationDays) : scheduleDraft.durationDays;
+      const scheduleForMedicine = {
+        ...scheduleDraft,
+        timesPerDay: medicineDraft.timesPerDay ?? scheduleDraft.timesPerDay,
+      doseTimes,
+      durationDays,
+      doseTiming: medicineDraft.timing ?? scheduleDraft.doseTiming
+      };
+      const baseMedicine: RegisteredMedicine = {
+        id: `local-medicine-${Date.now()}-${medicineDraft.localId}`,
+        userId: session?.userId,
+        profileId: selectedProfile?.profileId,
+        profileName: selectedProfile?.profileName,
+        name: medicineDraft.name.trim(),
+        alias: "",
+        productName: medicineDraft.name.trim(),
+        dosage: medicineDraft.dosage,
+        form: medicineDraft.form,
+        purpose: medicineDraft.purpose,
+        timing: scheduleForMedicine.doseTiming,
+        takingMethod: scheduleForMedicine.doseMethod,
+        schedule: options?.withSchedule ? formatScheduleSummary(scheduleForMedicine) : undefined,
+        memo: [medicineDraft.usage, medicineDraft.memo].filter(Boolean).join("\n\n"),
+        durWarnings: prescriptionDurWarnings[medicineDraft.localId] ?? [],
+        status: options?.withSchedule ? "taking" : "scheduled",
+        source: "prescription",
+        favorite: false,
+        highRisk: Boolean(prescriptionDurWarnings[medicineDraft.localId]?.length),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      const savedMedicine = isMember && session?.userId
+        ? await createRegisteredMedicine(session.userId, baseMedicine).catch(async () => (await saveLocalRegisteredMedicine(baseMedicine))[0])
+        : (await saveLocalRegisteredMedicine(baseMedicine))[0];
+      if (options?.withSchedule) {
+        await saveScheduleForMedicineWithDraft(savedMedicine, scheduleForMedicine);
+      }
+    }
+    await loadMedicines();
+    setMessage(`${selectedDrafts.length}개 약을 처방전 결과에서 등록했습니다.`);
+    setRegistrationModalVisible(false);
+    setPrescriptionMedicineDrafts([]);
+    setPrescriptionDurWarnings({});
+    setPrescriptionDurMessage(null);
+    setPrescriptionOcrResult(null);
+    setSelectedPrescriptionMedicine(null);
+  };
+
   const saveDraftMedicine = async (options?: { withSchedule?: boolean }) => {
     const withSchedule = options?.withSchedule ?? activeStep === "schedule";
     const name = draft.name.trim();
@@ -408,7 +684,10 @@ export function PillIdentificationScreen() {
       setActiveStep("input");
       return;
     }
-    const duplicate = medicines.find((medicine) => [medicine.name, medicine.productName, medicine.alias].filter(Boolean).includes(name));
+    const safetyWarnings = uniqueWarnings([
+      ...buildExistingMedicineWarnings(name, draft.ingredient, medicines.filter((medicine) => medicine.status !== "ended")),
+      ...draft.durWarnings
+    ]);
     const baseMedicine: RegisteredMedicine = {
       id: `local-medicine-${Date.now()}`,
       userId: session?.userId,
@@ -427,14 +706,11 @@ export function PillIdentificationScreen() {
       takingMethod: scheduleDraft.doseMethod,
       schedule: withSchedule ? formatScheduleSummary(scheduleDraft) : undefined,
       memo: draft.memo,
-      durWarnings: [
-        ...(duplicate ? ["이미 등록된 약과 이름이 비슷합니다. 중복 복용 여부를 확인하세요."] : []),
-        ...draft.durWarnings
-      ],
+      durWarnings: safetyWarnings,
       status: withSchedule ? "taking" : "scheduled",
       source: selectedMethod,
       favorite: false,
-      highRisk: Boolean(duplicate || draft.durWarnings.length),
+      highRisk: Boolean(safetyWarnings.length),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -450,7 +726,7 @@ export function PillIdentificationScreen() {
       await saveScheduleForMedicine(savedMedicine);
     }
     await loadMedicines();
-    setMessage(duplicate ? "약을 저장했습니다. 다만 기존 등록 약과 중복 가능성이 있어 확인이 필요합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
+    setMessage(safetyWarnings.length ? "약을 저장했습니다. DUR 또는 중복 가능성 주의가 있어 복용 전 전문가 확인을 권장합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
     setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "", durWarnings: [] });
     setScheduleDraft(defaultScheduleDraft());
     setSelectedSearchMedicine(null);
@@ -464,23 +740,47 @@ export function PillIdentificationScreen() {
   };
 
   const saveScheduleForMedicine = async (medicine: RegisteredMedicine) => {
-    const durationDays = Number(scheduleDraft.durationDays);
+    await saveScheduleForMedicineWithDraft(medicine, scheduleDraft);
+  };
+
+  const saveScheduleForMedicineWithDraft = async (medicine: RegisteredMedicine, nextScheduleDraft: ScheduleDraftState) => {
+    const durationDays = Number(nextScheduleDraft.durationDays);
     const schedule: MedicineSchedule = {
       id: `local-schedule-${Date.now()}`,
       medicineId: medicine.id,
       profileId: selectedProfile?.profileId,
       doseAmount: medicine.dosage ?? "1정",
-      doseMethod: scheduleDraft.doseMethod,
-      doseTiming: scheduleDraft.doseTiming,
+      doseMethod: nextScheduleDraft.doseMethod,
+      doseTiming: nextScheduleDraft.doseTiming,
       purpose: medicine.purpose,
-      timesPerDay: scheduleDraft.timesPerDay,
-      doseTimes: scheduleDraft.doseTimes,
-      startDate: scheduleDraft.startDate,
-      endDate: Number.isFinite(durationDays) && durationDays > 0 ? calculateEndDate(scheduleDraft.startDate, durationDays) : null,
+      timesPerDay: nextScheduleDraft.timesPerDay,
+      doseTimes: nextScheduleDraft.doseTimes,
+      startDate: nextScheduleDraft.startDate,
+      endDate: nextScheduleDraft.endDate || (Number.isFinite(durationDays) && durationDays > 0 ? calculateEndDate(nextScheduleDraft.startDate, durationDays) : null),
       durationDays: Number.isFinite(durationDays) && durationDays > 0 ? durationDays : null,
-      repeatRule: scheduleDraft.repeatRule,
-      notifyEnabled: scheduleDraft.notifyEnabled,
-      notificationLevel: scheduleDraft.notificationLevel,
+      repeatRule: nextScheduleDraft.repeatRule,
+      weekdays: nextScheduleDraft.weekdays,
+      weekInterval: parseOptionalNumber(nextScheduleDraft.weekInterval),
+      monthlyMode: nextScheduleDraft.monthlyMode,
+      monthDays: nextScheduleDraft.monthDays,
+      monthlyWeekOrdinal: parseOptionalNumber(nextScheduleDraft.monthlyWeekOrdinal),
+      monthlyWeekday: parseOptionalNumber(nextScheduleDraft.monthlyWeekday),
+      missingDatePolicy: nextScheduleDraft.missingDatePolicy,
+      intervalHours: parseOptionalNumber(nextScheduleDraft.intervalHours),
+      intervalDays: parseOptionalNumber(nextScheduleDraft.intervalDays),
+      cycleActiveDays: parseOptionalNumber(nextScheduleDraft.cycleActiveDays),
+      cycleRestDays: parseOptionalNumber(nextScheduleDraft.cycleRestDays),
+      maxDailyNotifications: parseOptionalNumber(nextScheduleDraft.maxDailyNotifications),
+      relationOffsetMinutes: parseOptionalNumber(nextScheduleDraft.relationOffsetMinutes),
+      reminderEnabled: nextScheduleDraft.reminderEnabled,
+      reminderIntervalMinutes: parseOptionalNumber(nextScheduleDraft.reminderIntervalMinutes),
+      reminderMaxCount: parseOptionalNumber(nextScheduleDraft.reminderMaxCount),
+      guardianAlertEnabled: nextScheduleDraft.guardianAlertEnabled,
+      guardianAlertDelayMinutes: parseOptionalNumber(nextScheduleDraft.guardianAlertDelayMinutes),
+      paused: nextScheduleDraft.paused,
+      pauseReason: null,
+      notifyEnabled: nextScheduleDraft.notifyEnabled,
+      notificationLevel: nextScheduleDraft.notificationLevel,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -510,6 +810,106 @@ export function PillIdentificationScreen() {
       await saveLocalMedicationEvent(event);
     }
     setMessage(status === "taken" ? "복약 완료를 기록했습니다." : "이번 회차를 건너뜀으로 기록했습니다.");
+  };
+
+  const toggleDurCompareMode = () => {
+    setDurCompareMode((current) => {
+      const next = !current;
+      if (!next) {
+        setDurCompareSelectedIds([]);
+        setDurCompareMessage(null);
+      }
+      return next;
+    });
+  };
+
+  const toggleDurCompareMedicine = (medicineId: string) => {
+    setDurCompareSelectedIds((current) =>
+      current.includes(medicineId) ? current.filter((id) => id !== medicineId) : [...current, medicineId]
+    );
+  };
+
+  const runDurCompare = async () => {
+    const selectedMedicines = medicines.filter((medicine) => durCompareSelectedIds.includes(medicine.id));
+    if (selectedMedicines.length < 2) {
+      setDurCompareMessage("DUR 비교는 약을 2개 이상 선택해 주세요.");
+      return;
+    }
+    setDurCompareLoading(true);
+    setDurCompareMessage(null);
+    const results: DurCompareResult[] = [];
+
+    selectedMedicines.forEach((medicine) => {
+      medicine.durWarnings?.forEach((warning, index) => {
+        results.push({
+          id: `saved-${medicine.id}-${index}`,
+          severity: "warning",
+          title: "기존 DUR 주의",
+          description: warning,
+          medicineNames: [medicine.alias || medicine.name]
+        });
+      });
+    });
+
+    selectedMedicines.forEach((medicine, index) => {
+      selectedMedicines.slice(index + 1).forEach((other) => {
+        if (normalizeMedicineText(medicine.name) && normalizeMedicineText(medicine.name) === normalizeMedicineText(other.name)) {
+          results.push({
+            id: `same-name-${medicine.id}-${other.id}`,
+            severity: "danger",
+            title: "같은 약명 중복 가능성",
+            description: "같은 약이 중복 등록되어 있을 수 있습니다. 실제 중복 복용인지 약사에게 확인하세요.",
+            medicineNames: [medicine.alias || medicine.name, other.alias || other.name]
+          });
+        }
+        if (normalizeMedicineText(medicine.ingredient) && normalizeMedicineText(medicine.ingredient) === normalizeMedicineText(other.ingredient)) {
+          results.push({
+            id: `same-ingredient-${medicine.id}-${other.id}`,
+            severity: "danger",
+            title: "중복성분 가능성",
+            description: "성분명이 같은 약이 함께 선택되었습니다. 용량 초과나 중복 복용 여부를 확인하세요.",
+            medicineNames: [medicine.alias || medicine.name, other.alias || other.name]
+          });
+        }
+      });
+    });
+
+    await Promise.all(selectedMedicines.map(async (medicine) => {
+      try {
+        const durResult = await searchDurSafety(medicine.productName || medicine.name);
+        durResult.warnings.forEach((warning, index) => {
+          results.push({
+            id: `api-${medicine.id}-${index}`,
+            severity: "warning",
+            title: "DUR API 주의",
+            description: warning,
+            medicineNames: [medicine.alias || medicine.name]
+          });
+        });
+      } catch {
+        results.push({
+          id: `api-failed-${medicine.id}`,
+          severity: "warning",
+          title: "DUR API 확인 실패",
+          description: "DUR API 조회가 실패했습니다. 선택한 약의 병용금기와 중복성분은 약사에게 확인하세요.",
+          medicineNames: [medicine.alias || medicine.name]
+        });
+      }
+    }));
+
+    if (!results.length) {
+      results.push({
+        id: "no-warning",
+        severity: "safe",
+        title: "현재 비교 항목에서 확인된 주의 없음",
+        description: "등록된 이름과 성분 기준으로는 중복 가능성이 낮습니다. 실제 복용 판단은 의사 또는 약사 확인을 권장합니다.",
+        medicineNames: selectedMedicines.map((medicine) => medicine.alias || medicine.name)
+      });
+    }
+
+    setDurCompareResults(results);
+    setDurCompareModalVisible(true);
+    setDurCompareLoading(false);
   };
 
   return (
@@ -571,7 +971,14 @@ export function PillIdentificationScreen() {
 
       <View style={styles.listCard}>
         <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>등록된 약 목록</Text>
+          <View>
+            <Text style={styles.sectionTitle}>등록된 약 목록</Text>
+            <Text style={styles.meta}>{durCompareMode ? `${durCompareSelectedIds.length}개 선택됨` : "여러 약을 선택해 DUR을 비교할 수 있습니다."}</Text>
+          </View>
+          <Pressable style={durCompareMode ? styles.primaryButton : styles.secondaryButton} onPress={toggleDurCompareMode}>
+            <MaterialCommunityIcons name="shield-search" size={18} color={durCompareMode ? "#FFFFFF" : colors.primary} />
+            <Text style={durCompareMode ? styles.primaryButtonText : styles.secondaryButtonText}>{durCompareMode ? "비교 종료" : "DUR 비교"}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.searchBox}>
@@ -592,8 +999,30 @@ export function PillIdentificationScreen() {
           ))}
         </View>
 
+        {durCompareMode ? (
+          <View style={styles.compareActionBox}>
+            <View style={styles.flex}>
+              <Text style={styles.cardTitle}>비교할 약 선택</Text>
+              <Text style={styles.meta}>복용중이거나 새로 등록한 약을 2개 이상 선택해 중복성분과 DUR 주의를 확인합니다.</Text>
+              {durCompareMessage ? <Text style={styles.dangerText}>{durCompareMessage}</Text> : null}
+            </View>
+            <Pressable style={styles.primaryButton} onPress={runDurCompare} disabled={durCompareLoading}>
+              {durCompareLoading ? <ActivityIndicator color="#FFFFFF" /> : <MaterialCommunityIcons name="compare-horizontal" size={18} color="#FFFFFF" />}
+              <Text style={styles.primaryButtonText}>{durCompareLoading ? "비교 중" : "비교하기"}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {filteredMedicines.length ? filteredMedicines.map((medicine) => (
-          <MedicineListItem key={medicine.id} medicine={medicine} onToggleFavorite={() => toggleFavorite(medicine.id)} onEnd={() => endMedicine(medicine.id)} />
+          <MedicineListItem
+            key={medicine.id}
+            medicine={medicine}
+            compareMode={durCompareMode}
+            selectedForCompare={durCompareSelectedIds.includes(medicine.id)}
+            onToggleCompare={() => toggleDurCompareMedicine(medicine.id)}
+            onToggleFavorite={() => toggleFavorite(medicine.id)}
+            onEnd={() => endMedicine(medicine.id)}
+          />
         )) : (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>조건에 맞는 약이 없습니다.</Text>
@@ -618,6 +1047,13 @@ export function PillIdentificationScreen() {
         selectedPrescriptionMedicine={selectedPrescriptionMedicine}
         prescriptionOcrLoading={prescriptionOcrLoading}
         prescriptionOcrError={prescriptionOcrError}
+        prescriptionQrScannerVisible={prescriptionQrScannerVisible}
+        prescriptionQrRaw={prescriptionQrRaw}
+        prescriptionQrSampleText={prescriptionQrSampleText}
+        prescriptionMedicineDrafts={prescriptionMedicineDrafts}
+        prescriptionDurWarnings={prescriptionDurWarnings}
+        prescriptionDurLoading={prescriptionDurLoading}
+        prescriptionDurMessage={prescriptionDurMessage}
         durLoading={durLoading}
         durMessage={durMessage}
         validationError={registrationError}
@@ -634,10 +1070,27 @@ export function PillIdentificationScreen() {
         onSearch={runMedicineSearch}
         onSelectSearchResult={selectMedicineSearchResult}
         onPrescriptionOcr={runPrescriptionOcr}
+        onPrescriptionQrScan={runPrescriptionQrScan}
+        onPrescriptionQrScanned={handlePrescriptionQrScanned}
+        onCancelPrescriptionQrScan={() => setPrescriptionQrScannerVisible(false)}
+        onPrescriptionQrSampleTextChange={setPrescriptionQrSampleText}
+        onApplyPrescriptionQrSample={applyPrescriptionQrSample}
+        onFillPrescriptionQrSample={fillPrescriptionQrSample}
         onSelectPrescriptionMedicine={applyPrescriptionMedicine}
+        onUpdatePrescriptionMedicine={updatePrescriptionMedicineDraft}
+        onTogglePrescriptionMedicine={togglePrescriptionMedicineDraft}
+        onSaveSelectedPrescriptionMedicines={saveSelectedPrescriptionMedicines}
+        onAnalyzePrescriptionDur={() => analyzePrescriptionDurWarnings(prescriptionMedicineDrafts)}
         onScheduleDraftChange={(patch) => setScheduleDraft((current) => ({ ...current, ...patch }))}
         onNext={proceedRegistrationStep}
         onSaveMedicineOnly={() => saveDraftMedicine({ withSchedule: false })}
+      />
+
+      <DurCompareModal
+        visible={durCompareModalVisible}
+        selectedMedicines={medicines.filter((medicine) => durCompareSelectedIds.includes(medicine.id))}
+        results={durCompareResults}
+        onClose={() => setDurCompareModalVisible(false)}
       />
 
       {message ? <Text style={styles.successNotice}>{message}</Text> : null}
@@ -661,6 +1114,13 @@ function MedicineRegistrationModal({
   selectedPrescriptionMedicine,
   prescriptionOcrLoading,
   prescriptionOcrError,
+  prescriptionQrScannerVisible,
+  prescriptionQrRaw,
+  prescriptionQrSampleText,
+  prescriptionMedicineDrafts,
+  prescriptionDurWarnings,
+  prescriptionDurLoading,
+  prescriptionDurMessage,
   durLoading,
   durMessage,
   validationError,
@@ -672,7 +1132,17 @@ function MedicineRegistrationModal({
   onSearch,
   onSelectSearchResult,
   onPrescriptionOcr,
+  onPrescriptionQrScan,
+  onPrescriptionQrScanned,
+  onCancelPrescriptionQrScan,
+  onPrescriptionQrSampleTextChange,
+  onApplyPrescriptionQrSample,
+  onFillPrescriptionQrSample,
   onSelectPrescriptionMedicine,
+  onUpdatePrescriptionMedicine,
+  onTogglePrescriptionMedicine,
+  onSaveSelectedPrescriptionMedicines,
+  onAnalyzePrescriptionDur,
   onScheduleDraftChange,
   onNext,
   onSaveMedicineOnly
@@ -692,6 +1162,13 @@ function MedicineRegistrationModal({
   selectedPrescriptionMedicine: PrescriptionOcrMedicine | null;
   prescriptionOcrLoading: boolean;
   prescriptionOcrError: string | null;
+  prescriptionQrScannerVisible: boolean;
+  prescriptionQrRaw: string | null;
+  prescriptionQrSampleText: string;
+  prescriptionMedicineDrafts: PrescriptionMedicineDraft[];
+  prescriptionDurWarnings: Record<string, string[]>;
+  prescriptionDurLoading: boolean;
+  prescriptionDurMessage: string | null;
   durLoading: boolean;
   durMessage: string | null;
   validationError: string | null;
@@ -703,7 +1180,17 @@ function MedicineRegistrationModal({
   onSearch: () => void;
   onSelectSearchResult: (medicine: MedicineSearchResult) => void;
   onPrescriptionOcr: (source: "camera" | "library") => void;
+  onPrescriptionQrScan: () => void;
+  onPrescriptionQrScanned: (result: BarcodeScanningResult) => void;
+  onCancelPrescriptionQrScan: () => void;
+  onPrescriptionQrSampleTextChange: (value: string) => void;
+  onApplyPrescriptionQrSample: () => void;
+  onFillPrescriptionQrSample: () => void;
   onSelectPrescriptionMedicine: (medicine: PrescriptionOcrMedicine) => void;
+  onUpdatePrescriptionMedicine: (localId: string, patch: Partial<PrescriptionOcrMedicine>) => void;
+  onTogglePrescriptionMedicine: (localId: string) => void;
+  onSaveSelectedPrescriptionMedicines: (options?: { withSchedule?: boolean }) => void;
+  onAnalyzePrescriptionDur: () => void;
   onScheduleDraftChange: (patch: Partial<ScheduleDraftState>) => void;
   onNext: () => void;
   onSaveMedicineOnly: () => void;
@@ -752,11 +1239,28 @@ function MedicineRegistrationModal({
                     selected={selectedPrescriptionMedicine}
                     loading={prescriptionOcrLoading}
                     error={prescriptionOcrError}
+                    qrScannerVisible={prescriptionQrScannerVisible}
+                    qrRaw={prescriptionQrRaw}
+                    qrSampleText={prescriptionQrSampleText}
+                    medicineDrafts={prescriptionMedicineDrafts}
+                    durWarningsByMedicine={prescriptionDurWarnings}
+                    durLoading={prescriptionDurLoading}
+                    durMessage={prescriptionDurMessage}
                     onRunOcr={onPrescriptionOcr}
+                    onRunQrScan={onPrescriptionQrScan}
+                    onQrScanned={onPrescriptionQrScanned}
+                    onCancelQrScan={onCancelPrescriptionQrScan}
+                    onQrSampleTextChange={onPrescriptionQrSampleTextChange}
+                    onApplyQrSample={onApplyPrescriptionQrSample}
+                    onFillQrSample={onFillPrescriptionQrSample}
                     onSelect={onSelectPrescriptionMedicine}
+                    onUpdateMedicine={onUpdatePrescriptionMedicine}
+                    onToggleMedicine={onTogglePrescriptionMedicine}
+                    onSaveSelected={onSaveSelectedPrescriptionMedicines}
+                    onAnalyzeDur={onAnalyzePrescriptionDur}
                   />
                 ) : null}
-                <RegistrationInput method={method} draft={draft} onChange={onDraftChange} />
+                {method !== "prescription" ? <RegistrationInput method={method} draft={draft} onChange={onDraftChange} /> : null}
                 {validationError ? <Text style={styles.validationText}>{validationError}</Text> : null}
               </>
             ) : null}
@@ -848,20 +1352,65 @@ function PrescriptionOcrStep({
   selected,
   loading,
   error,
+  qrScannerVisible,
+  qrRaw,
+  qrSampleText,
+  medicineDrafts,
+  durWarningsByMedicine,
+  durLoading,
+  durMessage,
   onRunOcr,
-  onSelect
+  onRunQrScan,
+  onQrScanned,
+  onCancelQrScan,
+  onQrSampleTextChange,
+  onApplyQrSample,
+  onFillQrSample,
+  onSelect,
+  onUpdateMedicine,
+  onToggleMedicine,
+  onSaveSelected,
+  onAnalyzeDur
 }: {
   result: PrescriptionOcrResult | null;
   selected: PrescriptionOcrMedicine | null;
   loading: boolean;
   error: string | null;
+  qrScannerVisible: boolean;
+  qrRaw: string | null;
+  qrSampleText: string;
+  medicineDrafts: PrescriptionMedicineDraft[];
+  durWarningsByMedicine: Record<string, string[]>;
+  durLoading: boolean;
+  durMessage: string | null;
   onRunOcr: (source: "camera" | "library") => void;
+  onRunQrScan: () => void;
+  onQrScanned: (result: BarcodeScanningResult) => void;
+  onCancelQrScan: () => void;
+  onQrSampleTextChange: (value: string) => void;
+  onApplyQrSample: () => void;
+  onFillQrSample: () => void;
   onSelect: (medicine: PrescriptionOcrMedicine) => void;
+  onUpdateMedicine: (localId: string, patch: Partial<PrescriptionOcrMedicine>) => void;
+  onToggleMedicine: (localId: string) => void;
+  onSaveSelected: (options?: { withSchedule?: boolean }) => void;
+  onAnalyzeDur: () => void;
 }) {
+  const selectedCount = medicineDrafts.filter((medicine) => medicine.selected).length;
+  const warningCount = Object.values(durWarningsByMedicine).reduce((sum, warnings) => sum + warnings.length, 0);
+
   return (
     <View style={styles.inputStack}>
-      <Text style={styles.body}>처방전을 사진으로 촬영하거나 사진첩에서 선택하면 OCR로 공통 항목, 약명, 복용량, 복용 횟수, 복용일수를 추출합니다.</Text>
+      <Text style={styles.body}>처방전 QR을 먼저 스캔하거나, 사진 촬영/사진첩 선택으로 OCR을 실행해 약명, 복용량, 횟수, 일수를 초안으로 추출합니다.</Text>
+      <View style={styles.prescriptionGuideBox}>
+        <Text style={styles.cardTitle}>사용자 확인 후 저장</Text>
+        <Text style={styles.meta}>QR/OCR 결과는 바로 저장되지 않습니다. 약명과 복용 정보를 확인하고 필요한 약만 선택해 등록하세요.</Text>
+      </View>
       <View style={styles.resultActions}>
+        <Pressable style={styles.primaryButton} onPress={onRunQrScan}>
+          <MaterialCommunityIcons name="qrcode-scan" size={18} color="#FFFFFF" />
+          <Text style={styles.primaryButtonText}>QR 스캔</Text>
+        </Pressable>
         <Pressable style={styles.primaryButton} onPress={() => onRunOcr("camera")}>
           <MaterialCommunityIcons name="camera-outline" size={18} color="#FFFFFF" />
           <Text style={styles.primaryButtonText}>{loading ? "인식 중" : "사진 찍기"}</Text>
@@ -871,30 +1420,133 @@ function PrescriptionOcrStep({
           <Text style={styles.secondaryButtonText}>사진첩 선택</Text>
         </Pressable>
       </View>
+      {qrScannerVisible ? (
+        <View style={styles.qrScannerCard}>
+          <CameraView
+            style={styles.qrCamera}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            onBarcodeScanned={onQrScanned}
+          />
+          <View style={styles.qrGuideBox}>
+            <Text style={styles.cardTitle}>처방전 QR을 화면 중앙에 맞춰 주세요.</Text>
+            <Text style={styles.meta}>읽은 내용은 자동 저장하지 않고 확인 단계에서 사용자가 확정합니다.</Text>
+            <Pressable style={styles.secondaryButton} onPress={onCancelQrScan}>
+              <MaterialCommunityIcons name="close-circle-outline" size={18} color={colors.primary} />
+              <Text style={styles.secondaryButtonText}>QR 스캔 닫기</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+      <View style={styles.qrSampleBox}>
+        <Text style={styles.cardTitle}>개발용 QR 샘플 테스트</Text>
+        <Text style={styles.meta}>실제 QR이 없어도 JSON, URL, key=value 원문을 붙여넣어 파싱과 등록 흐름을 확인할 수 있습니다.</Text>
+        <TextInput
+          style={[styles.input, styles.multilineInput]}
+          placeholder='예: {"medicines":[{"medicineName":"아침 혈압약","dosage":"1정","timing":"식후","durationDays":7}]}'
+          placeholderTextColor={colors.textMuted}
+          value={qrSampleText}
+          onChangeText={onQrSampleTextChange}
+          multiline
+        />
+        <View style={styles.resultActions}>
+          <Pressable style={styles.secondaryButton} onPress={onFillQrSample}>
+            <MaterialCommunityIcons name="text-box-plus-outline" size={18} color={colors.primary} />
+            <Text style={styles.secondaryButtonText}>샘플 채우기</Text>
+          </Pressable>
+          <Pressable style={styles.primaryButton} onPress={onApplyQrSample}>
+            <MaterialCommunityIcons name="flask-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.primaryButtonText}>샘플 적용</Text>
+          </Pressable>
+        </View>
+      </View>
       {error ? <Text style={styles.dangerText}>{error}</Text> : null}
+      {qrRaw ? (
+        <View style={styles.candidateBox}>
+          <Text style={styles.cardTitle}>QR 원문</Text>
+          <Text style={styles.meta} numberOfLines={3}>{qrRaw}</Text>
+        </View>
+      ) : null}
       {result ? (
         <View style={styles.candidateBox}>
-          <Text style={styles.cardTitle}>OCR 공통 항목</Text>
+          <Text style={styles.cardTitle}>{result.provider === "Prescription QR" ? "QR 공통 항목" : "OCR 공통 항목"}</Text>
           <Text style={styles.body}>
             {[result.common.patientName, result.common.prescribedOn, result.common.hospitalName, result.common.doctorName].filter(Boolean).join(" · ") || "공통 항목은 직접 확인해 주세요."}
           </Text>
           <Text style={styles.meta}>공급자: {result.provider} · 추출 텍스트 {result.rawText.length}자</Text>
         </View>
       ) : null}
-      {result?.medicines.map((medicine) => {
+      {result && !medicineDrafts.length ? (
+        <View style={styles.qrFallbackBox}>
+          <Text style={styles.cardTitle}>약 정보를 자동으로 찾지 못했습니다.</Text>
+          <Text style={styles.meta}>QR이 병원 내부 URL이나 코드만 담고 있을 수 있습니다. 원문을 확인한 뒤 OCR 또는 직접등록을 이용해 주세요.</Text>
+        </View>
+      ) : null}
+      {medicineDrafts.length ? (
+        <View style={styles.bulkActionBox}>
+          <Text style={styles.cardTitle}>등록할 약 {selectedCount}/{medicineDrafts.length}개 선택</Text>
+          <Text style={styles.meta}>약만 저장하면 목록에만 추가되고, 스케줄까지 등록하면 오늘 복약 관리에 바로 연결됩니다.</Text>
+          <View style={styles.durSummaryRow}>
+            <MaterialCommunityIcons name={warningCount ? "alert-octagon-outline" : "shield-check-outline"} size={20} color={warningCount ? noticeText : colors.success} />
+            <Text style={warningCount ? styles.warningText : styles.successText}>
+              {durLoading ? "DUR과 중복 가능성을 확인하고 있습니다." : warningCount ? `DUR/중복 주의 ${warningCount}건` : "현재 후보에서 확인된 DUR 주의가 없습니다."}
+            </Text>
+          </View>
+          {durMessage ? <Text style={styles.meta}>{durMessage}</Text> : null}
+          <View style={styles.resultActions}>
+            <Pressable style={styles.secondaryButton} onPress={onAnalyzeDur}>
+              <MaterialCommunityIcons name="shield-sync-outline" size={18} color={colors.primary} />
+              <Text style={styles.secondaryButtonText}>DUR 다시 확인</Text>
+            </Pressable>
+            <Pressable style={styles.primaryButton} onPress={() => onSaveSelected({ withSchedule: false })}>
+              <MaterialCommunityIcons name="content-save-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>선택 약만 저장</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={() => onSaveSelected({ withSchedule: true })}>
+              <MaterialCommunityIcons name="calendar-check" size={18} color={colors.primary} />
+              <Text style={styles.secondaryButtonText}>스케줄까지 등록</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+      {medicineDrafts.map((medicine) => {
         const active = selected?.name === medicine.name;
+        const medicineDurWarnings = durWarningsByMedicine[medicine.localId] ?? [];
         return (
-          <Pressable key={`${medicine.name}-${medicine.usage}`} style={[styles.searchResultItem, active && styles.searchResultItemActive]} onPress={() => onSelect(medicine)}>
-            <View style={styles.pillIcon}>
-              <MaterialCommunityIcons name="file-document-edit-outline" size={24} color={colors.primary} />
+          <View key={medicine.localId} style={[styles.prescriptionEditCard, active && styles.searchResultItemActive]}>
+            <View style={styles.rowBetween}>
+              <Pressable style={styles.prescriptionCheckRow} onPress={() => onToggleMedicine(medicine.localId)}>
+                <MaterialCommunityIcons name={medicine.selected ? "checkbox-marked" : "checkbox-blank-outline"} size={24} color={medicine.selected ? colors.success : colors.textMuted} />
+                <View style={styles.flex}>
+                  <Text style={styles.cardTitle}>{medicine.name || "약명 확인 필요"}</Text>
+                  <Text style={styles.meta}>{medicine.selected ? "등록 대상" : "등록 제외"} · 수정 후 저장</Text>
+                </View>
+              </Pressable>
+              <Pressable style={styles.smallOutlineButton} onPress={() => onSelect(medicine)}>
+                <Text style={styles.smallOutlineButtonText}>상세 적용</Text>
+              </Pressable>
             </View>
-            <View style={styles.resultText}>
-              <Text style={styles.resultTitle}>{medicine.name}</Text>
-              <Text style={styles.resultMeta}>{medicine.dosage ?? "용량 확인 필요"} · {medicine.timing ?? "복용시점 확인 필요"} · {medicine.durationDays ? `${medicine.durationDays}일` : "일수 확인 필요"}</Text>
-              <Text style={styles.meta}>{medicine.usage ?? "OCR 추출 내용을 확인해 주세요."}</Text>
+            {medicineDurWarnings.length ? (
+              <View style={styles.durWarningStack}>
+                {medicineDurWarnings.slice(0, 3).map((warning) => (
+                  <View key={warning} style={styles.warningRow}>
+                    <MaterialCommunityIcons name="alert-outline" size={18} color={noticeText} />
+                    <Text style={styles.warningText}>{warning}</Text>
+                  </View>
+                ))}
+                {medicineDurWarnings.length > 3 ? <Text style={styles.meta}>외 {medicineDurWarnings.length - 3}건의 주의 정보가 더 있습니다.</Text> : null}
+              </View>
+            ) : null}
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="약명" placeholderTextColor={colors.textMuted} value={medicine.name} onChangeText={(value) => onUpdateMedicine(medicine.localId, { name: value })} />
+              <TextInput style={styles.input} placeholder="용량" placeholderTextColor={colors.textMuted} value={medicine.dosage ?? ""} onChangeText={(value) => onUpdateMedicine(medicine.localId, { dosage: value })} />
             </View>
-            {active ? <MaterialCommunityIcons name="check-circle" size={24} color={colors.success} /> : null}
-          </Pressable>
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="복용시점" placeholderTextColor={colors.textMuted} value={medicine.timing ?? ""} onChangeText={(value) => onUpdateMedicine(medicine.localId, { timing: value })} />
+              <TextInput style={styles.input} placeholder="복용일수" placeholderTextColor={colors.textMuted} value={medicine.durationDays ? String(medicine.durationDays) : ""} keyboardType="number-pad" onChangeText={(value) => onUpdateMedicine(medicine.localId, { durationDays: value ? Number(value) : null })} />
+            </View>
+            <TextInput style={styles.input} placeholder="복용법/메모" placeholderTextColor={colors.textMuted} value={medicine.usage ?? medicine.memo ?? ""} onChangeText={(value) => onUpdateMedicine(medicine.localId, { usage: value })} />
+          </View>
         );
       })}
     </View>
@@ -1028,43 +1680,143 @@ function ScheduleDraft({ schedule, onChange }: { schedule: ScheduleDraftState; o
     const doseTimes = timesPerDay === 0 ? [] : defaultDoseTimes.slice(0, timesPerDay);
     onChange({ timesPerDay, doseTimes, repeatRule: timesPerDay === 0 ? "as_needed" : schedule.repeatRule === "as_needed" ? "daily" : schedule.repeatRule });
   };
+  const setRepeatRule = (repeatRule: MedicineSchedule["repeatRule"]) => {
+    onChange({
+      repeatRule,
+      timesPerDay: repeatRule === "as_needed" ? 0 : Math.max(schedule.timesPerDay, 1),
+      doseTimes: repeatRule === "as_needed" ? [] : schedule.doseTimes.length ? schedule.doseTimes : ["08:00"]
+    });
+  };
   const toggleDoseTime = (time: string) => {
     const doseTimes = schedule.doseTimes.includes(time)
       ? schedule.doseTimes.filter((item) => item !== time)
       : [...schedule.doseTimes, time].sort();
     onChange({ doseTimes, timesPerDay: doseTimes.length || schedule.timesPerDay });
   };
+  const toggleWeekday = (weekday: number) => {
+    const weekdays = schedule.weekdays.includes(weekday)
+      ? schedule.weekdays.filter((day) => day !== weekday)
+      : [...schedule.weekdays, weekday].sort();
+    onChange({ weekdays: weekdays.length ? weekdays : [weekday] });
+  };
+  const toggleMonthDay = (day: number) => {
+    const monthDays = schedule.monthDays.includes(day)
+      ? schedule.monthDays.filter((item) => item !== day)
+      : [...schedule.monthDays, day].sort((a, b) => a - b);
+    onChange({ monthDays: monthDays.length ? monthDays : [day] });
+  };
 
   return (
     <View style={styles.inputStack}>
       <Text style={styles.cardTitle}>복약 스케줄 설정</Text>
-      <Text style={styles.body}>스케줄 없이 약만 저장할 수 있고, 처방전 OCR 결과는 스케줄 초안으로 자동 생성됩니다.</Text>
+      <Text style={styles.body}>매일, 요일별, 매주, 매월, 수시, 주기성 복약을 선택하고 알림·기간을 함께 설정합니다.</Text>
+      <View style={styles.scheduleTypeGrid}>
+        <ScheduleTypeChoice title="매일" description="매일 같은 시간" active={schedule.repeatRule === "daily"} onPress={() => setRepeatRule("daily")} />
+        <ScheduleTypeChoice title="요일별" description="월/수/금 등" active={schedule.repeatRule === "weekday"} onPress={() => setRepeatRule("weekday")} />
+        <ScheduleTypeChoice title="매주" description="N주마다 반복" active={schedule.repeatRule === "weekly"} onPress={() => setRepeatRule("weekly")} />
+        <ScheduleTypeChoice title="매월" description="날짜/요일 기준" active={schedule.repeatRule === "monthly"} onPress={() => setRepeatRule("monthly")} />
+        <ScheduleTypeChoice title="수시" description="필요할 때 기록" active={schedule.repeatRule === "as_needed"} onPress={() => setRepeatRule("as_needed")} />
+        <ScheduleTypeChoice title="주기성" description="N시간/N일·휴약" active={schedule.repeatRule === "interval" || schedule.repeatRule === "cycle"} onPress={() => setRepeatRule("interval")} />
+      </View>
       <View style={styles.filterRow}>
         <MiniChoice label="1일 1회" active={schedule.timesPerDay === 1 && schedule.repeatRule !== "as_needed"} onPress={() => setTimesPerDay(1)} />
         <MiniChoice label="1일 2회" active={schedule.timesPerDay === 2} onPress={() => setTimesPerDay(2)} />
         <MiniChoice label="1일 3회" active={schedule.timesPerDay === 3} onPress={() => setTimesPerDay(3)} />
         <MiniChoice label="필요 시" active={schedule.repeatRule === "as_needed"} onPress={() => setTimesPerDay(0)} />
       </View>
-      <View style={styles.filterRow}>
-        {scheduleTimes.map((time) => (
-          <MiniChoice key={time} label={time} active={schedule.doseTimes.includes(time.slice(-5))} onPress={() => toggleDoseTime(time.slice(-5))} />
-        ))}
-      </View>
+      {schedule.repeatRule !== "as_needed" ? (
+        <View style={styles.filterRow}>
+          {scheduleTimes.map((time) => (
+            <MiniChoice key={time} label={time} active={schedule.doseTimes.includes(time.slice(-5))} onPress={() => toggleDoseTime(time.slice(-5))} />
+          ))}
+        </View>
+      ) : null}
+      {schedule.repeatRule === "weekday" || schedule.repeatRule === "weekly" ? (
+        <View style={styles.schedulePanel}>
+          <Text style={styles.cardTitle}>{schedule.repeatRule === "weekly" ? "반복 기준 요일" : "복약 요일"}</Text>
+          <View style={styles.filterRow}>
+            {weekdayOptions.map((day) => (
+              <MiniChoice key={day.value} label={day.label} active={schedule.weekdays.includes(day.value)} onPress={() => toggleWeekday(day.value)} />
+            ))}
+          </View>
+          {schedule.repeatRule === "weekly" ? (
+            <TextInput style={styles.input} placeholder="반복 주기 예: 1=매주, 2=2주마다" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.weekInterval} onChangeText={(value) => onChange({ weekInterval: value.replace(/[^0-9]/g, "") })} />
+          ) : <Text style={styles.meta}>선택한 요일마다 같은 복약 시간이 적용됩니다. 요일별 다른 시간은 이후 상세 편집에서 확장합니다.</Text>}
+        </View>
+      ) : null}
+      {schedule.repeatRule === "monthly" ? (
+        <View style={styles.schedulePanel}>
+          <Text style={styles.cardTitle}>매월 반복 방식</Text>
+          <View style={styles.filterRow}>
+            <MiniChoice label="날짜" active={schedule.monthlyMode === "date"} onPress={() => onChange({ monthlyMode: "date" })} />
+            <MiniChoice label="N번째 요일" active={schedule.monthlyMode === "weekday"} onPress={() => onChange({ monthlyMode: "weekday" })} />
+            <MiniChoice label="말일" active={schedule.monthlyMode === "last_day"} onPress={() => onChange({ monthlyMode: "last_day" })} />
+          </View>
+          {schedule.monthlyMode === "date" ? (
+            <>
+              <View style={styles.filterRow}>
+                {[1, 5, 10, 15, 20, 25, 30, 31].map((day) => (
+                  <MiniChoice key={day} label={`${day}일`} active={schedule.monthDays.includes(day)} onPress={() => toggleMonthDay(day)} />
+                ))}
+              </View>
+              <View style={styles.filterRow}>
+                <MiniChoice label="없는 날짜는 말일" active={schedule.missingDatePolicy === "last_day"} onPress={() => onChange({ missingDatePolicy: "last_day" })} />
+                <MiniChoice label="없는 달은 건너뜀" active={schedule.missingDatePolicy === "skip"} onPress={() => onChange({ missingDatePolicy: "skip" })} />
+              </View>
+            </>
+          ) : null}
+          {schedule.monthlyMode === "weekday" ? (
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="N번째 예: 1, 2, 3, 4" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.monthlyWeekOrdinal} onChangeText={(value) => onChange({ monthlyWeekOrdinal: value.replace(/[^0-9]/g, "") })} />
+              <TextInput style={styles.input} placeholder="요일 숫자 0=일, 1=월" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.monthlyWeekday} onChangeText={(value) => onChange({ monthlyWeekday: value.replace(/[^0-9]/g, "") })} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+      {schedule.repeatRule === "interval" || schedule.repeatRule === "cycle" ? (
+        <View style={styles.schedulePanel}>
+          <Text style={styles.cardTitle}>주기성 복약</Text>
+          <View style={styles.filterRow}>
+            <MiniChoice label="시간 간격" active={schedule.repeatRule === "interval"} onPress={() => setRepeatRule("interval")} />
+            <MiniChoice label="복용+휴약" active={schedule.repeatRule === "cycle"} onPress={() => setRepeatRule("cycle")} />
+          </View>
+          {schedule.repeatRule === "interval" ? (
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="N시간마다 예: 6" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.intervalHours} onChangeText={(value) => onChange({ intervalHours: value.replace(/[^0-9]/g, "") })} />
+              <TextInput style={styles.input} placeholder="N일마다 예: 2" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.intervalDays} onChangeText={(value) => onChange({ intervalDays: value.replace(/[^0-9]/g, "") })} />
+            </View>
+          ) : (
+            <View style={styles.twoColumn}>
+              <TextInput style={styles.input} placeholder="복용일 예: 3" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.cycleActiveDays} onChangeText={(value) => onChange({ cycleActiveDays: value.replace(/[^0-9]/g, "") })} />
+              <TextInput style={styles.input} placeholder="휴약일 예: 1" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.cycleRestDays} onChangeText={(value) => onChange({ cycleRestDays: value.replace(/[^0-9]/g, "") })} />
+            </View>
+          )}
+          <TextInput style={styles.input} placeholder="하루 최대 알림 횟수" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.maxDailyNotifications} onChangeText={(value) => onChange({ maxDailyNotifications: value.replace(/[^0-9]/g, "") })} />
+        </View>
+      ) : null}
       <View style={styles.twoColumn}>
         <TextInput style={styles.input} placeholder="시작일 YYYY-MM-DD" placeholderTextColor={colors.textMuted} value={schedule.startDate} onChangeText={(value) => onChange({ startDate: value })} />
-        <TextInput style={styles.input} placeholder="복용일수 입력 시 종료일 자동 계산" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.durationDays} onChangeText={(value) => onChange({ durationDays: value.replace(/[^0-9]/g, "") })} />
+        <TextInput style={styles.input} placeholder="종료일 미설정 시 계속 반복" placeholderTextColor={colors.textMuted} value={schedule.endDate} onChangeText={(value) => onChange({ endDate: value })} />
       </View>
+      <TextInput style={styles.input} placeholder="복용일수 입력 시 종료일 자동 계산 예: 7, 14, 30" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.durationDays} onChangeText={(value) => onChange({ durationDays: value.replace(/[^0-9]/g, "") })} />
       <View style={styles.twoColumn}>
         <TextInput style={styles.input} placeholder="복용 방법 예: 경구" placeholderTextColor={colors.textMuted} value={schedule.doseMethod} onChangeText={(value) => onChange({ doseMethod: value })} />
         <TextInput style={styles.input} placeholder="복용 시점 예: 식후" placeholderTextColor={colors.textMuted} value={schedule.doseTiming} onChangeText={(value) => onChange({ doseTiming: value })} />
       </View>
+      <TextInput style={styles.input} placeholder="식전/식후 offset 분 예: 식후 30분이면 30" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.relationOffsetMinutes} onChangeText={(value) => onChange({ relationOffsetMinutes: value.replace(/[^0-9]/g, "") })} />
       <View style={styles.filterRow}>
-        <MiniChoice label="매일" active={schedule.repeatRule === "daily"} onPress={() => onChange({ repeatRule: "daily" })} />
-        <MiniChoice label="특정 요일" active={schedule.repeatRule === "weekly"} onPress={() => onChange({ repeatRule: "weekly" })} />
-        <MiniChoice label="격일" active={schedule.repeatRule === "alternate_day"} onPress={() => onChange({ repeatRule: "alternate_day" })} />
         <MiniChoice label="알림 켜기" active={schedule.notifyEnabled} onPress={() => onChange({ notifyEnabled: !schedule.notifyEnabled })} />
         <MiniChoice label="강한 알림" active={schedule.notificationLevel === "strong"} onPress={() => onChange({ notificationLevel: schedule.notificationLevel === "strong" ? "normal" : "strong" })} />
+        <MiniChoice label="재알림" active={schedule.reminderEnabled} onPress={() => onChange({ reminderEnabled: !schedule.reminderEnabled })} />
+        <MiniChoice label="보호자 알림" active={schedule.guardianAlertEnabled} onPress={() => onChange({ guardianAlertEnabled: !schedule.guardianAlertEnabled })} />
+        <MiniChoice label="일시중지" active={schedule.paused} onPress={() => onChange({ paused: !schedule.paused })} />
       </View>
+      {schedule.reminderEnabled || schedule.guardianAlertEnabled ? (
+        <View style={styles.twoColumn}>
+          <TextInput style={styles.input} placeholder="재알림 간격 분" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.reminderIntervalMinutes} onChangeText={(value) => onChange({ reminderIntervalMinutes: value.replace(/[^0-9]/g, "") })} />
+          <TextInput style={styles.input} placeholder="보호자 알림 지연 분" placeholderTextColor={colors.textMuted} keyboardType="number-pad" value={schedule.guardianAlertDelayMinutes} onChangeText={(value) => onChange({ guardianAlertDelayMinutes: value.replace(/[^0-9]/g, "") })} />
+        </View>
+      ) : null}
       <Text style={styles.meta}>저장될 스케줄: {formatScheduleSummary(schedule)}</Text>
     </View>
   );
@@ -1095,9 +1847,29 @@ function TodayDoseRow({ medicine, onTaken, onSkipped }: { medicine: RegisteredMe
   );
 }
 
-function MedicineListItem({ medicine, onToggleFavorite, onEnd }: { medicine: RegisteredMedicine; onToggleFavorite: () => void; onEnd: () => void }) {
+function MedicineListItem({
+  medicine,
+  compareMode,
+  selectedForCompare,
+  onToggleCompare,
+  onToggleFavorite,
+  onEnd
+}: {
+  medicine: RegisteredMedicine;
+  compareMode?: boolean;
+  selectedForCompare?: boolean;
+  onToggleCompare?: () => void;
+  onToggleFavorite: () => void;
+  onEnd: () => void;
+}) {
   return (
-    <View style={styles.medicineItem}>
+    <View style={[styles.medicineItem, selectedForCompare && styles.compareSelectedItem]}>
+      {compareMode ? (
+        <Pressable style={styles.compareSelectRow} onPress={onToggleCompare}>
+          <MaterialCommunityIcons name={selectedForCompare ? "checkbox-marked" : "checkbox-blank-outline"} size={24} color={selectedForCompare ? colors.success : colors.textMuted} />
+          <Text style={styles.cardTitle}>{selectedForCompare ? "비교 대상" : "비교에 추가"}</Text>
+        </Pressable>
+      ) : null}
       <View style={styles.resultTop}>
         <Pressable onPress={onToggleFavorite} style={styles.pillIcon}>
           <MaterialCommunityIcons name={medicine.favorite ? "star" : "star-outline"} size={24} color={medicine.favorite ? colors.warning : colors.primary} />
@@ -1136,6 +1908,82 @@ function MedicineListItem({ medicine, onToggleFavorite, onEnd }: { medicine: Reg
       </View>
       <Text style={styles.meta}>삭제 전 연결된 복약 스케줄과 이력을 안내하고, 삭제 대신 복용종료를 선택할 수 있습니다.</Text>
     </View>
+  );
+}
+
+function DurCompareModal({
+  visible,
+  selectedMedicines,
+  results,
+  onClose
+}: {
+  visible: boolean;
+  selectedMedicines: RegisteredMedicine[];
+  results: DurCompareResult[];
+  onClose: () => void;
+}) {
+  const dangerCount = results.filter((result) => result.severity === "danger").length;
+  const warningCount = results.filter((result) => result.severity === "warning").length;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.sectionTitle}>DUR 비교 결과</Text>
+              <Text style={styles.body}>{selectedMedicines.length}개 약의 중복성분과 DUR 주의를 비교했습니다.</Text>
+            </View>
+            <Pressable style={styles.iconAction} onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.primary} />
+            </Pressable>
+          </View>
+          <ScrollView style={styles.modalBody} contentContainerStyle={styles.modalBodyContent}>
+            <View style={styles.compareSummaryGrid}>
+              <View style={styles.compareSummaryCard}>
+                <Text style={styles.resultTitle}>{dangerCount}건</Text>
+                <Text style={styles.meta}>주의 필요</Text>
+              </View>
+              <View style={styles.compareSummaryCard}>
+                <Text style={styles.resultTitle}>{warningCount}건</Text>
+                <Text style={styles.meta}>확인 권장</Text>
+              </View>
+              <View style={styles.compareSummaryCard}>
+                <Text style={styles.resultTitle}>{selectedMedicines.length}개</Text>
+                <Text style={styles.meta}>비교 약</Text>
+              </View>
+            </View>
+            <View style={styles.candidateBox}>
+              <Text style={styles.cardTitle}>선택한 약</Text>
+              <Text style={styles.body}>{selectedMedicines.map((medicine) => medicine.alias || medicine.name).join(", ")}</Text>
+            </View>
+            {results.map((result) => (
+              <View key={result.id} style={[styles.compareResultCard, result.severity === "danger" && styles.compareDangerCard, result.severity === "safe" && styles.compareSafeCard]}>
+                <View style={styles.resultTop}>
+                  <MaterialCommunityIcons
+                    name={result.severity === "danger" ? "alert-octagon-outline" : result.severity === "warning" ? "alert-outline" : "shield-check-outline"}
+                    size={24}
+                    color={result.severity === "safe" ? colors.success : noticeText}
+                  />
+                  <View style={styles.resultText}>
+                    <Text style={styles.cardTitle}>{result.title}</Text>
+                    <Text style={styles.meta}>{result.medicineNames.join(" + ")}</Text>
+                  </View>
+                </View>
+                <Text style={result.severity === "safe" ? styles.successText : styles.warningText}>{result.description}</Text>
+              </View>
+            ))}
+            <Text style={styles.meta}>DUR 비교는 복약 안전 보조 정보입니다. 실제 복용 중단이나 병용 판단은 의사 또는 약사에게 확인하세요.</Text>
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <Pressable style={styles.primaryButton} onPress={onClose}>
+              <MaterialCommunityIcons name="check-circle-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>확인</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1209,18 +2057,63 @@ function MiniChoice({ label, active = false, onPress }: { label: string; active?
   );
 }
 
+function ScheduleTypeChoice({ title, description, active, onPress }: { title: string; description: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={[styles.scheduleTypeChoice, active && styles.scheduleTypeChoiceActive]} onPress={onPress}>
+      <Text style={[styles.cardTitle, active && styles.scheduleTypeTextActive]}>{title}</Text>
+      <Text style={[styles.meta, active && styles.scheduleTypeMetaActive]}>{description}</Text>
+    </Pressable>
+  );
+}
+
+function parseOptionalNumber(value?: string | null): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function uniqueWarnings(warnings: string[]): string[] {
+  return Array.from(new Set(warnings.map((warning) => warning.trim()).filter(Boolean)));
+}
+
+function normalizeMedicineText(value?: string | null): string {
+  return (value ?? "").replace(/\s+/g, "").replace(/[(){}\[\]·.,]/g, "").toLowerCase();
+}
+
+function buildExistingMedicineWarnings(name: string, ingredient: string | undefined, medicines: RegisteredMedicine[]): string[] {
+  const normalizedName = normalizeMedicineText(name);
+  const normalizedIngredient = normalizeMedicineText(ingredient);
+  const warnings: string[] = [];
+  const sameName = medicines.find((medicine) =>
+    [medicine.name, medicine.productName, medicine.alias].some((value) => normalizeMedicineText(value) === normalizedName)
+  );
+  if (sameName) {
+    warnings.push("이미 등록된 약과 이름이 같습니다. 중복 복용 여부를 확인하세요.");
+  }
+  if (normalizedIngredient) {
+    const sameIngredient = medicines.find((medicine) => normalizeMedicineText(medicine.ingredient) === normalizedIngredient);
+    if (sameIngredient) {
+      warnings.push("이미 등록된 약과 성분명이 같습니다. 중복성분 복용 가능성을 확인하세요.");
+    }
+  }
+  return warnings;
+}
+
 function formatScheduleSummary(schedule: ScheduleDraftState): string {
-  const repeatLabel = schedule.repeatRule === "daily"
-    ? "매일"
-    : schedule.repeatRule === "weekly"
-      ? "특정 요일"
-      : schedule.repeatRule === "alternate_day"
-        ? "격일"
-        : "필요 시";
+  const repeatLabel = {
+    daily: "매일",
+    weekday: `요일별 ${schedule.weekdays.map((day) => weekdayOptions.find((item) => item.value === day)?.label).filter(Boolean).join("/")}`,
+    weekly: `${schedule.weekInterval || 1}주마다 ${schedule.weekdays.map((day) => weekdayOptions.find((item) => item.value === day)?.label).filter(Boolean).join("/")}`,
+    monthly: schedule.monthlyMode === "last_day" ? "매월 말일" : schedule.monthlyMode === "weekday" ? `매월 ${schedule.monthlyWeekOrdinal}번째 요일` : `매월 ${schedule.monthDays.join(", ")}일`,
+    interval: schedule.intervalHours ? `${schedule.intervalHours}시간마다` : `${schedule.intervalDays || 1}일마다`,
+    cycle: `${schedule.cycleActiveDays || 0}일 복용 + ${schedule.cycleRestDays || 0}일 휴약`,
+    alternate_day: "격일",
+    as_needed: "필요 시"
+  }[schedule.repeatRule];
   const timeLabel = schedule.repeatRule === "as_needed" ? "필요 시" : schedule.doseTimes.join(", ") || "시간 미정";
-  const durationLabel = schedule.durationDays ? ` · ${schedule.durationDays}일` : "";
+  const durationLabel = schedule.endDate ? ` · ${schedule.endDate}까지` : schedule.durationDays ? ` · ${schedule.durationDays}일` : " · 계속 반복";
   const alertLabel = schedule.notifyEnabled ? ` · ${schedule.notificationLevel === "strong" ? "강한 알림" : "알림"}` : " · 알림 꺼짐";
-  return `${repeatLabel} ${timeLabel}${durationLabel}${alertLabel}`;
+  const reminderLabel = schedule.reminderEnabled ? ` · ${schedule.reminderIntervalMinutes}분 재알림` : "";
+  return `${repeatLabel} ${timeLabel}${durationLabel}${alertLabel}${reminderLabel}`;
 }
 
 function calculateEndDate(startDate: string, durationDays: number): string | null {
@@ -1255,7 +2148,7 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   hero: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#F8FBFF",
@@ -1276,7 +2169,7 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 54,
     height: 54,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center"
@@ -1299,7 +2192,7 @@ const styles = StyleSheet.create({
   },
   notice: {
     minHeight: 78,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#FDBA74",
     backgroundColor: "#FFF7ED",
@@ -1317,7 +2210,7 @@ const styles = StyleSheet.create({
   },
   segmented: {
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
@@ -1328,7 +2221,7 @@ const styles = StyleSheet.create({
   segmentButton: {
     flex: 1,
     minHeight: 42,
-    borderRadius: 8,
+    borderRadius: 4,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -1352,7 +2245,7 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     minHeight: 96,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1379,7 +2272,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF"
   },
   flowCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1387,7 +2280,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   listCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1421,7 +2314,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted
   },
   saveBadge: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs
@@ -1437,7 +2330,7 @@ const styles = StyleSheet.create({
   },
   stepPill: {
     minHeight: 42,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     justifyContent: "center",
@@ -1459,7 +2352,7 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
@@ -1476,7 +2369,7 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     paddingHorizontal: spacing.md,
@@ -1494,14 +2387,136 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: "#FFFFFF"
   },
+  scheduleTypeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  scheduleTypeChoice: {
+    flexBasis: "31%",
+    flexGrow: 1,
+    minHeight: 76,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.sm,
+    gap: spacing.xs,
+    justifyContent: "center"
+  },
+  scheduleTypeChoiceActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  scheduleTypeTextActive: {
+    color: "#FFFFFF"
+  },
+  scheduleTypeMetaActive: {
+    color: "#EAF3FF"
+  },
+  schedulePanel: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
   candidateBox: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.md,
     gap: spacing.xs
   },
+  qrScannerCard: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    gap: spacing.sm
+  },
+  qrCamera: {
+    height: 130,
+    width: "100%"
+  },
+  qrGuideBox: {
+    padding: spacing.sm,
+    gap: spacing.xs
+  },
+  prescriptionGuideBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
+    gap: spacing.xs
+  },
+  qrFallbackBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+    backgroundColor: "#FFF7ED",
+    padding: spacing.md,
+    gap: spacing.xs
+  },
+  qrSampleBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  multilineInput: {
+    minHeight: 96,
+    textAlignVertical: "top"
+  },
+  bulkActionBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  prescriptionEditCard: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  prescriptionCheckRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm
+  },
+  smallOutlineButton: {
+    minHeight: 36,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF"
+  },
+  smallOutlineButtonText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "800"
+  },
   durPanel: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#FDBA74",
     backgroundColor: "#FFF7ED",
@@ -1509,7 +2524,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   todayCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
@@ -1517,7 +2532,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   todayBadge: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#E8F5EE",
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs
@@ -1527,7 +2542,7 @@ const styles = StyleSheet.create({
     color: colors.success
   },
   todayDoseRow: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: colors.border,
@@ -1542,7 +2557,7 @@ const styles = StyleSheet.create({
   },
   doseTimeBox: {
     width: 82,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     padding: spacing.sm,
@@ -1567,7 +2582,7 @@ const styles = StyleSheet.create({
   iconAction: {
     width: 42,
     height: 42,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
@@ -1577,7 +2592,7 @@ const styles = StyleSheet.create({
   addButton: {
     minWidth: 64,
     minHeight: 52,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
@@ -1589,7 +2604,7 @@ const styles = StyleSheet.create({
   },
   searchBox: {
     minHeight: 62,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: "#FFFFFF",
@@ -1603,7 +2618,7 @@ const styles = StyleSheet.create({
   },
   emptyBox: {
     minHeight: 104,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#C7D6EA",
     backgroundColor: colors.surfaceAlt,
@@ -1620,15 +2635,67 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   medicineItem: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
     padding: spacing.md,
     gap: spacing.sm
   },
+  compareSelectedItem: {
+    borderColor: colors.primary,
+    backgroundColor: "#F8FBFF"
+  },
+  compareSelectRow: {
+    minHeight: 44,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  compareActionBox: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  compareSummaryGrid: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  compareSummaryCard: {
+    flex: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    gap: spacing.xs
+  },
+  compareResultCard: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+    backgroundColor: "#FFF7ED",
+    padding: spacing.md,
+    gap: spacing.sm
+  },
+  compareDangerCard: {
+    borderColor: "#EF4444",
+    backgroundColor: "#FEF2F2"
+  },
+  compareSafeCard: {
+    borderColor: "#86EFAC",
+    backgroundColor: "#F0FDF4"
+  },
   statusBadge: {
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs
   },
@@ -1656,7 +2723,7 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   resultCard: {
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",
@@ -1671,7 +2738,7 @@ const styles = StyleSheet.create({
   pillIcon: {
     width: 48,
     height: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center"
@@ -1690,7 +2757,7 @@ const styles = StyleSheet.create({
   },
   confidenceBadge: {
     minHeight: 36,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#E8F5EE",
     alignItems: "center",
     justifyContent: "center",
@@ -1702,7 +2769,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   warningRow: {
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: "#FFF7ED",
     padding: spacing.sm,
     flexDirection: "row",
@@ -1715,6 +2782,26 @@ const styles = StyleSheet.create({
     color: noticeText,
     lineHeight: 19
   },
+  successText: {
+    ...typography.caption,
+    flex: 1,
+    color: colors.success,
+    lineHeight: 19,
+    fontWeight: "700"
+  },
+  durSummaryRow: {
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    padding: spacing.sm,
+    flexDirection: "row",
+    gap: spacing.xs,
+    alignItems: "flex-start"
+  },
+  durWarningStack: {
+    gap: spacing.xs
+  },
   resultActions: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1722,7 +2809,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
@@ -1736,7 +2823,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     minHeight: 48,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: "#FFFFFF",
@@ -1796,14 +2883,14 @@ const styles = StyleSheet.create({
   searchRegisterButton: {
     width: 52,
     height: 52,
-    borderRadius: 8,
+    borderRadius: 4,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center"
   },
   searchResultItem: {
     minHeight: 86,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: "#FFFFFF",

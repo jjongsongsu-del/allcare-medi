@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   },
   recentBadge: {
     minHeight: 40,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     minHeight: 56,
-    borderRadius: 8,
+    borderRadius: 4,
     alignItems: "center",
     justifyContent: "center"
   },

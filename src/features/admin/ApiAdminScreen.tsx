@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong
   },
   badge: {
-    borderRadius: 8,
+    borderRadius: 4,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs
   },
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
   adminButton: {
     minHeight: 38,
-    borderRadius: 8,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     paddingHorizontal: spacing.md,

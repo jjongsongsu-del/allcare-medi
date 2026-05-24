@@ -54,6 +54,7 @@ export type MedicationSchedule = {
 export type MedicineStatus = "taking" | "scheduled" | "ended";
 export type MedicineRegistrationSource = "manual" | "search" | "prescription" | "ai";
 export type MedicineDoseStatus = "pending" | "taken" | "skipped" | "delayed";
+export type MedicineRepeatRule = "daily" | "weekday" | "weekly" | "monthly" | "as_needed" | "interval" | "cycle" | "alternate_day";
 
 export type MedicineSearchResult = {
   id: string;
@@ -148,7 +149,27 @@ export type MedicineSchedule = {
   startDate: string;
   endDate?: string | null;
   durationDays?: number | null;
-  repeatRule: "daily" | "weekly" | "alternate_day" | "as_needed";
+  repeatRule: MedicineRepeatRule;
+  weekdays?: number[];
+  weekInterval?: number | null;
+  monthlyMode?: "date" | "weekday" | "last_day" | null;
+  monthDays?: number[];
+  monthlyWeekOrdinal?: number | null;
+  monthlyWeekday?: number | null;
+  missingDatePolicy?: "last_day" | "skip" | null;
+  intervalHours?: number | null;
+  intervalDays?: number | null;
+  cycleActiveDays?: number | null;
+  cycleRestDays?: number | null;
+  maxDailyNotifications?: number | null;
+  relationOffsetMinutes?: number | null;
+  reminderEnabled?: boolean;
+  reminderIntervalMinutes?: number | null;
+  reminderMaxCount?: number | null;
+  guardianAlertEnabled?: boolean;
+  guardianAlertDelayMinutes?: number | null;
+  paused?: boolean;
+  pauseReason?: string | null;
   notifyEnabled: boolean;
   notificationLevel: "normal" | "strong";
   createdAt: string;

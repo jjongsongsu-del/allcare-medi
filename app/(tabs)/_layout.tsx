@@ -1,11 +1,27 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { useAuth } from "@/auth/AuthProvider";
 import { colors } from "@/theme/colors";
 
 const tabIconSize = 22;
 const emergencyRed = "#D92D20";
 
 export default function TabLayout() {
+  const { loading, session } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!session) {
+    return <Redirect href="/" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -71,3 +87,12 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background
+  }
+});
