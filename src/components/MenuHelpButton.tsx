@@ -8,9 +8,10 @@ import { typography } from "@/theme/typography";
 
 type Props = {
   content: MenuHelpContent;
+  size?: number;
 };
 
-export function MenuHelpButton({ content }: Props) {
+export function MenuHelpButton({ content, size = 48 }: Props) {
   const [visible, setVisible] = useState(false);
   const isDanger = content.tone === "danger";
   const accent = isDanger ? colors.danger : colors.primary;
@@ -22,7 +23,7 @@ export function MenuHelpButton({ content }: Props) {
         accessibilityLabel={`${content.title} 열기`}
         hitSlop={8}
         onPress={() => setVisible(true)}
-        style={[styles.helpButton, isDanger && styles.helpButtonDanger]}
+        style={[styles.helpButton, { width: size, height: size }, isDanger && styles.helpButtonDanger]}
       >
         <MaterialCommunityIcons name="help" size={22} color={accent} />
       </Pressable>

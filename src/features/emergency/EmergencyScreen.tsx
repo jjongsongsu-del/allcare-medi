@@ -5,8 +5,9 @@ import { Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, TextInput
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
+import { useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { menuHelp } from "@/help/menuHelp";
 import { FamilyProfile } from "@/services/localUserData";
@@ -49,6 +50,7 @@ const emergencyFilters: EmergencyFilter[] = ["소아응급", "분만실", "음�
 
 export function EmergencyScreen() {
   const { session } = useAuth();
+  const { isEasyMode } = useExperienceMode();
   const [emergencyRooms, setEmergencyRooms] = useState<EmergencyRoom[]>([]);
   const [selectedRegion, setSelectedRegion] = useState(regions[0]);
   const [keyword, setKeyword] = useState("");
@@ -199,7 +201,7 @@ export function EmergencyScreen() {
   };
 
   return (
-    <AppScreen contentStyle={styles.screen}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.alertIconBox}>
@@ -209,11 +211,9 @@ export function EmergencyScreen() {
             <Text style={styles.eyebrow}>응급</Text>
             <Text style={styles.title}>지금 갈 수 있는 응급실</Text>
           </View>
+          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.emergency} />
         </View>
-        <Text style={styles.description}>
-          국립중앙의료원 응급의료정보조회서비스 V4 기준으로 가까운 응급실 위치와 실시간 가용 병상을 함께 확인합니다.
-        </Text>
       </View>
 
       <View style={styles.priorityNotice}>
@@ -263,7 +263,7 @@ export function EmergencyScreen() {
           <EmergencyButton label="내 위치 기준" icon="crosshairs-gps" variant="filled" onPress={requestCurrentLocation} />
           <EmergencyButton label="NEMC 보기" icon="open-in-new" variant="outline" onPress={() => Linking.openURL("https://www.e-gen.or.kr/")} />
         </View>
-        <View style={styles.emergencyFilterRow}>
+        {!isEasyMode ? <View style={styles.emergencyFilterRow}>
           {emergencyFilters.map((filter) => {
             const active = activeFilters.includes(filter);
             return (
@@ -272,7 +272,7 @@ export function EmergencyScreen() {
               </Pressable>
             );
           })}
-        </View>
+        </View> : null}
         <Text style={styles.updatedText}>{locationMessage}</Text>
         {shareMessage ? <Text style={styles.updatedText}>{shareMessage}</Text> : null}
       </View>
@@ -311,8 +311,6 @@ export function EmergencyScreen() {
           </Text>
         </View>
       </View>
-
-      <CurrentFamilyBanner compact />
 
       <View style={styles.familyCard}>
         <View style={styles.cardHeader}>
@@ -684,6 +682,10 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
     gap: spacing.md
+  },
+  easyScreen: {
+    gap: spacing.xl,
+    paddingHorizontal: spacing.xl
   },
   hero: {
     borderRadius: 4,

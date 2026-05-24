@@ -4,9 +4,10 @@ import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
+import { useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { menuHelp } from "@/help/menuHelp";
 import {
@@ -206,6 +207,7 @@ const registeredMedicinesSeed: RegisteredMedicine[] = [
 
 export function PillIdentificationScreen() {
   const { session } = useAuth();
+  const { isEasyMode } = useExperienceMode();
   const { selectedProfile } = useFamilyProfile();
   const [pills, setPills] = useState<Pill[]>([]);
   const [activeTab, setActiveTab] = useState<PillTab>("medicine");
@@ -914,8 +916,12 @@ export function PillIdentificationScreen() {
     setDurCompareLoading(false);
   };
 
+  const visibleRegistrationMethods = isEasyMode
+    ? registrationMethods.filter((method) => method.key === "manual" || method.key === "search")
+    : registrationMethods;
+
   return (
-    <AppScreen contentStyle={styles.screen}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
@@ -925,9 +931,9 @@ export function PillIdentificationScreen() {
             <Text style={styles.eyebrow}>내 약통</Text>
             <Text style={styles.title}>약관리</Text>
           </View>
+          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.pills} />
         </View>
-        <Text style={styles.description}>직접등록, 검색등록, 처방전등록, AI판독등록으로 약을 등록하고 복약 스케줄까지 이어서 설정합니다.</Text>
       </View>
 
       <View style={styles.notice}>
@@ -937,15 +943,13 @@ export function PillIdentificationScreen() {
         </Text>
       </View>
 
-      <CurrentFamilyBanner compact />
-
       <View style={styles.segmented}>
         <SegmentButton label="약관리" active={activeTab === "medicine"} onPress={() => setActiveTab("medicine")} />
         <SegmentButton label="처방전 관리" active={activeTab === "prescription"} onPress={() => setActiveTab("prescription")} />
       </View>
 
       <View style={styles.actionGrid}>
-        {registrationMethods.map((method) => (
+        {visibleRegistrationMethods.map((method) => (
           <RegistrationTile
             key={method.key}
             title={method.title}
@@ -2149,6 +2153,10 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
     gap: spacing.md
+  },
+  easyScreen: {
+    gap: spacing.xl,
+    paddingHorizontal: spacing.xl
   },
   hero: {
     borderRadius: 4,

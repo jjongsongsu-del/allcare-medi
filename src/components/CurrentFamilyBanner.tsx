@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
@@ -16,6 +17,23 @@ export function CurrentFamilyBanner({ compact = false }: { compact?: boolean }) 
       <Text style={styles.text}>현재 대상: {name}</Text>
       <Text style={styles.meta}>{relation}</Text>
     </View>
+  );
+}
+
+export function CurrentFamilyIconButton({ size = 48 }: { size?: number }) {
+  const { selectedProfile } = useFamilyProfile();
+  const name = selectedProfile?.profileName ?? "나";
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`현재 대상 ${name} 변경`}
+      hitSlop={8}
+      onPress={() => router.push("/(tabs)/family")}
+      style={[styles.iconButton, { width: size, height: size }]}
+    >
+      <MaterialCommunityIcons name="account-heart-outline" size={Math.max(22, size - 24)} color={colors.textStrong} />
+    </Pressable>
   );
 }
 
@@ -49,5 +67,13 @@ const styles = StyleSheet.create({
   meta: {
     ...typography.caption,
     color: colors.textMuted
+  },
+  iconButton: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center"
   }
 });

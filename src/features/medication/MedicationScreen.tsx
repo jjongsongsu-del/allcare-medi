@@ -5,9 +5,10 @@ import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
+import { useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { menuHelp } from "@/help/menuHelp";
 import {
@@ -144,6 +145,7 @@ type ReportRow = {
 
 export function MedicationScreen() {
   const { session } = useAuth();
+  const { isEasyMode } = useExperienceMode();
   const { selectedProfile } = useFamilyProfile();
   const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
   const [schedules, setSchedules] = useState<MedicineSchedule[]>([]);
@@ -473,7 +475,7 @@ export function MedicationScreen() {
   };
 
   return (
-    <AppScreen contentStyle={styles.screen}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
@@ -483,14 +485,12 @@ export function MedicationScreen() {
             <Text style={styles.eyebrow}>복약</Text>
             <Text style={styles.title}>오늘 먹을 약</Text>
           </View>
+          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.medication} />
         </View>
-        <Text style={styles.description} numberOfLines={2}>
-          복약 시간과 알림을 한 곳에서 확인하고, 변경·중단·병용 여부는 방문 전 전문가 확인을 권장합니다.
-        </Text>
       </View>
 
-      <View style={styles.searchBox}>
+      {!isEasyMode ? <View style={styles.searchBox}>
         <MaterialCommunityIcons name="magnify" size={20} color={colors.primary} />
         <TextInput
           value={searchText}
@@ -499,9 +499,7 @@ export function MedicationScreen() {
           placeholderTextColor="#6B7280"
           style={styles.searchInput}
         />
-      </View>
-
-      <CurrentFamilyBanner compact />
+      </View> : null}
 
       <View style={styles.summaryGrid}>
         <MetricCard label="오늘 회차" value={`${stats.total}회`} icon="calendar-clock" />
@@ -1405,6 +1403,10 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
     gap: spacing.sm
+  },
+  easyScreen: {
+    gap: spacing.xl,
+    paddingHorizontal: spacing.xl
   },
   hero: {
     borderRadius: 4,

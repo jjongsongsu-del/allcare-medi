@@ -62,8 +62,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setRecentProvider(provider);
       },
       logout: async () => {
-        await clearSession(session);
-        setSession(null);
+        setLoading(true);
+        try {
+          await clearSession(session);
+        } finally {
+          setSession(null);
+          setLoading(false);
+        }
       }
     }),
     [loading, recentProvider, session]

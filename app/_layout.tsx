@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Text, TextInput } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { ExperienceModeProvider } from "@/experience/ExperienceModeProvider";
 import { FamilyProfileProvider } from "@/family/FamilyProfileProvider";
 import { configureMedicationNotificationHandler } from "@/services/medicationNotificationService";
 import { AccessibilityProvider } from "@/theme/AccessibilityProvider";
@@ -25,17 +26,19 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <FamilyProfileProvider>
-          <AccessibilityProvider>
-            <StatusBar style="dark" backgroundColor={colors.background} />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.background }
-              }}
-            />
-          </AccessibilityProvider>
-        </FamilyProfileProvider>
+        <ExperienceModeProvider>
+          <FamilyProfileProvider>
+            <AccessibilityProvider>
+              <StatusBar style="dark" backgroundColor={colors.background} />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.background }
+                }}
+              />
+            </AccessibilityProvider>
+          </FamilyProfileProvider>
+        </ExperienceModeProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

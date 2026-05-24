@@ -5,8 +5,9 @@ import { Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View 
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyBanner } from "@/components/CurrentFamilyBanner";
+import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
+import { useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { familyFacilityScore, familyRecommendation } from "@/family/familyRecommendations";
 import { menuHelp } from "@/help/menuHelp";
@@ -78,6 +79,7 @@ const defaultRegion: Region = {
 
 export function MedicalMapScreen() {
   const { session } = useAuth();
+  const { isEasyMode } = useExperienceMode();
   const { selectedProfile } = useFamilyProfile();
   const [facilities, setFacilities] = useState<MedicalFacility[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<MedicalFacility | null>(null);
@@ -324,7 +326,7 @@ export function MedicalMapScreen() {
 
   return (
     <>
-    <AppScreen contentStyle={styles.screen}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
@@ -334,9 +336,9 @@ export function MedicalMapScreen() {
             <Text style={styles.eyebrow}>병원약국</Text>
             <Text style={styles.title}>지금 갈 수 있는 곳</Text>
           </View>
+          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.facilities} />
         </View>
-        <Text style={styles.description}>병원과 약국 운영시간은 예상값이며 방문 전 전화 확인을 권장합니다.</Text>
       </View>
 
       <View style={styles.regionSearchPanel}>
@@ -385,9 +387,7 @@ export function MedicalMapScreen() {
         {locationMessage ? <Text style={styles.locationMessage}>{locationMessage}</Text> : null}
       </View>
 
-      <CurrentFamilyBanner compact />
-
-      <View style={styles.savedRow}>
+      {!isEasyMode ? <View style={styles.savedRow}>
         <QuickSaveButton
           label={savedBaseLocations.some((item) => item.key === "home") ? "집 기준 검색" : "집 저장"}
           icon="home-outline"
@@ -406,7 +406,7 @@ export function MedicalMapScreen() {
           }}
           onSave={() => saveNamedBaseLocation("work")}
         />
-      </View>
+      </View> : null}
 
       <View style={styles.radiusRow}>
         {radiusOptions.map((option) => (
@@ -427,7 +427,7 @@ export function MedicalMapScreen() {
         })}
       </View>
 
-      <View style={styles.recommendCard}>
+      {!isEasyMode ? <View style={styles.recommendCard}>
         <Text style={styles.recommendTitle}>{recommendation.title}</Text>
         <Text style={styles.body}>{recommendation.description}</Text>
         <View style={styles.recommendChipRow}>
@@ -437,7 +437,7 @@ export function MedicalMapScreen() {
             </Pressable>
           ))}
         </View>
-      </View>
+      </View> : null}
 
       <View style={styles.segmentShell}>
         <Pressable style={[styles.segment, viewMode === "map" && styles.segmentActive]} onPress={() => setViewMode("map")}>
@@ -909,6 +909,10 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
     gap: spacing.md
+  },
+  easyScreen: {
+    gap: spacing.xl,
+    paddingHorizontal: spacing.xl
   },
   hero: {
     borderRadius: 4,

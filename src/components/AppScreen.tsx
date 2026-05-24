@@ -1,11 +1,11 @@
 import { PropsWithChildren } from "react";
-import { ScrollView, StyleSheet, ViewStyle } from "react-native";
+import { ScrollView, StyleProp, StyleSheet, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 
 type AppScreenProps = PropsWithChildren<{
-  contentStyle?: ViewStyle;
+  contentStyle?: StyleProp<ViewStyle>;
 }>;
 
 export function AppScreen({ children, contentStyle }: AppScreenProps) {

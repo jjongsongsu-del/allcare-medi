@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Redirect, Tabs } from "expo-router";
+import { router, Tabs } from "expo-router";
+import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "@/auth/AuthProvider";
 import { colors } from "@/theme/colors";
@@ -10,6 +11,12 @@ const emergencyRed = "#D92D20";
 export default function TabLayout() {
   const { loading, session } = useAuth();
 
+  useEffect(() => {
+    if (!loading && !session) {
+      router.replace("/");
+    }
+  }, [loading, session]);
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -19,7 +26,11 @@ export default function TabLayout() {
   }
 
   if (!session) {
-    return <Redirect href="/" />;
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   return (

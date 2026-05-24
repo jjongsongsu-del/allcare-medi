@@ -3,8 +3,10 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
+import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
+import { useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { menuHelp } from "@/help/menuHelp";
 import {
   clearLocalUserData,
@@ -68,6 +70,7 @@ const consentLabels: Array<[keyof ConsentSettings, string]> = [
 
 export function FamilyMyPageScreen() {
   const { session, logout } = useAuth();
+  const { mode, isEasyMode, setMode } = useExperienceMode();
   const { profiles, selectedProfile, selectProfile: selectFamilyProfile, addProfile, updateProfile, reloadProfiles } = useFamilyProfile();
   const [activeMenu, setActiveMenu] = useState<MenuTab>("mydata");
   const [activeDetail, setActiveDetail] = useState<DetailTab>("basic");
@@ -233,7 +236,7 @@ export function FamilyMyPageScreen() {
   };
 
   return (
-    <AppScreen contentStyle={styles.screen}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
@@ -243,11 +246,9 @@ export function FamilyMyPageScreen() {
             <Text style={styles.eyebrow}>전체 메뉴</Text>
             <Text style={styles.title}>가족 · 마이데이터</Text>
           </View>
+          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.menu} />
         </View>
-        <Text style={styles.description}>
-          마이데이터와 가족 관리를 분리해서 관리합니다. 저장 방식은 로그인 상태에 따라 서버 또는 기기 내부로 나뉩니다.
-        </Text>
       </View>
 
       <View style={styles.notice}>
@@ -257,19 +258,30 @@ export function FamilyMyPageScreen() {
         </Text>
       </View>
 
-      <View style={styles.dashboardGrid}>
+      <View style={styles.modeCard}>
+        <View style={styles.modeTextGroup}>
+          <Text style={styles.sectionTitle}>화면 모드</Text>
+          <Text style={styles.body}>{isEasyMode ? "쉬운모드로 꼭 필요한 기능만 크게 보여줍니다." : "상세모드로 전체 기능과 세부 관리를 보여줍니다."}</Text>
+        </View>
+        <View style={styles.modeSwitchRow}>
+          <SegmentButton label="쉬운모드" active={mode === "easy"} onPress={() => setMode("easy")} />
+          <SegmentButton label="상세모드" active={mode === "detail"} onPress={() => setMode("detail")} />
+        </View>
+      </View>
+
+      {!isEasyMode ? <View style={styles.dashboardGrid}>
         <DashboardMetric label="저장 방식" value={isMember ? "서버" : "기기"} icon={isMember ? "cloud-check-outline" : "cellphone-lock"} tone={isMember ? "primary" : "warning"} />
         <DashboardMetric label="프로필 완성" value={`${profileCompletion}%`} icon="account-heart-outline" tone={profileCompletion >= 80 ? "success" : "warning"} />
         <DashboardMetric label="복약 데이터" value={`${dataSummary.medicines}/${dataSummary.schedules}`} icon="pill" tone="primary" />
         <DashboardMetric label="동의 항목" value={`${consentCount}/${consentLabels.length}`} icon="shield-check-outline" tone={consentCount >= 3 ? "success" : "warning"} />
-      </View>
+      </View> : null}
 
-      <View style={styles.shortcutGrid}>
+      {!isEasyMode ? <View style={styles.shortcutGrid}>
         <ShortcutButton label="알약" icon="pill" onPress={() => router.push("/(tabs)/pills")} />
         <ShortcutButton label="복약" icon="calendar-check" onPress={() => router.push("/(tabs)/medication")} />
         <ShortcutButton label="병원약국" icon="map-marker-radius" onPress={() => router.push("/(tabs)/map")} />
         <ShortcutButton label="응급카드" icon="card-account-details-star-outline" danger onPress={() => router.push("/(tabs)/emergency")} />
-      </View>
+      </View> : null}
 
       <View style={styles.segmented}>
         <SegmentButton label="마이데이터" active={activeMenu === "mydata"} onPress={() => setActiveMenu("mydata")} />
@@ -962,6 +974,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     gap: spacing.md
   },
+  easyScreen: {
+    gap: spacing.xl,
+    paddingHorizontal: spacing.xl
+  },
   hero: {
     borderRadius: 4,
     borderWidth: 1,
@@ -1022,6 +1038,21 @@ const styles = StyleSheet.create({
     color: noticeText,
     fontWeight: "800",
     lineHeight: 24
+  },
+  modeCard: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#F8FBFF",
+    padding: spacing.md,
+    gap: spacing.md
+  },
+  modeTextGroup: {
+    gap: spacing.xs
+  },
+  modeSwitchRow: {
+    flexDirection: "row",
+    gap: spacing.sm
   },
   dashboardGrid: {
     flexDirection: "row",

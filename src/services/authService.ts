@@ -119,12 +119,14 @@ export async function clearSession(session?: AuthSession | null) {
   if (session?.mode === "member" && session.refreshToken && session.deviceUuid) {
     await logoutFromServer({ refreshToken: session.refreshToken, deviceUuid: session.deviceUuid }).catch(() => undefined);
   }
-  await AsyncStorage.removeItem(sessionModeKey);
-  await deleteSecureItem(accessTokenKey);
-  await deleteSecureItem(refreshTokenKey);
-  await deleteSecureItem(providerKey);
-  await deleteSecureItem(nicknameKey);
-  await deleteSecureItem(userIdKey);
+  await Promise.allSettled([
+    AsyncStorage.removeItem(sessionModeKey),
+    deleteSecureItem(accessTokenKey),
+    deleteSecureItem(refreshTokenKey),
+    deleteSecureItem(providerKey),
+    deleteSecureItem(nicknameKey),
+    deleteSecureItem(userIdKey)
+  ]);
 }
 
 function createGuestId() {
