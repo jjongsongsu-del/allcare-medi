@@ -4,7 +4,6 @@ import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
 import { useExperienceMode } from "@/experience/ExperienceModeProvider";
@@ -931,7 +930,6 @@ export function PillIdentificationScreen() {
             <Text style={styles.eyebrow}>내 약통</Text>
             <Text style={styles.title}>약관리</Text>
           </View>
-          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.pills} />
         </View>
       </View>
@@ -965,7 +963,6 @@ export function PillIdentificationScreen() {
         <View style={styles.listHeader}>
           <View>
             <Text style={styles.sectionTitle}>오늘 복약 목록</Text>
-            <Text style={styles.body}>시간대별로 완료, 건너뜀, 지연 상태를 기록합니다.</Text>
           </View>
           <View style={styles.todayBadge}>
             <Text style={styles.todayBadgeText}>복약 기록</Text>
@@ -980,7 +977,7 @@ export function PillIdentificationScreen() {
         <View style={styles.listHeader}>
           <View>
             <Text style={styles.sectionTitle}>등록된 약 목록</Text>
-            <Text style={styles.meta}>{durCompareMode ? `${durCompareSelectedIds.length}개 선택됨` : "여러 약을 선택해 DUR을 비교할 수 있습니다."}</Text>
+            <Text style={styles.meta}>{durCompareMode ? `${durCompareSelectedIds.length}개 선택됨` : "여러 약을 선택해 DUR 비교"}</Text>
           </View>
           <Pressable style={durCompareMode ? styles.primaryButton : styles.secondaryButton} onPress={toggleDurCompareMode}>
             <MaterialCommunityIcons name="shield-search" size={18} color={durCompareMode ? "#FFFFFF" : colors.primary} />

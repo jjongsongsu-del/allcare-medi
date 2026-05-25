@@ -5,7 +5,6 @@ import { Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, TextInput
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
@@ -211,7 +210,6 @@ export function EmergencyScreen() {
             <Text style={styles.eyebrow}>응급</Text>
             <Text style={styles.title}>지금 갈 수 있는 응급실</Text>
           </View>
-          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.emergency} />
         </View>
       </View>

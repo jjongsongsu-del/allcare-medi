@@ -5,7 +5,6 @@ import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
 import { useExperienceMode } from "@/experience/ExperienceModeProvider";
@@ -485,7 +484,6 @@ export function MedicationScreen() {
             <Text style={styles.eyebrow}>복약</Text>
             <Text style={styles.title}>오늘 먹을 약</Text>
           </View>
-          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.medication} />
         </View>
       </View>

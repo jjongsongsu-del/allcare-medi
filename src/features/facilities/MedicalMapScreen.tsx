@@ -5,7 +5,6 @@ import { Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View 
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
@@ -336,7 +335,6 @@ export function MedicalMapScreen() {
             <Text style={styles.eyebrow}>병원약국</Text>
             <Text style={styles.title}>지금 갈 수 있는 곳</Text>
           </View>
-          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.facilities} />
         </View>
       </View>

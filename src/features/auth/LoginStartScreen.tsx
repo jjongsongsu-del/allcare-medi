@@ -54,17 +54,14 @@ export function LoginStartScreen() {
       </View>
 
       <View style={styles.modeCard}>
-        <Text style={styles.modeTitle}>사용 방식을 선택하세요</Text>
         <View style={styles.modeRow}>
           <ModeButton
             title="쉬운모드"
-            description="큰 여백과 필수 기능 중심"
             active={mode === "easy"}
             onPress={() => chooseMode("easy")}
           />
           <ModeButton
             title="상세모드"
-            description="전체 기능과 상세 관리"
             active={mode === "detail"}
             onPress={() => chooseMode("detail")}
           />
@@ -89,12 +86,10 @@ export function LoginStartScreen() {
 
 function ModeButton({
   title,
-  description,
   active,
   onPress
 }: {
   title: string;
-  description: string;
   active: boolean;
   onPress: () => void;
 }) {
@@ -102,7 +97,6 @@ function ModeButton({
     <Pressable accessibilityRole="button" style={[styles.modeButton, active && styles.modeButtonActive]} onPress={onPress}>
       <MaterialCommunityIcons name={active ? "check-circle" : "circle-outline"} size={22} color={active ? colors.primary : colors.textMuted} />
       <Text style={[styles.modeButtonTitle, active && styles.modeButtonTitleActive]}>{title}</Text>
-      <Text style={styles.modeButtonDescription}>{description}</Text>
     </Pressable>
   );
 }
@@ -230,13 +224,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceAlt,
-    padding: spacing.md,
-    gap: spacing.sm
-  },
-  modeTitle: {
-    ...typography.body,
-    color: colors.textStrong,
-    fontWeight: "800"
+    padding: spacing.sm
   },
   modeRow: {
     flexDirection: "row",
@@ -244,12 +232,16 @@ const styles = StyleSheet.create({
   },
   modeButton: {
     flex: 1,
-    minHeight: 112,
+    minHeight: 52,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.xs
   },
   modeButtonActive: {
@@ -263,10 +255,6 @@ const styles = StyleSheet.create({
   },
   modeButtonTitleActive: {
     color: colors.primaryStrong
-  },
-  modeButtonDescription: {
-    ...typography.caption,
-    color: colors.textMuted
   },
   loginButton: {
     minHeight: 56,

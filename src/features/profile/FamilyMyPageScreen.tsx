@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
-import { CurrentFamilyIconButton } from "@/components/CurrentFamilyBanner";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
 import { useExperienceMode } from "@/experience/ExperienceModeProvider";
@@ -246,7 +245,6 @@ export function FamilyMyPageScreen() {
             <Text style={styles.eyebrow}>전체 메뉴</Text>
             <Text style={styles.title}>가족 · 마이데이터</Text>
           </View>
-          <CurrentFamilyIconButton />
           <MenuHelpButton content={menuHelp.menu} />
         </View>
       </View>
@@ -282,12 +280,6 @@ export function FamilyMyPageScreen() {
         <ShortcutButton label="병원약국" icon="map-marker-radius" onPress={() => router.push("/(tabs)/map")} />
         <ShortcutButton label="응급카드" icon="card-account-details-star-outline" danger onPress={() => router.push("/(tabs)/emergency")} />
       </View> : null}
-
-      <View style={styles.segmented}>
-        <SegmentButton label="마이데이터" active={activeMenu === "mydata"} onPress={() => setActiveMenu("mydata")} />
-        <SegmentButton label="가족" active={activeMenu === "family"} onPress={() => setActiveMenu("family")} />
-        <SegmentButton label="동의관리" active={activeMenu === "consent"} onPress={() => setActiveMenu("consent")} />
-      </View>
 
       <View style={styles.actionGrid}>
         <MenuTile title="마이데이터" description="등록/수정" icon="database-plus-outline" active={activeMenu === "mydata"} onPress={() => setActiveMenu("mydata")} />
@@ -423,7 +415,7 @@ function MyDataPanel({
           )) : (
             <Pressable style={styles.emptyDataBox} onPress={onOpenModal}>
               <MaterialCommunityIcons name="database-plus-outline" size={22} color={colors.primary} />
-              <Text style={styles.body}>아직 등록된 건강정보가 없습니다. 필요한 항목만 등록해 주세요.</Text>
+              <Text style={[styles.body, styles.emptyDataText]}>아직 등록된 건강정보가 없습니다. 필요한 항목만 등록해 주세요.</Text>
             </Pressable>
           )}
         </View>
@@ -1270,6 +1262,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   emptyDataBox: {
+    width: "100%",
     minHeight: 64,
     borderRadius: 4,
     borderWidth: 1,
@@ -1279,6 +1272,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm
+  },
+  emptyDataText: {
+    flex: 1,
+    flexShrink: 1
   },
   buttonRow: {
     flexDirection: "row",
