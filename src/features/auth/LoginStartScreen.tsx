@@ -8,13 +8,6 @@ import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 
-const providerLabels = {
-  NAVER: "네이버",
-  KAKAO: "카카오톡",
-  GOOGLE: "Gmail",
-  GUEST: "비회원"
-};
-
 export function LoginStartScreen() {
   const { continueAsGuest, continueWithSocial, recentProvider } = useAuth();
   const { mode, setMode } = useExperienceMode();
@@ -48,9 +41,6 @@ export function LoginStartScreen() {
       <View style={styles.copyArea}>
         <Text style={styles.brand}>AllCareMedi</Text>
         <Text style={styles.title}>올케어메디 시작하기</Text>
-        <Text style={styles.subtitle}>
-          비회원으로 바로 쓰고, 로그인하면 가족 프로필과 즐겨찾기, 복약 기록을 이어서 보관할 수 있습니다.
-        </Text>
       </View>
 
       <View style={styles.modeCard}>
@@ -69,10 +59,10 @@ export function LoginStartScreen() {
       </View>
 
       <View style={styles.buttonGroup}>
-        <LoginButton provider="NAVER" label="네이버로 계속하기" backgroundColor="#03C75A" textColor="#FFFFFF" recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
-        <LoginButton provider="KAKAO" label="카카오톡으로 계속하기" backgroundColor="#FEE500" textColor="#111827" recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
-        <LoginButton provider="GOOGLE" label="Gmail로 계속하기" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
-        <LoginButton provider="GUEST" label="비회원으로 시작하기" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
+        <LoginButton provider="NAVER" label="네이버" backgroundColor="#03C75A" textColor="#FFFFFF" recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
+        <LoginButton provider="KAKAO" label="카카오" backgroundColor="#FEE500" textColor="#111827" recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
+        <LoginButton provider="GOOGLE" label="구글" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
+        <LoginButton provider="GUEST" label="비회원" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -209,14 +199,9 @@ const styles = StyleSheet.create({
     color: colors.textStrong,
     textAlign: "center"
   },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: "500",
-    color: colors.text,
-    textAlign: "center"
-  },
   buttonGroup: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm
   },
   modeCard: {
@@ -257,12 +242,16 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong
   },
   loginButton: {
-    minHeight: 56,
+    width: "48.5%",
+    minHeight: 48,
     borderRadius: 4,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-    paddingHorizontal: 96
+    flexDirection: "row",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    gap: spacing.xs
   },
   borderedButton: {
     borderWidth: 1,
@@ -273,17 +262,14 @@ const styles = StyleSheet.create({
     borderWidth: 2
   },
   loginButtonText: {
-    fontSize: 19,
-    lineHeight: 25,
+    fontSize: 16,
+    lineHeight: 21,
     fontWeight: "800",
     textAlign: "center"
   },
   providerLogo: {
-    position: "absolute",
-    left: spacing.md,
-    top: 10,
-    width: 36,
-    height: 36,
+    width: 30,
+    height: 30,
     borderRadius: 4,
     alignItems: "center",
     justifyContent: "center"
@@ -312,25 +298,25 @@ const styles = StyleSheet.create({
   },
   recentInlineBadge: {
     position: "absolute",
-    right: spacing.md,
-    top: 14,
-    minHeight: 28,
+    right: 6,
+    top: 5,
+    minHeight: 20,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.sm,
-    gap: 4
+    paddingHorizontal: 5,
+    gap: 2
   },
   recentInlineBadgeOnColor: {
     borderColor: "rgba(255,255,255,0.72)",
     backgroundColor: "rgba(0,0,0,0.16)"
   },
   recentInlineText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: "900",
     color: colors.primary
   },
