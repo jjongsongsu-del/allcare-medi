@@ -52,13 +52,6 @@ export function LoginStartScreen() {
         </Text>
       </View>
 
-      {recentProvider ? (
-        <View style={styles.recentBadge}>
-          <MaterialCommunityIcons name="history" size={18} color={colors.primary} />
-          <Text style={styles.recentText}>최근 로그인: {providerLabels[recentProvider]}</Text>
-        </View>
-      ) : null}
-
       <View style={styles.modeCard}>
         <Text style={styles.modeTitle}>사용 방식을 선택하세요</Text>
         <View style={styles.modeRow}>
@@ -78,10 +71,10 @@ export function LoginStartScreen() {
       </View>
 
       <View style={styles.buttonGroup}>
-        <LoginButton label="네이버로 계속하기" backgroundColor="#03C75A" textColor="#FFFFFF" onPress={() => handleSocialLogin("NAVER")} />
-        <LoginButton label="카카오톡으로 계속하기" backgroundColor="#FEE500" textColor="#111827" onPress={() => handleSocialLogin("KAKAO")} />
-        <LoginButton label="Gmail로 계속하기" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered onPress={() => handleSocialLogin("GOOGLE")} />
-        <LoginButton label="비회원으로 시작하기" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight onPress={handleGuestLogin} />
+        <LoginButton label="네이버로 계속하기" backgroundColor="#03C75A" textColor="#FFFFFF" recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
+        <LoginButton label="카카오톡으로 계속하기" backgroundColor="#FEE500" textColor="#111827" recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
+        <LoginButton label="Gmail로 계속하기" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
+        <LoginButton label="비회원으로 시작하기" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -119,6 +112,7 @@ function LoginButton({
   textColor,
   bordered,
   highlight,
+  recent,
   onPress
 }: {
   label: string;
@@ -126,6 +120,7 @@ function LoginButton({
   textColor: string;
   bordered?: boolean;
   highlight?: boolean;
+  recent?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -140,6 +135,12 @@ function LoginButton({
       onPress={onPress}
     >
       <Text style={[styles.loginButtonText, { color: textColor }]}>{label}</Text>
+      {recent ? (
+        <View style={[styles.recentInlineBadge, !bordered && styles.recentInlineBadgeOnColor]}>
+          <MaterialCommunityIcons name="history" size={14} color={bordered ? colors.primary : "#FFFFFF"} />
+          <Text style={[styles.recentInlineText, !bordered && styles.recentInlineTextOnColor]}>최근</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -184,21 +185,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: colors.text,
     textAlign: "center"
-  },
-  recentBadge: {
-    minHeight: 40,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: spacing.sm
-  },
-  recentText: {
-    ...typography.caption,
-    color: colors.primaryStrong
   },
   buttonGroup: {
     gap: spacing.sm
@@ -250,7 +236,9 @@ const styles = StyleSheet.create({
     minHeight: 56,
     borderRadius: 4,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    position: "relative",
+    paddingHorizontal: 96
   },
   borderedButton: {
     borderWidth: 1,
@@ -263,7 +251,35 @@ const styles = StyleSheet.create({
   loginButtonText: {
     fontSize: 19,
     lineHeight: 25,
-    fontWeight: "800"
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  recentInlineBadge: {
+    position: "absolute",
+    right: spacing.md,
+    top: 14,
+    minHeight: 28,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.sm,
+    gap: 4
+  },
+  recentInlineBadgeOnColor: {
+    borderColor: "rgba(255,255,255,0.72)",
+    backgroundColor: "rgba(0,0,0,0.16)"
+  },
+  recentInlineText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "900",
+    color: colors.primary
+  },
+  recentInlineTextOnColor: {
+    color: "#FFFFFF"
   },
   guestNotice: {
     fontSize: 14,
