@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { deleteSecureItem, getSecureItem, setSecureItem } from "@/services/authStorage";
 import { logoutFromServer, refreshLogin, socialLogin } from "@/services/serverApi";
+import { requestSocialCredential } from "@/services/socialOAuth";
 
 export type LoginProvider = "NAVER" | "KAKAO" | "GOOGLE" | "GUEST";
 
@@ -66,10 +67,10 @@ export async function startGuestSession(): Promise<AuthSession> {
 export async function startSocialSession(provider: Exclude<LoginProvider, "GUEST">): Promise<AuthSession> {
   const deviceUuid = (await AsyncStorage.getItem(guestIdKey)) ?? createGuestId();
   await AsyncStorage.setItem(guestIdKey, deviceUuid);
+  const credential = await requestSocialCredential(provider);
 
   const response = await socialLogin({
-    provider,
-    idToken: `dev-${provider.toLowerCase()}-${deviceUuid}`,
+    ...credential,
     deviceUuid
   });
 

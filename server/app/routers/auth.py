@@ -8,15 +8,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import RefreshToken, User, UserDevice, UserSocialAccount
+from app.models import FamilyProfile, RefreshToken, User, UserDevice, UserSocialAccount
 from app.schemas import AuthUser, LogoutRequest, RefreshRequest, SocialLoginRequest, SocialLoginResponse
+from app.social_auth import verify_social_login
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/social-login", response_model=SocialLoginResponse)
 def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)) -> SocialLoginResponse:
-    provider_user_id = _provider_user_id(payload.provider, payload.idToken)
+    profile = verify_social_login(
+        provider=payload.provider,
+        token_type=payload.tokenType,
+        provider_token=payload.providerToken or payload.idToken,
+        authorization_code=payload.authorizationCode,
+        redirect_uri=payload.redirectUri,
+        oauth_state=payload.oauthState,
+    )
+    provider_user_id = profile.provider_user_id
     social = (
         db.query(UserSocialAccount)
         .filter(UserSocialAccount.provider == payload.provider, UserSocialAccount.provider_user_id == provider_user_id)
@@ -25,9 +34,12 @@ def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)) -> 
 
     is_new_user = social is None
     if social is None:
+        nickname = profile.nickname or f"{payload.provider.title()} 사용자"
         user = User(
-            display_name=f"{payload.provider} 사용자",
-            nickname=f"{payload.provider.title()} 사용자",
+            display_name=nickname,
+            email=profile.email,
+            nickname=nickname,
+            profile_image_url=profile.profile_image_url,
             status="ACTIVE",
         )
         db.add(user)
@@ -36,10 +48,18 @@ def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)) -> 
             user_id=user.id,
             provider=payload.provider,
             provider_user_id=provider_user_id,
+            email=profile.email,
         )
         db.add(social)
+        _ensure_default_family_profile(user, db)
     else:
         user = social.user
+        social.email = profile.email or social.email
+        user.email = profile.email or user.email
+        user.nickname = profile.nickname or user.nickname
+        user.display_name = profile.nickname or user.display_name
+        user.profile_image_url = profile.profile_image_url or user.profile_image_url
+        user.updated_at = datetime.utcnow()
 
     device = (
         db.query(UserDevice)
@@ -113,8 +133,27 @@ def logout(payload: LogoutRequest, db: Session = Depends(get_db)) -> dict[str, s
     return {"status": "ok"}
 
 
-def _provider_user_id(provider: str, id_token: str) -> str:
-    return hashlib.sha256(f"{provider}:{id_token}".encode("utf-8")).hexdigest()
+def _ensure_default_family_profile(user: User, db: Session) -> None:
+    existing = (
+        db.query(FamilyProfile)
+        .filter(FamilyProfile.user_id == user.id, FamilyProfile.is_default.is_(True))
+        .first()
+    )
+    if existing is not None:
+        return
+    db.add(
+        FamilyProfile(
+            user_id=user.id,
+            profile_name="나",
+            relation_type="SELF",
+            is_default=True,
+            can_view=True,
+            can_edit=True,
+            can_receive_alert=True,
+            can_view_emergency=True,
+            consent_status="ACCEPTED",
+        )
+    )
 
 
 def _hash_token(token: str) -> str:

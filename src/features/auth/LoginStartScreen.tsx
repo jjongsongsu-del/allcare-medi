@@ -24,8 +24,9 @@ export function LoginStartScreen() {
     setError(null);
     try {
       await continueWithSocial(provider);
-    } catch {
-      setError("로그인 서버를 확인해 주세요. 지금은 비회원으로 먼저 사용할 수 있습니다.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "로그인을 완료하지 못했습니다.";
+      setError(message);
     }
   };
 
@@ -71,10 +72,10 @@ export function LoginStartScreen() {
       </View>
 
       <View style={styles.buttonGroup}>
-        <LoginButton label="네이버로 계속하기" backgroundColor="#03C75A" textColor="#FFFFFF" recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
-        <LoginButton label="카카오톡으로 계속하기" backgroundColor="#FEE500" textColor="#111827" recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
-        <LoginButton label="Gmail로 계속하기" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
-        <LoginButton label="비회원으로 시작하기" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
+        <LoginButton provider="NAVER" label="네이버로 계속하기" backgroundColor="#03C75A" textColor="#FFFFFF" recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
+        <LoginButton provider="KAKAO" label="카카오톡으로 계속하기" backgroundColor="#FEE500" textColor="#111827" recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
+        <LoginButton provider="GOOGLE" label="Gmail로 계속하기" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
+        <LoginButton provider="GUEST" label="비회원으로 시작하기" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -107,6 +108,7 @@ function ModeButton({
 }
 
 function LoginButton({
+  provider,
   label,
   backgroundColor,
   textColor,
@@ -115,6 +117,7 @@ function LoginButton({
   recent,
   onPress
 }: {
+  provider: "NAVER" | "KAKAO" | "GOOGLE" | "GUEST";
   label: string;
   backgroundColor: string;
   textColor: string;
@@ -134,6 +137,7 @@ function LoginButton({
       ]}
       onPress={onPress}
     >
+      <ProviderLogo provider={provider} />
       <Text style={[styles.loginButtonText, { color: textColor }]}>{label}</Text>
       {recent ? (
         <View style={[styles.recentInlineBadge, !bordered && styles.recentInlineBadgeOnColor]}>
@@ -142,6 +146,38 @@ function LoginButton({
         </View>
       ) : null}
     </Pressable>
+  );
+}
+
+function ProviderLogo({ provider }: { provider: "NAVER" | "KAKAO" | "GOOGLE" | "GUEST" }) {
+  if (provider === "NAVER") {
+    return (
+      <View style={[styles.providerLogo, styles.naverLogo]}>
+        <Text style={styles.naverLogoText}>N</Text>
+      </View>
+    );
+  }
+
+  if (provider === "KAKAO") {
+    return (
+      <View style={[styles.providerLogo, styles.kakaoLogo]}>
+        <MaterialCommunityIcons name="chat" size={23} color="#111827" />
+      </View>
+    );
+  }
+
+  if (provider === "GOOGLE") {
+    return (
+      <View style={[styles.providerLogo, styles.googleLogo]}>
+        <MaterialCommunityIcons name="gmail" size={25} color="#EA4335" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.providerLogo, styles.guestLogo]}>
+      <MaterialCommunityIcons name="account-outline" size={24} color={colors.primary} />
+    </View>
   );
 }
 
@@ -253,6 +289,38 @@ const styles = StyleSheet.create({
     lineHeight: 25,
     fontWeight: "800",
     textAlign: "center"
+  },
+  providerLogo: {
+    position: "absolute",
+    left: spacing.md,
+    top: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  naverLogo: {
+    backgroundColor: "#FFFFFF"
+  },
+  naverLogoText: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "900",
+    color: "#03C75A"
+  },
+  kakaoLogo: {
+    backgroundColor: "rgba(255,255,255,0.42)"
+  },
+  googleLogo: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFFFFF"
+  },
+  guestLogo: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
   },
   recentInlineBadge: {
     position: "absolute",

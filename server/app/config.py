@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     app_android_store_url: str = "market://details?id=kr.allcaremedi.app"
     app_ios_store_url: str = ""
     support_contact_url: str = "mailto:support@allcaremedi.local"
+    google_android_client_id: str = ""
+    google_web_client_id: str = ""
+    kakao_native_app_key: str = ""
+    kakao_rest_api_key: str = ""
+    kakao_client_secret: str = ""
+    naver_client_id: str = ""
+    naver_client_secret: str = ""
 
     model_config = SettingsConfigDict(env_file=(SERVER_DIR / ".env", ".env"), env_file_encoding="utf-8")
 

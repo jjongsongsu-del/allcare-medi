@@ -179,7 +179,13 @@ export async function fetchManagedApis(): Promise<ManagedApiEndpoint[]> {
 
 export async function socialLogin(payload: {
   provider: "GOOGLE" | "KAKAO" | "NAVER";
-  idToken: string;
+  tokenType: "ID_TOKEN" | "ACCESS_TOKEN" | "AUTHORIZATION_CODE";
+  providerToken?: string;
+  idToken?: string;
+  authorizationCode?: string;
+  redirectUri?: string;
+  codeVerifier?: string;
+  oauthState?: string;
   deviceUuid: string;
   pushToken?: string;
 }): Promise<SocialLoginResponse> {

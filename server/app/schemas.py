@@ -433,7 +433,13 @@ class EmergencyShareRead(BaseModel):
 
 class SocialLoginRequest(BaseModel):
     provider: str = Field(..., pattern="^(GOOGLE|KAKAO|NAVER)$")
-    idToken: str = Field(..., min_length=8)
+    tokenType: str = Field(default="ID_TOKEN", pattern="^(ID_TOKEN|ACCESS_TOKEN|AUTHORIZATION_CODE)$")
+    providerToken: str | None = Field(default=None, min_length=8)
+    idToken: str | None = Field(default=None, min_length=8)
+    authorizationCode: str | None = Field(default=None, min_length=4)
+    redirectUri: str | None = Field(default=None, max_length=500)
+    codeVerifier: str | None = Field(default=None, max_length=255)
+    oauthState: str | None = Field(default=None, max_length=255)
     deviceUuid: str = Field(..., min_length=8, max_length=255)
     pushToken: str | None = None
     deviceName: str | None = Field(default=None, max_length=100)
