@@ -17,6 +17,10 @@ from app.models import HealthInfoContent
 
 REPO_DIR = Path(__file__).resolve().parents[2]
 KDCA_LIST_XLSX = REPO_DIR / "doc" / "kdca" / "kdca_openapi_healthinfo.xlsx"
+KDCA_HEADERS = {
+    "Accept": "application/xml, application/json, text/xml, text/plain, */*",
+    "User-Agent": "AllCareMedi/0.1 (+https://github.com/jjongsongsu-del/allcare-medi)",
+}
 
 
 def build_health_info_url(content_serial: str) -> str:
@@ -48,14 +52,15 @@ def seed_health_info_metadata(db: Session) -> int:
     return changed
 
 
-async def sync_health_info_details(db: Session, limit: int | None = None) -> dict[str, int]:
+async def sync_health_info_details(db: Session, limit: int | None = None) -> dict[str, object]:
     query = db.query(HealthInfoContent).filter(HealthInfoContent.api_enabled.is_(True)).order_by(HealthInfoContent.id.asc())
     if limit:
         query = query.limit(limit)
     contents = query.all()
     updated = 0
     failed = 0
-    async with httpx.AsyncClient(timeout=12.0) as client:
+    samples: list[str] = []
+    async with httpx.AsyncClient(timeout=12.0, follow_redirects=True, headers=KDCA_HEADERS) as client:
         for content in contents:
             try:
                 response = await client.get(content.source_url)
@@ -71,16 +76,21 @@ async def sync_health_info_details(db: Session, limit: int | None = None) -> dic
             except Exception as exc:
                 content.sync_status = "failed"
                 content.summary = f"상세 동기화 실패: {exc}"
+                if len(samples) < 5:
+                    samples.append(f"{content.content_serial} {content.title}: {exc}")
                 failed += 1
             db.add(content)
             if (updated + failed) % 25 == 0:
                 db.commit()
     db.commit()
-    return {"total": len(contents), "updated": updated, "failed": failed}
+    result = {"total": len(contents), "updated": updated, "failed": failed}
+    if samples:
+        result["samples"] = samples
+    return result
 
 
 async def sync_single_health_info_detail(db: Session, content: HealthInfoContent) -> HealthInfoContent:
-    async with httpx.AsyncClient(timeout=12.0) as client:
+    async with httpx.AsyncClient(timeout=12.0, follow_redirects=True, headers=KDCA_HEADERS) as client:
         response = await client.get(content.source_url)
         response.raise_for_status()
     parsed = parse_health_info_payload(response.text)
