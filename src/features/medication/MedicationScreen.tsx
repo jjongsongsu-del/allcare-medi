@@ -28,6 +28,7 @@ import {
 } from "@/services/medicationNotificationService";
 import { createMedicationEvent, createMedicineSchedule } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
+import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { MedicationEvent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
@@ -145,6 +146,7 @@ type ReportRow = {
 export function MedicationScreen() {
   const { session } = useAuth();
   const { isEasyMode } = useExperienceMode();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
   const { selectedProfile } = useFamilyProfile();
   const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
   const [schedules, setSchedules] = useState<MedicineSchedule[]>([]);
@@ -474,7 +476,7 @@ export function MedicationScreen() {
   };
 
   return (
-    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
@@ -1404,6 +1406,18 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
     gap: spacing.sm
+  },
+  designOneScreen: {
+    backgroundColor: "#F7F3FF",
+    gap: spacing.md
+  },
+  designTwoScreen: {
+    backgroundColor: "#F3FBFF",
+    gap: spacing.md
+  },
+  designThreeScreen: {
+    backgroundColor: "#F8F4FF",
+    gap: spacing.md
   },
   easyScreen: {
     gap: spacing.xl,

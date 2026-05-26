@@ -17,6 +17,7 @@ import {
   StoredPlace
 } from "@/services/localUserData";
 import { colors } from "@/theme/colors";
+import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { MedicineSchedule, RegisteredMedicine } from "@/types/domain";
@@ -38,6 +39,7 @@ const healthInfoLabels = ["혈액형", "알레르기", "기저질환", "복용�
 export function HomeScreen() {
   const { session } = useAuth();
   const { isEasyMode } = useExperienceMode();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
   const { selectedProfile } = useFamilyProfile();
   const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
   const [schedules, setSchedules] = useState<MedicineSchedule[]>([]);
@@ -187,7 +189,7 @@ export function HomeScreen() {
   };
 
   return (
-    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
       <View style={styles.appHeader}>
         <Text style={styles.appName}>AllCareMedi</Text>
         <View style={styles.headerActions}>
@@ -201,7 +203,7 @@ export function HomeScreen() {
         </View>
       </View>
 
-      <View style={styles.heroCard}>
+      <View style={[styles.heroCard, isDesignOne && styles.designOneHeroCard, isDesignTwo && styles.designTwoHeroCard, isDesignThree && styles.designThreeHeroCard]}>
         <View style={styles.brandArea}>
           <Image source={require("../../../app_img/allcaremedi.png")} style={styles.mascot} resizeMode="contain" />
           <View style={styles.heroTextGroup}>
@@ -216,7 +218,7 @@ export function HomeScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.searchCard}>
+      <View style={[styles.searchCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
         <View style={styles.searchBox}>
           <MaterialCommunityIcons name="magnify" size={22} color={colors.primary} />
           <TextInput
@@ -241,7 +243,7 @@ export function HomeScreen() {
         </View>
       </View>
 
-      <View style={styles.summaryCard}>
+      <View style={[styles.summaryCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>건강 요약</Text>
           <Text style={styles.sectionMeta}>{displayName} 기준</Text>
@@ -255,7 +257,7 @@ export function HomeScreen() {
 
       {!isEasyMode ? (
         <>
-          <View style={styles.feedCard}>
+          <View style={[styles.feedCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
             <View style={styles.rowBetween}>
               <View>
                 <Text style={styles.sectionTitle}>오늘 확인할 일</Text>
@@ -268,7 +270,7 @@ export function HomeScreen() {
             ))}
           </View>
 
-          <View style={styles.savedCard}>
+          <View style={[styles.savedCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
             <View style={styles.rowBetween}>
               <Text style={styles.sectionTitle}>최근/즐겨찾기</Text>
               <Pressable onPress={() => router.push("/(tabs)/map")}>
@@ -279,7 +281,7 @@ export function HomeScreen() {
             <PlaceRow title="최근 본 장소" place={recentPlaces[0]} empty="최근 본 병원·약국이 없습니다." />
           </View>
 
-          <View style={styles.healthRecordCard}>
+          <View style={[styles.healthRecordCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
             <View style={styles.rowBetween}>
               <View style={styles.recordTitleRow}>
                 <View style={styles.recordIcon}>
@@ -305,14 +307,14 @@ export function HomeScreen() {
         </>
       ) : null}
 
-      <View style={styles.noticeCard}>
+      <View style={[styles.noticeCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
         <MaterialCommunityIcons name="shield-check-outline" size={24} color={colors.primary} />
         <Text style={styles.noticeText}>
           복약·DUR·응급 정보는 건강관리 보조 안내입니다. 실제 복용과 방문 판단은 의사 또는 약사 확인을 권장합니다.
         </Text>
       </View>
 
-      <View style={styles.insightCard}>
+      <View style={[styles.insightCard, isDesignOne && styles.designOneInsightCard, isDesignTwo && styles.designTwoInsightCard, isDesignThree && styles.designThreeInsightCard]}>
         <Text style={styles.insightText}>지금 필요한 건강 정보를 먼저 모아봤어요.</Text>
         <Text style={styles.insightDescription}>
           복약 시간, DUR 주의, 주변 병원약국, 응급카드를 상황에 맞게 확인할 수 있습니다.
@@ -396,6 +398,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: "#FFFFFF"
   },
+  designOneScreen: {
+    backgroundColor: "#F7F3FF",
+    paddingHorizontal: 18,
+    gap: spacing.md
+  },
+  designTwoScreen: {
+    backgroundColor: "#F3FBFF",
+    paddingHorizontal: 18,
+    gap: spacing.md
+  },
+  designThreeScreen: {
+    backgroundColor: "#F8F4FF",
+    paddingHorizontal: 18,
+    gap: spacing.md
+  },
   easyScreen: {
     gap: spacing.xl,
     paddingHorizontal: spacing.xl
@@ -432,6 +449,33 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     padding: spacing.lg,
     gap: spacing.md
+  },
+  designOneHeroCard: {
+    borderColor: "#E7DDF8",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    shadowColor: "#8B5CF6",
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3
+  },
+  designTwoHeroCard: {
+    borderColor: "#D6EEF6",
+    backgroundColor: "#EAF8FF",
+    borderRadius: 8,
+    shadowColor: "#21A9C9",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3
+  },
+  designThreeHeroCard: {
+    borderColor: "#E4D7F7",
+    backgroundColor: "#FFF9F2",
+    borderRadius: 8,
+    shadowColor: "#9B6DD7",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 3
   },
   brandArea: {
     flexDirection: "row",
@@ -491,6 +535,21 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm
   },
+  designOneCard: {
+    borderColor: "#E7DDF8",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8
+  },
+  designTwoCard: {
+    borderColor: "#D6EEF6",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8
+  },
+  designThreeCard: {
+    borderColor: "#E4D7F7",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8
+  },
   searchBox: {
     minHeight: 52,
     borderRadius: 4,
@@ -547,6 +606,21 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     padding: spacing.lg,
     gap: spacing.sm
+  },
+  designOneInsightCard: {
+    borderColor: "#D8F3DC",
+    backgroundColor: "#F0FFF4",
+    borderRadius: 8
+  },
+  designTwoInsightCard: {
+    borderColor: "#B9F0EA",
+    backgroundColor: "#E9FFFB",
+    borderRadius: 8
+  },
+  designThreeInsightCard: {
+    borderColor: "#D8CCF1",
+    backgroundColor: "#F1EAFF",
+    borderRadius: 8
   },
   insightText: {
     ...typography.sectionTitle,

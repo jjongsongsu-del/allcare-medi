@@ -24,6 +24,7 @@ import {
 import { migrateGuestData } from "@/services/serverApi";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { colors } from "@/theme/colors";
+import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 
@@ -70,6 +71,7 @@ const consentLabels: Array<[keyof ConsentSettings, string]> = [
 export function FamilyMyPageScreen() {
   const { session, logout } = useAuth();
   const { mode, isEasyMode, setMode } = useExperienceMode();
+  const { designMode, isDesignOne, isDesignTwo, isDesignThree, setDesignMode } = useDesignMode();
   const { profiles, selectedProfile, selectProfile: selectFamilyProfile, addProfile, updateProfile, reloadProfiles } = useFamilyProfile();
   const [activeMenu, setActiveMenu] = useState<MenuTab>("mydata");
   const [activeDetail, setActiveDetail] = useState<DetailTab>("basic");
@@ -235,8 +237,8 @@ export function FamilyMyPageScreen() {
   };
 
   return (
-    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
-      <View style={styles.hero}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
+      <View style={[styles.hero, isDesignOne && styles.designOneHero, isDesignTwo && styles.designTwoHero, isDesignThree && styles.designThreeHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
             <MaterialCommunityIcons name="view-grid-outline" size={24} color={colors.primary} />
@@ -249,7 +251,7 @@ export function FamilyMyPageScreen() {
         </View>
       </View>
 
-      <View style={styles.modeCard}>
+      <View style={[styles.modeCard, isDesignOne && styles.designOneModeCard, isDesignTwo && styles.designTwoModeCard, isDesignThree && styles.designThreeModeCard]}>
         <View style={styles.modeTextGroup}>
           <Text style={styles.sectionTitle}>화면 모드</Text>
           <Text style={styles.body}>{isEasyMode ? "쉬운모드로 꼭 필요한 기능만 크게 보여줍니다." : "상세모드로 전체 기능과 세부 관리를 보여줍니다."}</Text>
@@ -260,21 +262,42 @@ export function FamilyMyPageScreen() {
         </View>
       </View>
 
-      {!isEasyMode ? <View style={styles.dashboardGrid}>
+      <View style={[styles.modeCard, isDesignOne && styles.designOneModeCard, isDesignTwo && styles.designTwoModeCard, isDesignThree && styles.designThreeModeCard]}>
+        <View style={styles.modeTextGroup}>
+          <Text style={styles.sectionTitle}>앱 디자인 모드</Text>
+          <Text style={styles.body}>
+            {designMode === "design3"
+              ? "디자인3: 멘탈 헬스/피트니스 앱처럼 차분한 라벤더 웰니스 카드형 화면으로 표시합니다."
+              : designMode === "design2"
+              ? "디자인2: 의료 예약 앱처럼 밝은 블루와 둥근 진료 카드형 화면으로 표시합니다."
+              : isDesignOne
+                ? "디자인1: 할 일 관리 앱처럼 부드러운 카드형 화면으로 표시합니다."
+                : "기본: 현재 올케어메디 디자인으로 표시합니다."}
+          </Text>
+        </View>
+        <View style={styles.modeSwitchRow}>
+          <SegmentButton label="기본" active={designMode === "basic"} onPress={() => setDesignMode("basic")} />
+          <SegmentButton label="디자인1" active={designMode === "design1"} onPress={() => setDesignMode("design1")} />
+          <SegmentButton label="디자인2" active={designMode === "design2"} onPress={() => setDesignMode("design2")} />
+          <SegmentButton label="디자인3" active={designMode === "design3"} onPress={() => setDesignMode("design3")} />
+        </View>
+      </View>
+
+      {!isEasyMode ? <View style={[styles.dashboardGrid, isDesignOne && styles.designOneGrid, isDesignTwo && styles.designTwoGrid, isDesignThree && styles.designThreeGrid]}>
         <DashboardMetric label="저장 방식" value={isMember ? "서버" : "기기"} icon={isMember ? "cloud-check-outline" : "cellphone-lock"} tone={isMember ? "primary" : "warning"} />
         <DashboardMetric label="프로필 완성" value={`${profileCompletion}%`} icon="account-heart-outline" tone={profileCompletion >= 80 ? "success" : "warning"} />
         <DashboardMetric label="복약 데이터" value={`${dataSummary.medicines}/${dataSummary.schedules}`} icon="pill" tone="primary" />
         <DashboardMetric label="동의 항목" value={`${consentCount}/${consentLabels.length}`} icon="shield-check-outline" tone={consentCount >= 3 ? "success" : "warning"} />
       </View> : null}
 
-      {!isEasyMode ? <View style={styles.shortcutGrid}>
+      {!isEasyMode ? <View style={[styles.shortcutGrid, isDesignOne && styles.designOneGrid, isDesignTwo && styles.designTwoGrid, isDesignThree && styles.designThreeGrid]}>
         <ShortcutButton label="알약" icon="pill" onPress={() => router.push("/(tabs)/pills")} />
         <ShortcutButton label="복약" icon="calendar-check" onPress={() => router.push("/(tabs)/medication")} />
         <ShortcutButton label="병원약국" icon="map-marker-radius" onPress={() => router.push("/(tabs)/map")} />
         <ShortcutButton label="응급카드" icon="card-account-details-star-outline" danger onPress={() => router.push("/(tabs)/emergency")} />
       </View> : null}
 
-      <View style={styles.actionGrid}>
+      <View style={[styles.actionGrid, isDesignOne && styles.designOneActionGrid, isDesignTwo && styles.designTwoActionGrid, isDesignThree && styles.designThreeActionGrid]}>
         <MenuTile title="마이데이터" description="등록/수정" icon="database-plus-outline" active={activeMenu === "mydata"} onPress={() => setActiveMenu("mydata")} />
         <MenuTile title="가족 추가" description="SNS 신청" icon="account-plus-outline" active={activeMenu === "family"} onPress={() => setFamilyInviteModalVisible(true)} />
         <MenuTile title="동의 관리" description="개인정보" icon="file-document-check-outline" active={activeMenu === "consent"} onPress={() => setActiveMenu("consent")} />
@@ -966,6 +989,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     gap: spacing.md
   },
+  designOneScreen: {
+    backgroundColor: "#F7F3FF",
+    gap: spacing.md
+  },
+  designTwoScreen: {
+    backgroundColor: "#F3FBFF",
+    gap: spacing.md
+  },
+  designThreeScreen: {
+    backgroundColor: "#F8F4FF",
+    gap: spacing.md
+  },
   easyScreen: {
     gap: spacing.xl,
     paddingHorizontal: spacing.xl
@@ -978,6 +1013,33 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
+  },
+  designOneHero: {
+    borderColor: "#E7DDF8",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    shadowColor: "#8B5CF6",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2
+  },
+  designTwoHero: {
+    borderColor: "#D6EEF6",
+    backgroundColor: "#EAF8FF",
+    borderRadius: 8,
+    shadowColor: "#21A9C9",
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 2
+  },
+  designThreeHero: {
+    borderColor: "#E4D7F7",
+    backgroundColor: "#FFF9F2",
+    borderRadius: 8,
+    shadowColor: "#9B6DD7",
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 2
   },
   heroHeading: {
     flexDirection: "row",
@@ -1039,6 +1101,21 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md
   },
+  designOneModeCard: {
+    borderColor: "#E7DDF8",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8
+  },
+  designTwoModeCard: {
+    borderColor: "#D6EEF6",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8
+  },
+  designThreeModeCard: {
+    borderColor: "#E4D7F7",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8
+  },
   modeTextGroup: {
     gap: spacing.xs
   },
@@ -1050,6 +1127,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
+  },
+  designOneGrid: {
+    gap: spacing.md
+  },
+  designTwoGrid: {
+    gap: spacing.md
+  },
+  designThreeGrid: {
+    gap: spacing.md
   },
   dashboardCard: {
     flexBasis: "48%",
@@ -1139,6 +1225,21 @@ const styles = StyleSheet.create({
   actionGrid: {
     flexDirection: "row",
     gap: spacing.sm
+  },
+  designOneActionGrid: {
+    backgroundColor: "#EEE7FF",
+    borderRadius: 8,
+    padding: spacing.xs
+  },
+  designTwoActionGrid: {
+    backgroundColor: "#DFF7FB",
+    borderRadius: 8,
+    padding: spacing.xs
+  },
+  designThreeActionGrid: {
+    backgroundColor: "#EFE7FF",
+    borderRadius: 8,
+    padding: spacing.xs
   },
   tile: {
     flex: 1,

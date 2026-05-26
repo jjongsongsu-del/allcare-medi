@@ -12,6 +12,7 @@ import { menuHelp } from "@/help/menuHelp";
 import { FamilyProfile } from "@/services/localUserData";
 import { getNearbyEmergencyRooms } from "@/services/emergencyService";
 import { colors } from "@/theme/colors";
+import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { EmergencyRoom } from "@/types/domain";
@@ -50,6 +51,7 @@ const emergencyFilters: EmergencyFilter[] = ["소아응급", "분만실", "음�
 export function EmergencyScreen() {
   const { session } = useAuth();
   const { isEasyMode } = useExperienceMode();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
   const [emergencyRooms, setEmergencyRooms] = useState<EmergencyRoom[]>([]);
   const [selectedRegion, setSelectedRegion] = useState(regions[0]);
   const [keyword, setKeyword] = useState("");
@@ -200,7 +202,7 @@ export function EmergencyScreen() {
   };
 
   return (
-    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.alertIconBox}>
@@ -679,6 +681,18 @@ const mutedRed = "#A64B45";
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
+    gap: spacing.md
+  },
+  designOneScreen: {
+    backgroundColor: "#F7F3FF",
+    gap: spacing.md
+  },
+  designTwoScreen: {
+    backgroundColor: "#F3FBFF",
+    gap: spacing.md
+  },
+  designThreeScreen: {
+    backgroundColor: "#F8F4FF",
     gap: spacing.md
   },
   easyScreen: {

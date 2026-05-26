@@ -9,6 +9,7 @@ import { FamilyProfileProvider } from "@/family/FamilyProfileProvider";
 import { configureMedicationNotificationHandler } from "@/services/medicationNotificationService";
 import { AccessibilityProvider } from "@/theme/AccessibilityProvider";
 import { colors } from "@/theme/colors";
+import { DesignModeProvider } from "@/theme/DesignModeProvider";
 
 const scaledText = Text as typeof Text & { defaultProps?: Record<string, unknown> };
 const scaledTextInput = TextInput as typeof TextInput & { defaultProps?: Record<string, unknown> };
@@ -27,17 +28,19 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <ExperienceModeProvider>
-          <FamilyProfileProvider>
-            <AccessibilityProvider>
-              <StatusBar style="dark" backgroundColor={colors.background} />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: colors.background }
-                }}
-              />
-            </AccessibilityProvider>
-          </FamilyProfileProvider>
+          <DesignModeProvider>
+            <FamilyProfileProvider>
+              <AccessibilityProvider>
+                <StatusBar style="dark" backgroundColor={colors.background} />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.background }
+                  }}
+                />
+              </AccessibilityProvider>
+            </FamilyProfileProvider>
+          </DesignModeProvider>
         </ExperienceModeProvider>
       </AuthProvider>
     </SafeAreaProvider>

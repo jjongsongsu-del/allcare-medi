@@ -26,6 +26,7 @@ import {
   StoredPlace
 } from "@/services/localUserData";
 import { colors } from "@/theme/colors";
+import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { MedicalFacility } from "@/types/domain";
@@ -79,6 +80,7 @@ const defaultRegion: Region = {
 export function MedicalMapScreen() {
   const { session } = useAuth();
   const { isEasyMode } = useExperienceMode();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
   const { selectedProfile } = useFamilyProfile();
   const [facilities, setFacilities] = useState<MedicalFacility[]>([]);
   const [selectedFacility, setSelectedFacility] = useState<MedicalFacility | null>(null);
@@ -325,7 +327,7 @@ export function MedicalMapScreen() {
 
   return (
     <>
-    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
@@ -906,6 +908,18 @@ function facilityStatusText(facility: MedicalFacility) {
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
+    gap: spacing.md
+  },
+  designOneScreen: {
+    backgroundColor: "#F7F3FF",
+    gap: spacing.md
+  },
+  designTwoScreen: {
+    backgroundColor: "#F3FBFF",
+    gap: spacing.md
+  },
+  designThreeScreen: {
+    backgroundColor: "#F8F4FF",
     gap: spacing.md
   },
   easyScreen: {

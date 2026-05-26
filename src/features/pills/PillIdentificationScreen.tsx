@@ -22,6 +22,7 @@ import { recognizePillFromImage } from "@/services/pillRecognitionService";
 import { parsePrescriptionQrPayload } from "@/services/prescriptionQrService";
 import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, deleteRegisteredMedicine, fetchRegisteredMedicines, searchDurSafety, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
+import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
 import { MedicationEvent, MedicineSchedule, MedicineSearchResult, Pill, PrescriptionOcrMedicine, PrescriptionOcrResult, RegisteredMedicine } from "@/types/domain";
@@ -167,6 +168,7 @@ const defaultScheduleDraft = (): ScheduleDraftState => ({
 export function PillIdentificationScreen() {
   const { session } = useAuth();
   const { isEasyMode } = useExperienceMode();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
   const { selectedProfile } = useFamilyProfile();
   const [pills, setPills] = useState<Pill[]>([]);
   const [activeTab, setActiveTab] = useState<PillTab>("medicine");
@@ -941,7 +943,7 @@ export function PillIdentificationScreen() {
     : registrationMethods;
 
   return (
-    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen]}>
+    <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
       <View style={styles.hero}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
@@ -2184,6 +2186,18 @@ const noticeText = "#A83B15";
 const styles = StyleSheet.create({
   screen: {
     backgroundColor: "#FFFFFF",
+    gap: spacing.md
+  },
+  designOneScreen: {
+    backgroundColor: "#F7F3FF",
+    gap: spacing.md
+  },
+  designTwoScreen: {
+    backgroundColor: "#F3FBFF",
+    gap: spacing.md
+  },
+  designThreeScreen: {
+    backgroundColor: "#F8F4FF",
     gap: spacing.md
   },
   easyScreen: {

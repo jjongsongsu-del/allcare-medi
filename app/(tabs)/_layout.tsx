@@ -4,12 +4,14 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "@/auth/AuthProvider";
 import { colors } from "@/theme/colors";
+import { useDesignMode } from "@/theme/DesignModeProvider";
 
 const tabIconSize = 22;
 const emergencyRed = "#D92D20";
 
 export default function TabLayout() {
   const { loading, session } = useAuth();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
 
   useEffect(() => {
     if (!loading && !session) {
@@ -36,11 +38,11 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          height: 62,
-          paddingBottom: 8,
-          paddingTop: 6,
-          borderTopColor: colors.border,
-          backgroundColor: colors.surface
+          height: isDesignOne || isDesignTwo || isDesignThree ? 68 : 62,
+          paddingBottom: isDesignOne || isDesignTwo || isDesignThree ? 10 : 8,
+          paddingTop: isDesignOne || isDesignTwo || isDesignThree ? 8 : 6,
+          borderTopColor: isDesignOne ? "#E7DDF8" : isDesignTwo ? "#D6EEF6" : isDesignThree ? "#E4D7F7" : colors.border,
+          backgroundColor: isDesignOne || isDesignTwo || isDesignThree ? "#FFFFFF" : colors.surface
         },
         tabBarLabelStyle: {
           fontSize: 11,
