@@ -71,7 +71,7 @@ const consentLabels: Array<[keyof ConsentSettings, string]> = [
 export function FamilyMyPageScreen() {
   const { session, logout } = useAuth();
   const { mode, isEasyMode, setMode } = useExperienceMode();
-  const { designMode, isDesignOne, isDesignTwo, isDesignThree, setDesignMode } = useDesignMode();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
   const { profiles, selectedProfile, selectProfile: selectFamilyProfile, addProfile, updateProfile, reloadProfiles } = useFamilyProfile();
   const [activeMenu, setActiveMenu] = useState<MenuTab>("mydata");
   const [activeDetail, setActiveDetail] = useState<DetailTab>("basic");
@@ -262,27 +262,6 @@ export function FamilyMyPageScreen() {
         </View>
       </View>
 
-      <View style={[styles.modeCard, isDesignOne && styles.designOneModeCard, isDesignTwo && styles.designTwoModeCard, isDesignThree && styles.designThreeModeCard]}>
-        <View style={styles.modeTextGroup}>
-          <Text style={styles.sectionTitle}>앱 디자인 모드</Text>
-          <Text style={styles.body}>
-            {designMode === "design3"
-              ? "디자인3: 멘탈 헬스/피트니스 앱처럼 차분한 라벤더 웰니스 카드형 화면으로 표시합니다."
-              : designMode === "design2"
-              ? "디자인2: 의료 예약 앱처럼 밝은 블루와 둥근 진료 카드형 화면으로 표시합니다."
-              : isDesignOne
-                ? "디자인1: 할 일 관리 앱처럼 부드러운 카드형 화면으로 표시합니다."
-                : "기본: 현재 올케어메디 디자인으로 표시합니다."}
-          </Text>
-        </View>
-        <View style={styles.modeSwitchRow}>
-          <SegmentButton label="기본" active={designMode === "basic"} onPress={() => setDesignMode("basic")} />
-          <SegmentButton label="디자인1" active={designMode === "design1"} onPress={() => setDesignMode("design1")} />
-          <SegmentButton label="디자인2" active={designMode === "design2"} onPress={() => setDesignMode("design2")} />
-          <SegmentButton label="디자인3" active={designMode === "design3"} onPress={() => setDesignMode("design3")} />
-        </View>
-      </View>
-
       {!isEasyMode ? <View style={[styles.dashboardGrid, isDesignOne && styles.designOneGrid, isDesignTwo && styles.designTwoGrid, isDesignThree && styles.designThreeGrid]}>
         <DashboardMetric label="저장 방식" value={isMember ? "서버" : "기기"} icon={isMember ? "cloud-check-outline" : "cellphone-lock"} tone={isMember ? "primary" : "warning"} />
         <DashboardMetric label="프로필 완성" value={`${profileCompletion}%`} icon="account-heart-outline" tone={profileCompletion >= 80 ? "success" : "warning"} />
@@ -312,8 +291,6 @@ export function FamilyMyPageScreen() {
           recentPlaces={localRecentForProfile}
           onOpenModal={() => setMyDataModalVisible(true)}
           onMigrate={migrateLocalData}
-          onClearRecords={() => setClearConfirmVisible(true)}
-          onLogout={handleLogout}
           dataSummary={dataSummary}
         />
       ) : activeMenu === "family" ? (
@@ -342,6 +319,10 @@ export function FamilyMyPageScreen() {
           건강정보와 가족 연결 정보는 민감할 수 있습니다. 가족 연결은 SNS 아이디로 신청하고 상대 승인 후 공유 정보를 가져오는 구조입니다.
         </Text>
       </View>
+
+      {activeMenu === "mydata" ? (
+        <AccountBottomActions onClearRecords={() => setClearConfirmVisible(true)} onLogout={handleLogout} />
+      ) : null}
 
       <MyDataModal
         visible={myDataModalVisible}
@@ -382,9 +363,7 @@ function MyDataPanel({
   recentPlaces,
   dataSummary,
   onOpenModal,
-  onMigrate,
-  onClearRecords,
-  onLogout
+  onMigrate
 }: {
   isMember: boolean;
   sessionName?: string;
@@ -394,8 +373,6 @@ function MyDataPanel({
   dataSummary: { medicines: number; schedules: number; events: number };
   onOpenModal: () => void;
   onMigrate: () => void;
-  onClearRecords: () => void;
-  onLogout: () => void;
 }) {
   const healthItems = [
     { label: "혈액형", value: profile?.bloodType },
@@ -458,13 +435,57 @@ function MyDataPanel({
           <MiniMetric label="즐겨찾기" value={`${favorites.length}곳`} />
           <MiniMetric label="최근 본 장소" value={`${recentPlaces.length}곳`} />
         </View>
-        <View style={styles.buttonRow}>
-          {isMember ? <MenuButton label="비회원 기록 병합" icon="database-import" variant="outline" onPress={onMigrate} /> : null}
-          <MenuButton label="검색 기록 삭제" icon="delete-outline" variant="outline" onPress={onClearRecords} />
-          <MenuButton label="로그아웃" icon="logout" variant="outline" onPress={onLogout} />
-        </View>
+        {isMember ? (
+          <View style={styles.buttonRow}>
+            <MenuButton label="비회원 기록 병합" icon="database-import" variant="outline" onPress={onMigrate} />
+          </View>
+        ) : null}
       </View>
+
+      <DesignModeSelector />
     </>
+  );
+}
+
+function DesignModeSelector() {
+  const { designMode, isDesignOne, isDesignTwo, isDesignThree, setDesignMode } = useDesignMode();
+
+  return (
+    <View style={[styles.modeCard, isDesignOne && styles.designOneModeCard, isDesignTwo && styles.designTwoModeCard, isDesignThree && styles.designThreeModeCard]}>
+      <View style={styles.modeTextGroup}>
+        <Text style={styles.sectionTitle}>앱 디자인 모드</Text>
+        <Text style={styles.body}>
+          {designMode === "design3"
+            ? "디자인3: 멘탈 헬스/피트니스 앱처럼 차분한 라벤더 웰니스 카드형 화면으로 표시합니다."
+            : designMode === "design2"
+            ? "디자인2: 의료 예약 앱처럼 밝은 블루와 둥근 진료 카드형 화면으로 표시합니다."
+            : isDesignOne
+              ? "디자인1: 할 일 관리 앱처럼 부드러운 카드형 화면으로 표시합니다."
+              : "기본: 현재 올케어메디 디자인으로 표시합니다."}
+        </Text>
+      </View>
+      <View style={styles.modeSwitchRow}>
+        <SegmentButton label="기본" active={designMode === "basic"} onPress={() => setDesignMode("basic")} />
+        <SegmentButton label="디자인1" active={designMode === "design1"} onPress={() => setDesignMode("design1")} />
+        <SegmentButton label="디자인2" active={designMode === "design2"} onPress={() => setDesignMode("design2")} />
+        <SegmentButton label="디자인3" active={designMode === "design3"} onPress={() => setDesignMode("design3")} />
+      </View>
+    </View>
+  );
+}
+
+function AccountBottomActions({
+  onClearRecords,
+  onLogout
+}: {
+  onClearRecords: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <View style={styles.bottomActionCard}>
+      <MenuButton label="검색 기록 삭제" icon="delete-outline" variant="outline" onPress={onClearRecords} />
+      <MenuButton label="로그아웃" icon="logout" variant="outline" onPress={onLogout} />
+    </View>
   );
 }
 
@@ -1379,6 +1400,16 @@ const styles = StyleSheet.create({
     flexShrink: 1
   },
   buttonRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  bottomActionCard: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
