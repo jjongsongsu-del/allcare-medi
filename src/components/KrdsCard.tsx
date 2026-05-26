@@ -2,6 +2,7 @@ import { PropsWithChildren } from "react";
 import { StyleSheet, View } from "react-native";
 import { colors } from "@/theme/colors";
 import { designOne } from "@/theme/designOne";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -34,8 +35,10 @@ const styles = StyleSheet.create({
     ...designTwo.shadow
   },
   designThreeCard: {
-    borderRadius: 8,
-    borderColor: "#E4D7F7",
-    backgroundColor: "#FFFFFF"
+    borderWidth: 0,
+    borderRadius: designThree.radiusTile,
+    backgroundColor: designThree.surface,
+    padding: spacing.lg,
+    ...designThree.shadow
   }
 });

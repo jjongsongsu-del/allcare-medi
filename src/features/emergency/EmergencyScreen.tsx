@@ -12,6 +12,7 @@ import { menuHelp } from "@/help/menuHelp";
 import { FamilyProfile } from "@/services/localUserData";
 import { getNearbyEmergencyRooms } from "@/services/emergencyService";
 import { colors } from "@/theme/colors";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -204,7 +205,7 @@ export function EmergencyScreen() {
 
   return (
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
-      <View style={[styles.hero, isDesignTwo && styles.designTwoHero]}>
+      <View style={[styles.hero, isDesignTwo && styles.designTwoHero, isDesignThree && styles.designThreeHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.alertIconBox}>
             <MaterialCommunityIcons name="alert" size={26} color={emergencyRed} />
@@ -693,8 +694,8 @@ const styles = StyleSheet.create({
     gap: spacing.lg
   },
   designThreeScreen: {
-    backgroundColor: "#F8F4FF",
-    gap: spacing.md
+    backgroundColor: designThree.background,
+    gap: spacing.lg
   },
   easyScreen: {
     gap: spacing.xl,
@@ -714,6 +715,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFE4E2",
     borderRadius: designTwo.radiusCard,
     ...designTwo.shadow
+  },
+  designThreeHero: {
+    borderWidth: 0,
+    backgroundColor: designThree.card,
+    borderRadius: designThree.radiusCard,
+    ...designThree.shadow
   },
   heroHeading: {
     flexDirection: "row",

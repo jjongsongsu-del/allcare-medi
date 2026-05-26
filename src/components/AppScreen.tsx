@@ -3,6 +3,7 @@ import { ScrollView, StyleProp, StyleSheet, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "@/theme/colors";
 import { designOne } from "@/theme/designOne";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -34,7 +35,7 @@ const styles = StyleSheet.create({
     backgroundColor: designTwo.background
   },
   designThreeSafeArea: {
-    backgroundColor: "#F8F4FF"
+    backgroundColor: designThree.background
   },
   content: {
     padding: spacing.lg,
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   designThreeContent: {
-    backgroundColor: "#F8F4FF",
-    gap: spacing.md
+    backgroundColor: designThree.background,
+    gap: spacing.lg
   }
 });

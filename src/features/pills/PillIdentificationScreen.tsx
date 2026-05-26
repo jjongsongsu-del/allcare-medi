@@ -22,6 +22,7 @@ import { recognizePillFromImage } from "@/services/pillRecognitionService";
 import { parsePrescriptionQrPayload } from "@/services/prescriptionQrService";
 import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, deleteRegisteredMedicine, fetchRegisteredMedicines, searchDurSafety, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -386,7 +387,7 @@ export function PillIdentificationScreen() {
       setDraft((current) => ({ ...current, durWarnings: result.warnings }));
       if (result.message) setDurMessage(result.message);
       if (!result.warnings.length && result.source === "public-data") {
-        setDurMessage("DUR 주의 정보가 조회되지 않았습니다.");
+        setDurMessage("의약품 주의 정보가 조회되지 않았습니다.");
       }
     } catch {
       setDurMessage("DUR 정보를 불러오지 못했습니다. 저장 후 전문가 확인을 권장합니다.");
@@ -871,7 +872,7 @@ export function PillIdentificationScreen() {
         results.push({
           id: `saved-${medicine.id}-${index}`,
           severity: "warning",
-          title: "기존 DUR 주의",
+          title: "기존 의약품 주의",
           description: warning,
           medicineNames: [medicine.alias || medicine.name]
         });
@@ -945,7 +946,7 @@ export function PillIdentificationScreen() {
 
   return (
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
-      <View style={[styles.hero, isDesignTwo && styles.designTwoHero]}>
+      <View style={[styles.hero, isDesignTwo && styles.designTwoHero, isDesignThree && styles.designThreeHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
             <MaterialCommunityIcons name="archive-outline" size={24} color={colors.primary} />
@@ -1024,7 +1025,7 @@ export function PillIdentificationScreen() {
           <View style={styles.compareActionBox}>
             <View style={styles.flex}>
               <Text style={styles.cardTitle}>비교할 약 선택</Text>
-              <Text style={styles.meta}>복용중이거나 새로 등록한 약을 2개 이상 선택해 중복성분과 DUR 주의를 확인합니다.</Text>
+              <Text style={styles.meta}>복용중이거나 새로 등록한 약을 2개 이상 선택해 중복성분과 의약품 주의를 확인합니다.</Text>
               {durCompareMessage ? <Text style={styles.dangerText}>{durCompareMessage}</Text> : null}
             </View>
             <Pressable style={styles.primaryButton} onPress={runDurCompare} disabled={durCompareLoading}>
@@ -1520,7 +1521,7 @@ function PrescriptionOcrStep({
           <View style={styles.durSummaryRow}>
             <MaterialCommunityIcons name={warningCount ? "alert-octagon-outline" : "shield-check-outline"} size={20} color={warningCount ? noticeText : colors.success} />
             <Text style={warningCount ? styles.warningText : styles.successText}>
-              {durLoading ? "DUR과 중복 가능성을 확인하고 있습니다." : warningCount ? `DUR/중복 주의 ${warningCount}건` : "현재 후보에서 확인된 DUR 주의가 없습니다."}
+              {durLoading ? "의약품 주의와 중복 가능성을 확인하고 있습니다." : warningCount ? `의약품/중복 주의 ${warningCount}건` : "현재 후보에서 확인된 의약품 주의가 없습니다."}
             </Text>
           </View>
           {durMessage ? <Text style={styles.meta}>{durMessage}</Text> : null}
@@ -1669,7 +1670,7 @@ function CandidateConfirmation({
             <Text style={styles.warningText}>{warning}</Text>
           </View>
         )) : (
-          <Text style={styles.body}>{durMessage ?? "현재 조회된 DUR 주의 정보가 없습니다. 실제 복용 판단은 전문가에게 확인해 주세요."}</Text>
+          <Text style={styles.body}>{durMessage ?? "현재 조회된 의약품 주의 정보가 없습니다. 실제 복용 판단은 전문가에게 확인해 주세요."}</Text>
         )}
         {durWarnings.length ? <Text style={styles.meta}>DUR 정보는 복약 안전 안내이며 복용 가능 여부 판단은 의사·약사 확인이 필요합니다.</Text> : null}
       </View>
@@ -1864,7 +1865,7 @@ function TodayDoseRow({ medicine, onTaken, onSkipped }: { medicine: RegisteredMe
         <Text style={styles.cardTitle}>{medicine.alias || medicine.name}</Text>
         <Text style={styles.body}>{medicine.dosage} · {medicine.form} · {medicine.purpose}</Text>
         {medicine.highRisk ? <Text style={styles.dangerText}>중요도 높은 약 · 복약 확인 권장</Text> : null}
-        {medicine.durWarnings?.length ? <Text style={styles.dangerText}>DUR 주의 · {medicine.durWarnings[0]}</Text> : null}
+        {medicine.durWarnings?.length ? <Text style={styles.dangerText}>의약품 주의 · {medicine.durWarnings[0]}</Text> : null}
       </View>
       <View style={styles.statusActions}>
         <Pressable style={styles.iconAction} onPress={onTaken}>
@@ -1920,7 +1921,7 @@ function MedicineListItem({
       <Text style={styles.body}>{medicine.manufacturer} · {medicine.dosage} · {medicine.timing} · {medicine.schedule}</Text>
       {medicine.durWarnings?.length ? (
         <View style={styles.durPanel}>
-          <Text style={styles.cardTitle}>DUR 주의 정보</Text>
+          <Text style={styles.cardTitle}>의약품 주의 정보</Text>
           {medicine.durWarnings.slice(0, 3).map((warning) => (
             <View key={warning} style={styles.warningRow}>
               <MaterialCommunityIcons name="alert-outline" size={18} color={noticeText} />
@@ -1972,7 +1973,7 @@ function DurCompareModal({
           <View style={styles.modalHeader}>
             <View style={styles.flex}>
               <Text style={styles.sectionTitle}>DUR 비교 결과</Text>
-              <Text style={styles.body}>{selectedMedicines.length}개 약의 중복성분과 DUR 주의를 비교했습니다.</Text>
+              <Text style={styles.body}>{selectedMedicines.length}개 약의 중복성분과 의약품 주의를 비교했습니다.</Text>
             </View>
             <Pressable style={styles.iconAction} onPress={onClose}>
               <MaterialCommunityIcons name="close" size={22} color={colors.primary} />
@@ -2198,8 +2199,8 @@ const styles = StyleSheet.create({
     gap: spacing.lg
   },
   designThreeScreen: {
-    backgroundColor: "#F8F4FF",
-    gap: spacing.md
+    backgroundColor: designThree.background,
+    gap: spacing.lg
   },
   easyScreen: {
     gap: spacing.xl,
@@ -2219,6 +2220,12 @@ const styles = StyleSheet.create({
     backgroundColor: designTwo.card,
     borderRadius: designTwo.radiusCard,
     ...designTwo.shadow
+  },
+  designThreeHero: {
+    borderWidth: 0,
+    backgroundColor: designThree.card,
+    borderRadius: designThree.radiusCard,
+    ...designThree.shadow
   },
   heroHeading: {
     flexDirection: "row",

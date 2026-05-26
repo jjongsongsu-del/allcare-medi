@@ -6,6 +6,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ExperienceMode, useExperienceMode } from "@/experience/ExperienceModeProvider";
 import { colors } from "@/theme/colors";
 import { designOne } from "@/theme/designOne";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -14,7 +15,7 @@ import { typography } from "@/theme/typography";
 export function LoginStartScreen() {
   const { continueAsGuest, continueWithSocial, recentProvider } = useAuth();
   const { mode, setMode } = useExperienceMode();
-  const { isDesignOne, isDesignTwo } = useDesignMode();
+  const { isDesignOne, isDesignTwo, isDesignThree } = useDesignMode();
   const [error, setError] = useState<string | null>(null);
 
   const handleSocialLogin = async (provider: "NAVER" | "KAKAO" | "GOOGLE") => {
@@ -22,8 +23,7 @@ export function LoginStartScreen() {
     try {
       await continueWithSocial(provider);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "로그인을 완료하지 못했습니다.";
-      setError(message);
+      setError(error instanceof Error ? error.message : "로그인을 완료하지 못했습니다.");
     }
   };
 
@@ -37,41 +37,29 @@ export function LoginStartScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDesignOne && styles.designOneContainer, isDesignTwo && styles.designTwoContainer]}>
-      <View style={[styles.visualArea, isDesignOne && styles.designOneVisualArea, isDesignTwo && styles.designTwoVisualArea]}>
-        <Image source={require("../../../app_img/allcaremedi_hp.png")} style={[styles.heroImage, isDesignOne && styles.designOneHeroImage, isDesignTwo && styles.designTwoHeroImage]} resizeMode="contain" />
+    <SafeAreaView style={[styles.container, isDesignOne && styles.designOneContainer, isDesignTwo && styles.designTwoContainer, isDesignThree && styles.designThreeContainer]}>
+      <View style={[styles.visualArea, isDesignOne && styles.designOneVisualArea, isDesignTwo && styles.designTwoVisualArea, isDesignThree && styles.designThreeVisualArea]}>
+        <Image source={require("../../../app_img/allcaremedi_hp.png")} style={[styles.heroImage, isDesignOne && styles.designOneHeroImage, isDesignTwo && styles.designTwoHeroImage, isDesignThree && styles.designThreeHeroImage]} resizeMode="contain" />
       </View>
 
-      <View style={[styles.loginPanel, isDesignOne && styles.designOneLoginPanel, isDesignTwo && styles.designTwoLoginPanel]}>
+      <View style={[styles.loginPanel, isDesignOne && styles.designOneLoginPanel, isDesignTwo && styles.designTwoLoginPanel, isDesignThree && styles.designThreeLoginPanel]}>
         <View style={styles.copyArea}>
-          <Text style={[styles.brand, isDesignOne && styles.designOneBrand, isDesignTwo && styles.designTwoBrand]}>AllCareMedi</Text>
-          <Text style={[styles.title, isDesignOne && styles.designOneTitle, isDesignTwo && styles.designTwoTitle]}>올케어메디 시작하기</Text>
+          <Text style={[styles.brand, isDesignOne && styles.designOneBrand, isDesignTwo && styles.designTwoBrand, isDesignThree && styles.designThreeBrand]}>AllCareMedi</Text>
+          <Text style={[styles.title, isDesignOne && styles.designOneTitle, isDesignTwo && styles.designTwoTitle, isDesignThree && styles.designThreeTitle]}>올케어메디 시작하기</Text>
         </View>
 
-        <View style={[styles.modeCard, isDesignOne && styles.designOneModeCard, isDesignTwo && styles.designTwoModeCard]}>
+        <View style={[styles.modeCard, isDesignOne && styles.designOneModeCard, isDesignTwo && styles.designTwoModeCard, isDesignThree && styles.designThreeModeCard]}>
           <View style={styles.modeRow}>
-            <ModeButton
-              title="쉬운모드"
-              active={mode === "easy"}
-              designOne={isDesignOne}
-              designTwo={isDesignTwo}
-              onPress={() => chooseMode("easy")}
-            />
-            <ModeButton
-              title="상세모드"
-              active={mode === "detail"}
-              designOne={isDesignOne}
-              designTwo={isDesignTwo}
-              onPress={() => chooseMode("detail")}
-            />
+            <ModeButton title="쉬운모드" active={mode === "easy"} designOne={isDesignOne} designTwo={isDesignTwo} designThree={isDesignThree} onPress={() => chooseMode("easy")} />
+            <ModeButton title="상세모드" active={mode === "detail"} designOne={isDesignOne} designTwo={isDesignTwo} designThree={isDesignThree} onPress={() => chooseMode("detail")} />
           </View>
         </View>
 
         <View style={styles.buttonGroup}>
-          <LoginButton provider="NAVER" label="네이버 로그인" backgroundColor={isDesignOne || isDesignTwo ? "#FFFFFF" : "#03C75A"} textColor={isDesignOne ? designOne.text : isDesignTwo ? designTwo.text : "#FFFFFF"} bordered={isDesignOne || isDesignTwo} designOne={isDesignOne} designTwo={isDesignTwo} recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
-          <LoginButton provider="KAKAO" label="카카오톡 로그인" backgroundColor={isDesignOne || isDesignTwo ? "#FFFFFF" : "#FEE500"} textColor={isDesignOne ? designOne.text : isDesignTwo ? designTwo.text : "#111827"} bordered={isDesignOne || isDesignTwo} designOne={isDesignOne} designTwo={isDesignTwo} recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
-          <LoginButton provider="GOOGLE" label="구글 로그인" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered designOne={isDesignOne} designTwo={isDesignTwo} recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
-          <LoginButton provider="GUEST" label="비회원 로그인" backgroundColor={isDesignTwo ? designTwo.primary : "#FFFFFF"} textColor={isDesignTwo ? "#FFFFFF" : isDesignOne ? designOne.primary : colors.primary} bordered={!isDesignTwo} highlight designOne={isDesignOne} designTwo={isDesignTwo} recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
+          <LoginButton provider="NAVER" label="네이버 로그인" backgroundColor={isDesignOne || isDesignTwo || isDesignThree ? "#FFFFFF" : "#03C75A"} textColor={isDesignOne ? designOne.text : isDesignTwo ? designTwo.text : isDesignThree ? designThree.text : "#FFFFFF"} bordered={isDesignOne || isDesignTwo || isDesignThree} designOne={isDesignOne} designTwo={isDesignTwo} designThree={isDesignThree} recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
+          <LoginButton provider="KAKAO" label="카카오톡 로그인" backgroundColor={isDesignOne || isDesignTwo || isDesignThree ? "#FFFFFF" : "#FEE500"} textColor={isDesignOne ? designOne.text : isDesignTwo ? designTwo.text : isDesignThree ? designThree.text : "#111827"} bordered={isDesignOne || isDesignTwo || isDesignThree} designOne={isDesignOne} designTwo={isDesignTwo} designThree={isDesignThree} recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
+          <LoginButton provider="GOOGLE" label="구글 로그인" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered designOne={isDesignOne} designTwo={isDesignTwo} designThree={isDesignThree} recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
+          <LoginButton provider="GUEST" label="비회원 로그인" backgroundColor={isDesignThree ? designThree.primary : isDesignTwo ? designTwo.primary : "#FFFFFF"} textColor={isDesignThree || isDesignTwo ? "#FFFFFF" : isDesignOne ? designOne.primary : colors.primary} bordered={!isDesignTwo && !isDesignThree} highlight designOne={isDesignOne} designTwo={isDesignTwo} designThree={isDesignThree} recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -89,18 +77,21 @@ function ModeButton({
   active,
   designOne,
   designTwo,
+  designThree: designThreeMode,
   onPress
 }: {
   title: string;
   active: boolean;
   designOne?: boolean;
   designTwo?: boolean;
+  designThree?: boolean;
   onPress: () => void;
 }) {
+  const themed = designOne || designTwo || designThreeMode;
   return (
-    <Pressable accessibilityRole="button" style={[styles.modeButton, designOne && styles.designOneModeButton, designTwo && styles.designTwoModeButton, active && styles.modeButtonActive, designOne && active && styles.designOneModeButtonActive, designTwo && active && styles.designTwoModeButtonActive]} onPress={onPress}>
-      <MaterialCommunityIcons name={active ? "check-circle" : "circle-outline"} size={22} color={active ? (designOne || designTwo ? "#FFFFFF" : colors.primary) : colors.textMuted} />
-      <Text style={[styles.modeButtonTitle, active && styles.modeButtonTitleActive, designOne && active && styles.designOneModeButtonTitleActive, designTwo && active && styles.designTwoModeButtonTitleActive]}>{title}</Text>
+    <Pressable accessibilityRole="button" style={[styles.modeButton, designOne && styles.designOneModeButton, designTwo && styles.designTwoModeButton, designThreeMode && styles.designThreeModeButton, active && styles.modeButtonActive, designOne && active && styles.designOneModeButtonActive, designTwo && active && styles.designTwoModeButtonActive, designThreeMode && active && styles.designThreeModeButtonActive]} onPress={onPress}>
+      <MaterialCommunityIcons name={active ? "check-circle" : "circle-outline"} size={22} color={active ? (themed ? "#FFFFFF" : colors.primary) : colors.textMuted} />
+      <Text style={[styles.modeButtonTitle, active && styles.modeButtonTitleActive, designOne && active && styles.designOneModeButtonTitleActive, designTwo && active && styles.designTwoModeButtonTitleActive, designThreeMode && active && styles.designThreeModeButtonTitleActive]}>{title}</Text>
     </Pressable>
   );
 }
@@ -114,6 +105,7 @@ function LoginButton({
   highlight,
   designOne,
   designTwo,
+  designThree: designThreeMode,
   recent,
   onPress
 }: {
@@ -125,6 +117,7 @@ function LoginButton({
   highlight?: boolean;
   designOne?: boolean;
   designTwo?: boolean;
+  designThree?: boolean;
   recent?: boolean;
   onPress: () => void;
 }) {
@@ -139,7 +132,9 @@ function LoginButton({
         designOne && styles.designOneLoginButton,
         designOne && highlight && styles.designOneHighlightButton,
         designTwo && styles.designTwoLoginButton,
-        designTwo && highlight && styles.designTwoHighlightButton
+        designTwo && highlight && styles.designTwoHighlightButton,
+        designThreeMode && styles.designThreeLoginButton,
+        designThreeMode && highlight && styles.designThreeHighlightButton
       ]}
       onPress={onPress}
     >
@@ -207,6 +202,12 @@ const styles = StyleSheet.create({
     backgroundColor: designTwo.background,
     gap: spacing.lg
   },
+  designThreeContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    backgroundColor: designThree.background,
+    gap: spacing.lg
+  },
   visualArea: {
     minHeight: 250,
     alignItems: "center",
@@ -219,6 +220,11 @@ const styles = StyleSheet.create({
   },
   designTwoVisualArea: {
     minHeight: 172,
+    justifyContent: "center",
+    paddingTop: spacing.lg
+  },
+  designThreeVisualArea: {
+    minHeight: 210,
     justifyContent: "center",
     paddingTop: spacing.lg
   },
@@ -238,6 +244,12 @@ const styles = StyleSheet.create({
     borderRadius: 59,
     backgroundColor: designTwo.primaryLight
   },
+  designThreeHeroImage: {
+    width: 154,
+    height: 154,
+    borderRadius: 42,
+    backgroundColor: designThree.primarySoft
+  },
   loginPanel: {
     gap: spacing.md
   },
@@ -252,6 +264,9 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   designTwoLoginPanel: {
+    gap: spacing.lg
+  },
+  designThreeLoginPanel: {
     gap: spacing.lg
   },
   copyArea: {
@@ -274,6 +289,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28
   },
+  designThreeBrand: {
+    color: designThree.primary,
+    fontSize: 22,
+    lineHeight: 28
+  },
   title: {
     fontSize: 30,
     lineHeight: 38,
@@ -290,6 +310,11 @@ const styles = StyleSheet.create({
     color: designTwo.text,
     fontSize: 27,
     lineHeight: 34
+  },
+  designThreeTitle: {
+    color: designThree.text,
+    fontSize: 30,
+    lineHeight: 38
   },
   buttonGroup: {
     gap: spacing.sm
@@ -311,6 +336,12 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: designTwo.primaryLight,
     borderRadius: designTwo.radiusButton,
+    padding: 6
+  },
+  designThreeModeCard: {
+    borderWidth: 0,
+    backgroundColor: designThree.primarySoft,
+    borderRadius: designThree.radiusButton,
     padding: 6
   },
   modeRow: {
@@ -341,6 +372,11 @@ const styles = StyleSheet.create({
     borderRadius: designTwo.radiusButton,
     backgroundColor: "transparent"
   },
+  designThreeModeButton: {
+    borderWidth: 0,
+    borderRadius: designThree.radiusButton,
+    backgroundColor: "transparent"
+  },
   modeButtonActive: {
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft
@@ -350,6 +386,9 @@ const styles = StyleSheet.create({
   },
   designTwoModeButtonActive: {
     backgroundColor: designTwo.primary
+  },
+  designThreeModeButtonActive: {
+    backgroundColor: designThree.primary
   },
   modeButtonTitle: {
     ...typography.bodyLarge,
@@ -363,6 +402,9 @@ const styles = StyleSheet.create({
     color: "#FFFFFF"
   },
   designTwoModeButtonTitleActive: {
+    color: "#FFFFFF"
+  },
+  designThreeModeButtonTitleActive: {
     color: "#FFFFFF"
   },
   loginButton: {
@@ -393,6 +435,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     backgroundColor: designTwo.cardSoft
   },
+  designThreeLoginButton: {
+    minHeight: 54,
+    borderRadius: designThree.radiusButton,
+    borderColor: designThree.border,
+    justifyContent: "flex-start",
+    paddingHorizontal: spacing.md,
+    backgroundColor: "#FFFFFF",
+    ...designThree.shadow
+  },
   borderedButton: {
     borderWidth: 1,
     borderColor: colors.border
@@ -407,6 +458,10 @@ const styles = StyleSheet.create({
   designTwoHighlightButton: {
     borderColor: designTwo.primary,
     backgroundColor: designTwo.primary
+  },
+  designThreeHighlightButton: {
+    borderColor: designThree.primary,
+    backgroundColor: designThree.primary
   },
   loginButtonText: {
     fontSize: 15,
@@ -431,55 +486,47 @@ const styles = StyleSheet.create({
     color: "#03C75A"
   },
   kakaoLogo: {
-    backgroundColor: "rgba(255,255,255,0.42)"
+    backgroundColor: "#FEE500"
   },
   googleLogo: {
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: "#FFFFFF"
+    borderColor: "#E5E7EB"
   },
   guestLogo: {
-    borderWidth: 1,
-    borderColor: colors.primary,
     backgroundColor: colors.primarySoft
   },
   recentInlineBadge: {
-    position: "absolute",
-    right: 6,
-    top: 5,
-    minHeight: 20,
+    marginLeft: "auto",
+    minHeight: 24,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.xs,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 5,
     gap: 2
   },
   recentInlineBadgeOnColor: {
-    borderColor: "rgba(255,255,255,0.72)",
-    backgroundColor: "rgba(0,0,0,0.16)"
+    backgroundColor: "rgba(255,255,255,0.18)"
   },
   recentInlineText: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "900",
-    color: colors.primary
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "900"
   },
   recentInlineTextOnColor: {
     color: "#FFFFFF"
   },
-  guestNotice: {
-    fontSize: 14,
-    lineHeight: 21,
-    fontWeight: "500",
-    color: colors.textMuted,
-    textAlign: "center"
-  },
   errorText: {
     ...typography.body,
     color: colors.danger,
-    textAlign: "center"
+    textAlign: "center",
+    fontWeight: "800"
+  },
+  guestNotice: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: "center",
+    lineHeight: 19
   }
 });

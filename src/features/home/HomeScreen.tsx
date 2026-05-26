@@ -19,6 +19,7 @@ import {
 import { getRecommendedHealthContents, searchHealthContents } from "@/services/healthContentService";
 import { colors } from "@/theme/colors";
 import { designOne } from "@/theme/designOne";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -117,7 +118,7 @@ export function HomeScreen() {
     if (durMedicines[0]) {
       tasks.push({
         id: "dur-warning",
-        title: `${durMedicines[0].alias || durMedicines[0].name} DUR 확인`,
+        title: `${durMedicines[0].alias || durMedicines[0].name} 의약품 주의 확인`,
         description: durMedicines[0].durWarnings?.[0] ?? "중복 복용 또는 주의 정보를 확인하세요.",
         icon: "alert-decagram-outline",
         tone: "warning",
@@ -226,14 +227,14 @@ export function HomeScreen() {
         <View style={styles.brandArea}>
           <Image source={require("../../../app_img/allcaremedi.png")} style={styles.mascot} resizeMode="contain" />
           <View style={styles.heroTextGroup}>
-            <Text style={[styles.eyebrow, isDesignOne && styles.designOneHeroEyebrow]}>올케어메디</Text>
-            <Text style={[styles.title, isDesignOne && styles.designOneHeroTitle]}>오늘 건강 대시보드</Text>
-            <Text style={[styles.heroDescription, isDesignOne && styles.designOneHeroDescription]}>{displayName} 기준으로 복약, DUR, 병원약국, 응급 정보를 한 번에 확인합니다.</Text>
+            <Text style={[styles.eyebrow, isDesignOne && styles.designOneHeroEyebrow, isDesignThree && styles.designThreeHeroEyebrow]}>올케어메디</Text>
+            <Text style={[styles.title, isDesignOne && styles.designOneHeroTitle, isDesignThree && styles.designThreeHeroTitle]}>오늘 건강 대시보드</Text>
+            <Text style={[styles.heroDescription, isDesignOne && styles.designOneHeroDescription, isDesignThree && styles.designThreeHeroDescription]}>{displayName} 기준으로 복약, 의약품 주의, 병원약국, 응급 정보를 한 번에 확인합니다.</Text>
           </View>
         </View>
-        <Pressable style={[styles.profileButton, isDesignOne && styles.designOneProfileButton]} onPress={() => router.push("/(tabs)/family")}>
-          <Text style={[styles.profileButtonText, isDesignOne && styles.designOneProfileButtonText]}>{displayName}</Text>
-          <Text style={[styles.profileButtonMeta, isDesignOne && styles.designOneProfileButtonMeta]}>{accountLabel}</Text>
+        <Pressable style={[styles.profileButton, isDesignOne && styles.designOneProfileButton, isDesignThree && styles.designThreeProfileButton]} onPress={() => router.push("/(tabs)/family")}>
+          <Text style={[styles.profileButtonText, isDesignOne && styles.designOneProfileButtonText, isDesignThree && styles.designThreeProfileButtonText]}>{displayName}</Text>
+          <Text style={[styles.profileButtonMeta, isDesignOne && styles.designOneProfileButtonMeta, isDesignThree && styles.designThreeProfileButtonMeta]}>{accountLabel}</Text>
         </Pressable>
       </View>
 
@@ -284,7 +285,7 @@ export function HomeScreen() {
         <View style={styles.summaryGrid}>
           <SummaryMetric label="등록 약" value={`${activeMedicines.length}개`} description="관리 중" tone="medicine" />
           <SummaryMetric label="오늘 복약" value={nextDose ? nextDose.time : "없음"} description={nextDose ? "다음 시간" : "일정 없음"} tone="schedule" />
-          <SummaryMetric label="DUR 주의" value={`${durMedicines.length}건`} description={durMedicines.length ? "확인 필요" : "주의 없음"} tone="warning" />
+          <SummaryMetric label="의약품 주의" value={`${durMedicines.length}건`} description={durMedicines.length ? "확인 필요" : "주의 없음"} tone="warning" />
         </View>
       </View>
 
@@ -363,7 +364,7 @@ export function HomeScreen() {
       <View style={[styles.insightCard, isDesignOne && styles.designOneInsightCard, isDesignTwo && styles.designTwoInsightCard, isDesignThree && styles.designThreeInsightCard]}>
         <Text style={styles.insightText}>지금 필요한 건강 정보를 먼저 모아봤어요.</Text>
         <Text style={styles.insightDescription}>
-          복약 시간, DUR 주의, 주변 병원약국, 응급카드를 상황에 맞게 확인할 수 있습니다.
+          복약 시간, 의약품 주의, 주변 병원약국, 응급카드를 상황에 맞게 확인할 수 있습니다.
         </Text>
         <Pressable style={styles.insightButton} onPress={() => router.push("/(tabs)/family")}>
           <Text style={styles.insightButtonText}>관리 대상 확인</Text>
@@ -384,14 +385,21 @@ function SummaryMetric({
   description: string;
   tone: SummaryTone;
 }) {
+  const { isDesignThree } = useDesignMode();
   const toneStyle =
     tone === "warning"
       ? styles.metricWarning
       : tone === "schedule"
         ? styles.metricSchedule
         : styles.metricMedicine;
+  const designThreeToneStyle =
+    tone === "warning"
+      ? styles.designThreeMetricWarning
+      : tone === "schedule"
+        ? styles.designThreeMetricSchedule
+        : styles.designThreeMetricMedicine;
   return (
-    <View style={[styles.metricCard, toneStyle]}>
+    <View style={[styles.metricCard, toneStyle, isDesignThree && styles.designThreeMetricCard, isDesignThree && designThreeToneStyle]}>
       <View style={styles.metricTextGroup}>
         <Text style={styles.metricLabel}>{label}</Text>
         <Text style={styles.metricValue}>{value}</Text>
@@ -402,6 +410,7 @@ function SummaryMetric({
 }
 
 function TaskCard({ task, onPress }: { task: TodayTask; onPress: () => void }) {
+  const { isDesignThree } = useDesignMode();
   const toneStyle =
     task.tone === "warning"
       ? styles.taskWarning
@@ -411,8 +420,8 @@ function TaskCard({ task, onPress }: { task: TodayTask; onPress: () => void }) {
           ? styles.taskSuccess
           : styles.taskPrimary;
   return (
-    <Pressable style={[styles.taskCard, toneStyle]} onPress={onPress}>
-      <View style={styles.taskIcon}>
+    <Pressable style={[styles.taskCard, toneStyle, isDesignThree && styles.designThreeTaskCard]} onPress={onPress}>
+      <View style={[styles.taskIcon, isDesignThree && styles.designThreeTaskIcon]}>
         <MaterialCommunityIcons name={task.icon} size={20} color="#FFFFFF" />
       </View>
       <View style={styles.taskText}>
@@ -439,9 +448,10 @@ function PlaceRow({ title, place, empty }: { title: string; place?: StoredPlace;
 }
 
 function HealthContentRow({ content }: { content: HealthContent }) {
+  const { isDesignThree } = useDesignMode();
   return (
-    <View style={styles.healthContentRow}>
-      <View style={styles.healthContentIcon}>
+    <View style={[styles.healthContentRow, isDesignThree && styles.designThreeHealthContentRow]}>
+      <View style={[styles.healthContentIcon, isDesignThree && styles.designThreeHealthContentIcon]}>
         <MaterialCommunityIcons name="file-document-outline" size={18} color={colors.primary} />
       </View>
       <View style={styles.healthContentText}>
@@ -470,9 +480,9 @@ const styles = StyleSheet.create({
     gap: spacing.lg
   },
   designThreeScreen: {
-    backgroundColor: "#F8F4FF",
-    paddingHorizontal: 18,
-    gap: spacing.md
+    backgroundColor: designThree.background,
+    paddingHorizontal: 20,
+    gap: spacing.lg
   },
   easyScreen: {
     gap: spacing.xl,
@@ -528,13 +538,11 @@ const styles = StyleSheet.create({
     ...designTwo.shadow
   },
   designThreeHeroCard: {
-    borderColor: "#E4D7F7",
-    backgroundColor: "#FFF9F2",
-    borderRadius: 8,
-    shadowColor: "#9B6DD7",
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 3
+    borderWidth: 0,
+    backgroundColor: designThree.card,
+    borderRadius: designThree.radiusCard,
+    padding: spacing.xl,
+    ...designThree.shadow
   },
   brandArea: {
     flexDirection: "row",
@@ -575,6 +583,15 @@ const styles = StyleSheet.create({
   designOneHeroDescription: {
     color: "#EEEAFB"
   },
+  designThreeHeroEyebrow: {
+    color: "#DDD1FF"
+  },
+  designThreeHeroTitle: {
+    color: "#FFFFFF"
+  },
+  designThreeHeroDescription: {
+    color: "#F5EEFF"
+  },
   profileButton: {
     alignSelf: "flex-start",
     minWidth: 92,
@@ -606,6 +623,17 @@ const styles = StyleSheet.create({
   designOneProfileButtonMeta: {
     color: designOne.muted
   },
+  designThreeProfileButton: {
+    borderWidth: 0,
+    borderRadius: designThree.radiusButton,
+    backgroundColor: "#FFFFFF"
+  },
+  designThreeProfileButtonText: {
+    color: designThree.primary
+  },
+  designThreeProfileButtonMeta: {
+    color: designThree.muted
+  },
   designOneHeaderText: {
     color: "#FFFFFF"
   },
@@ -630,9 +658,11 @@ const styles = StyleSheet.create({
     ...designTwo.shadow
   },
   designThreeCard: {
-    borderColor: "#E4D7F7",
+    borderWidth: 0,
+    borderColor: designThree.border,
     backgroundColor: "#FFFFFF",
-    borderRadius: 8
+    borderRadius: designThree.radiusTile,
+    ...designThree.shadow
   },
   searchBox: {
     minHeight: 52,
@@ -727,9 +757,9 @@ const styles = StyleSheet.create({
     borderRadius: designTwo.radiusCard
   },
   designThreeInsightCard: {
-    borderColor: "#D8CCF1",
-    backgroundColor: "#F1EAFF",
-    borderRadius: 8
+    borderWidth: 0,
+    backgroundColor: designThree.primarySoft,
+    borderRadius: designThree.radiusTile
   },
   insightText: {
     ...typography.sectionTitle,
@@ -778,6 +808,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.xs
+  },
+  designThreeMetricCard: {
+    borderWidth: 0,
+    borderRadius: designThree.radiusTile,
+    minHeight: 112,
+    alignItems: "flex-start",
+    padding: spacing.md
+  },
+  designThreeMetricMedicine: {
+    backgroundColor: designThree.blueCard
+  },
+  designThreeMetricSchedule: {
+    backgroundColor: designThree.pinkCard
+  },
+  designThreeMetricWarning: {
+    backgroundColor: designThree.peachCard
   },
   metricMedicine: {
     borderColor: "#D1FAE5",
@@ -854,6 +900,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md
   },
+  designThreeTaskCard: {
+    borderWidth: 0,
+    borderRadius: designThree.radiusTile,
+    backgroundColor: "#FFFFFF",
+    ...designThree.shadow
+  },
   taskPrimary: {
     borderColor: "#C7D6EA"
   },
@@ -916,6 +968,11 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: spacing.md
   },
+  designThreeHealthContentRow: {
+    borderWidth: 0,
+    borderRadius: designThree.radiusTile,
+    backgroundColor: designThree.blueCard
+  },
   healthContentIcon: {
     width: 38,
     height: 38,
@@ -923,6 +980,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center"
+  },
+  designThreeHealthContentIcon: {
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF"
+  },
+  designThreeTaskIcon: {
+    borderRadius: 16,
+    backgroundColor: designThree.primary
   },
   healthContentText: {
     flex: 1,

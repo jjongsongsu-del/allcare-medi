@@ -24,7 +24,7 @@ export const menuHelp = {
     sections: [
       {
         title: "건강요약",
-        body: "등록약, 오늘 복약, DUR 주의를 한 줄 카드로 확인합니다.",
+        body: "등록약, 오늘 복약, 의약품 주의를 한 줄 카드로 확인합니다.",
         icon: "view-dashboard-outline"
       },
       {

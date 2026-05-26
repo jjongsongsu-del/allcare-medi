@@ -1,0 +1,30 @@
+export const designThree = {
+  primary: "#6C35E8",
+  primaryDark: "#4D24C8",
+  primarySoft: "#EEE8FF",
+  primaryLight: "#F7F2FF",
+  background: "#FFFDF8",
+  surface: "#FFFFFF",
+  card: "#6C35E8",
+  cardSoft: "#F0ECFF",
+  blueCard: "#EAF6FF",
+  pinkCard: "#FFF0F7",
+  peachCard: "#FFEDE6",
+  yellowCard: "#FFF4C7",
+  text: "#24232E",
+  muted: "#777386",
+  border: "#EEE7FA",
+  tabBar: "#EEE8FF",
+  tabInactive: "#8F83B8",
+  radiusCard: 28,
+  radiusTile: 24,
+  radiusButton: 18,
+  radiusPill: 999,
+  shadow: {
+    shadowColor: "#6C35E8",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5
+  }
+};

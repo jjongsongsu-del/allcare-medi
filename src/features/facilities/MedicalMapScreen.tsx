@@ -26,6 +26,7 @@ import {
   StoredPlace
 } from "@/services/localUserData";
 import { colors } from "@/theme/colors";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -329,7 +330,7 @@ export function MedicalMapScreen() {
   return (
     <>
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
-      <View style={[styles.hero, isDesignTwo && styles.designTwoHero]}>
+      <View style={[styles.hero, isDesignTwo && styles.designTwoHero, isDesignThree && styles.designThreeHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
             <MaterialCommunityIcons name="map-outline" size={24} color={colors.primary} />
@@ -920,8 +921,8 @@ const styles = StyleSheet.create({
     gap: spacing.lg
   },
   designThreeScreen: {
-    backgroundColor: "#F8F4FF",
-    gap: spacing.md
+    backgroundColor: designThree.background,
+    gap: spacing.lg
   },
   easyScreen: {
     gap: spacing.xl,
@@ -941,6 +942,12 @@ const styles = StyleSheet.create({
     backgroundColor: designTwo.card,
     borderRadius: designTwo.radiusCard,
     ...designTwo.shadow
+  },
+  designThreeHero: {
+    borderWidth: 0,
+    backgroundColor: designThree.card,
+    borderRadius: designThree.radiusCard,
+    ...designThree.shadow
   },
   heroHeading: {
     flexDirection: "row",

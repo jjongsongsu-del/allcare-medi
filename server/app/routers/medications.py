@@ -185,7 +185,7 @@ def fetch_dur_items(query: str, service_key: str, limit: int = 10) -> tuple[list
     for item in items:
         if not isinstance(item, dict):
             continue
-        type_name = first_value(item, "TYPE_NAME", "TYPE_NAME  ", "typeName") or "DUR 주의"
+        type_name = first_value(item, "TYPE_NAME", "TYPE_NAME  ", "typeName") or "의약품 주의"
         item_name = first_value(item, "ITEM_NAME", "itemName")
         if not item_name:
             continue
@@ -230,7 +230,7 @@ def dur_warning_text(type_name: str, item_name: str) -> str:
         "임부금기": "임신 중 주의가 필요한 약입니다. 임산부는 반드시 전문가에게 확인하세요.",
         "첨가제주의": "첨가제 주의 정보가 있습니다. 알레르기나 과민반응 이력이 있으면 확인하세요.",
     }
-    return f"{type_name}: {easy.get(type_name, f'{item_name}에 DUR 주의 정보가 있습니다. 전문가 확인을 권장합니다.')}"
+    return f"{type_name}: {easy.get(type_name, f'{item_name}에 의약품 주의 정보가 있습니다. 전문가 확인을 권장합니다.')}"
 
 
 def first_value(item: dict, *keys: str) -> str | None:

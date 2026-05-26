@@ -24,6 +24,7 @@ import {
 import { migrateGuestData } from "@/services/serverApi";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { colors } from "@/theme/colors";
+import { designThree } from "@/theme/designThree";
 import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
@@ -241,12 +242,12 @@ export function FamilyMyPageScreen() {
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
       <View style={[styles.hero, isDesignOne && styles.designOneHero, isDesignTwo && styles.designTwoHero, isDesignThree && styles.designThreeHero]}>
         <View style={styles.heroHeading}>
-          <View style={styles.iconBox}>
-            <MaterialCommunityIcons name="view-grid-outline" size={24} color={colors.primary} />
+          <View style={[styles.iconBox, isDesignThree && styles.designThreeIconBox]}>
+            <MaterialCommunityIcons name="view-grid-outline" size={24} color={isDesignThree ? designThree.primary : colors.primary} />
           </View>
           <View style={styles.heroTitleGroup}>
-            <Text style={styles.eyebrow}>전체 메뉴</Text>
-            <Text style={styles.title}>가족 · 마이데이터</Text>
+            <Text style={[styles.eyebrow, isDesignThree && styles.designThreeHeroText]}>전체 메뉴</Text>
+            <Text style={[styles.title, isDesignThree && styles.designThreeHeroTitle]}>가족 · 마이데이터</Text>
           </View>
           <MenuHelpButton content={menuHelp.menu} />
         </View>
@@ -457,7 +458,7 @@ function DesignModeSelector() {
         <Text style={styles.sectionTitle}>앱 디자인 모드</Text>
         <Text style={styles.body}>
           {designMode === "design3"
-            ? "디자인3: 멘탈 헬스/피트니스 앱처럼 차분한 라벤더 웰니스 카드형 화면으로 표시합니다."
+            ? "디자인3: 보라색 포인트와 파스텔 카드 중심의 작업 앱 스타일로 표시합니다."
             : designMode === "design2"
             ? "디자인2: 의료 예약 앱처럼 밝은 블루와 둥근 진료 카드형 화면으로 표시합니다."
             : isDesignOne
@@ -1020,8 +1021,8 @@ const styles = StyleSheet.create({
     gap: spacing.lg
   },
   designThreeScreen: {
-    backgroundColor: "#F8F4FF",
-    gap: spacing.md
+    backgroundColor: designThree.background,
+    gap: spacing.lg
   },
   easyScreen: {
     gap: spacing.xl,
@@ -1052,13 +1053,10 @@ const styles = StyleSheet.create({
     ...designTwo.shadow
   },
   designThreeHero: {
-    borderColor: "#E4D7F7",
-    backgroundColor: "#FFF9F2",
-    borderRadius: 8,
-    shadowColor: "#9B6DD7",
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 2
+    borderWidth: 0,
+    backgroundColor: designThree.card,
+    borderRadius: designThree.radiusCard,
+    ...designThree.shadow
   },
   heroHeading: {
     flexDirection: "row",
@@ -1078,6 +1076,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  designThreeIconBox: {
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF"
+  },
   eyebrow: {
     ...typography.caption,
     color: colors.primary,
@@ -1088,6 +1090,12 @@ const styles = StyleSheet.create({
     ...typography.title,
     color: colors.textStrong,
     lineHeight: 32
+  },
+  designThreeHeroText: {
+    color: "#DDD1FF"
+  },
+  designThreeHeroTitle: {
+    color: "#FFFFFF"
   },
   description: {
     ...typography.body,
@@ -1131,9 +1139,10 @@ const styles = StyleSheet.create({
     borderRadius: designTwo.radiusCard
   },
   designThreeModeCard: {
-    borderColor: "#E4D7F7",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8
+    borderWidth: 0,
+    backgroundColor: designThree.surface,
+    borderRadius: designThree.radiusTile,
+    ...designThree.shadow
   },
   modeTextGroup: {
     gap: spacing.xs
@@ -1256,8 +1265,8 @@ const styles = StyleSheet.create({
     padding: spacing.xs
   },
   designThreeActionGrid: {
-    backgroundColor: "#EFE7FF",
-    borderRadius: 8,
+    backgroundColor: designThree.primarySoft,
+    borderRadius: designThree.radiusTile,
     padding: spacing.xs
   },
   tile: {

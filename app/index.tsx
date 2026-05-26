@@ -24,7 +24,7 @@ const startupSteps = [
   {
     image: require("../app_img/allcaremedi_sh.png"),
     label: "복약 기록을 연결하고 있어요",
-    detail: "등록약, 복약 일정, DUR 주의 정보를 준비합니다."
+    detail: "등록약, 복약 일정, 의약품 주의 정보를 준비합니다."
   },
   {
     image: require("../app_img/allcaremedi_dr.png"),
