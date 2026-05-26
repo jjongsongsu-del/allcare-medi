@@ -396,8 +396,8 @@ def update_medication(medication_id: int, payload: MedicationCreate, db: Session
     return medication
 
 
-@router.delete("/{medication_id}", status_code=204)
-def delete_medication(medication_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete("/{medication_id}")
+def delete_medication(medication_id: int, db: Session = Depends(get_db)) -> dict[str, bool]:
     medication = db.get(Medication, medication_id)
     if medication is None:
         raise HTTPException(status_code=404, detail="Medication not found")
@@ -405,6 +405,7 @@ def delete_medication(medication_id: int, db: Session = Depends(get_db)) -> None
     db.query(MedicationSchedule).filter(MedicationSchedule.medication_id == medication_id).delete(synchronize_session=False)
     db.delete(medication)
     db.commit()
+    return {"deleted": True}
 
 
 @router.get("/schedules", response_model=list[MedicationScheduleRead])
