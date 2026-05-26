@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { router, Tabs } from "expo-router";
+import { Redirect, router, Tabs } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "@/auth/AuthProvider";
@@ -26,11 +26,7 @@ export default function TabLayout() {
   }
 
   if (!session) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <Redirect href="/" />;
   }
 
   return (

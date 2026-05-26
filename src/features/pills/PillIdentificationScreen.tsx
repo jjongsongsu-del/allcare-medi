@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BarcodeScanningResult, Camera, CameraView } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
@@ -11,6 +11,7 @@ import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { menuHelp } from "@/help/menuHelp";
 import {
   getLocalRegisteredMedicines,
+  deleteLocalRegisteredMedicine,
   saveLocalMedicationEvent,
   saveLocalMedicineSchedule,
   saveLocalRegisteredMedicine,
@@ -19,7 +20,7 @@ import {
 import { rescheduleLocalMedicationNotifications } from "@/services/medicationNotificationService";
 import { recognizePillFromImage } from "@/services/pillRecognitionService";
 import { parsePrescriptionQrPayload } from "@/services/prescriptionQrService";
-import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, fetchRegisteredMedicines, searchDurSafety, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
+import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, deleteRegisteredMedicine, fetchRegisteredMedicines, searchDurSafety, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -163,47 +164,6 @@ const defaultScheduleDraft = (): ScheduleDraftState => ({
   doseTiming: "식후"
 });
 
-const registeredMedicinesSeed: RegisteredMedicine[] = [
-  {
-    id: "registered-001",
-    name: "아모잘탄정",
-    alias: "아침 혈압약",
-    ingredient: "암로디핀/로사르탄",
-    manufacturer: "한미약품",
-    dosage: "1정",
-    form: "정제",
-    color: "분홍색",
-    purpose: "혈압",
-    timing: "아침 식후",
-    schedule: "매일 08:00 · 30일",
-    status: "taking",
-    source: "manual",
-    favorite: true,
-    highRisk: true,
-    createdAt: "2026-05-22T00:00:00.000Z",
-    updatedAt: "2026-05-22T00:00:00.000Z"
-  },
-  {
-    id: "registered-002",
-    name: "비타민 D",
-    alias: "저녁 영양제",
-    ingredient: "콜레칼시페롤",
-    manufacturer: "올케어제약",
-    dosage: "1캡슐",
-    form: "캡슐",
-    color: "노란색",
-    purpose: "영양",
-    timing: "저녁 식후",
-    schedule: "매일 21:00 · 장기",
-    status: "scheduled",
-    source: "manual",
-    favorite: false,
-    highRisk: false,
-    createdAt: "2026-05-22T00:00:00.000Z",
-    updatedAt: "2026-05-22T00:00:00.000Z"
-  }
-];
-
 export function PillIdentificationScreen() {
   const { session } = useAuth();
   const { isEasyMode } = useExperienceMode();
@@ -254,6 +214,7 @@ export function PillIdentificationScreen() {
     durWarnings: []
   });
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftState>(defaultScheduleDraft);
+  const [editingMedicine, setEditingMedicine] = useState<RegisteredMedicine | null>(null);
   const [medicines, setMedicines] = useState<RegisteredMedicine[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const isMember = session?.mode === "member" && Boolean(session.userId);
@@ -274,8 +235,7 @@ export function PillIdentificationScreen() {
         return;
       }
     }
-    const localMedicines = await getLocalRegisteredMedicines(selectedProfile);
-    setMedicines(localMedicines.length ? localMedicines : seedForSelectedProfile(selectedProfile));
+    setMedicines(await getLocalRegisteredMedicines(selectedProfile));
   };
 
   const filteredMedicines = useMemo(() => {
@@ -296,6 +256,9 @@ export function PillIdentificationScreen() {
   const selectedMethodMeta = registrationMethods.find((method) => method.key === selectedMethod) ?? registrationMethods[0];
 
   const openRegistrationModal = (method: RegisterMethod) => {
+    setEditingMedicine(null);
+    setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "", durWarnings: [] });
+    setScheduleDraft(defaultScheduleDraft());
     setSelectedMethod(method);
     setActiveStep("input");
     setRegistrationModalVisible(true);
@@ -335,8 +298,37 @@ export function PillIdentificationScreen() {
     setMedicineSearchResults([]);
     setMedicineSearchQuery("");
     setScheduleDraft(defaultScheduleDraft());
+    setEditingMedicine(null);
+    setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "", durWarnings: [] });
     setActiveStep("input");
     setRegistrationError(null);
+  };
+
+  const editMedicine = (medicine: RegisteredMedicine, step: RegisterStep = "confirm") => {
+    setEditingMedicine(medicine);
+    setSelectedMethod(medicine.source ?? "manual");
+    setDraft({
+      name: medicine.productName || medicine.name,
+      alias: medicine.alias ?? "",
+      manufacturer: medicine.manufacturer ?? "",
+      ingredient: medicine.ingredient ?? "",
+      dosage: medicine.dosage ?? "1정",
+      form: medicine.form ?? "정제",
+      color: medicine.color ?? "",
+      purpose: medicine.purpose ?? "",
+      memo: medicine.memo ?? "",
+      durWarnings: medicine.durWarnings ?? []
+    });
+    setScheduleDraft((current) => ({
+      ...defaultScheduleDraft(),
+      doseTimes: parseDoseTimes(medicine.schedule) ?? current.doseTimes,
+      doseTiming: medicine.timing || current.doseTiming,
+      doseMethod: medicine.takingMethod || current.doseMethod
+    }));
+    setActiveStep(step);
+    setRegistrationError(null);
+    setMedicineSearchError(null);
+    setRegistrationModalVisible(true);
   };
 
   const runMedicineSearch = async () => {
@@ -622,6 +614,32 @@ export function PillIdentificationScreen() {
     setMessage("삭제 대신 복용종료로 처리했습니다. 연결된 스케줄과 이력은 보존됩니다.");
   };
 
+  const deleteMedicine = (medicineId: string) => {
+    const medicine = medicines.find((item) => item.id === medicineId);
+    if (!medicine) return;
+    Alert.alert(
+      "약 삭제",
+      "연결된 복약 스케줄과 이력도 함께 삭제됩니다. 삭제할까요?",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: async () => {
+            if (isMember && session?.userId && isServerMedicineId(medicine.id)) {
+              await deleteRegisteredMedicine(medicine.id).catch(() => deleteLocalRegisteredMedicine(medicine.id));
+            } else {
+              await deleteLocalRegisteredMedicine(medicine.id);
+            }
+            await loadMedicines();
+            await rescheduleLocalMedicationNotifications(selectedProfile);
+            setMessage("약과 연결된 복약 스케줄, 이력을 삭제했습니다.");
+          }
+        }
+      ]
+    );
+  };
+
   const saveSelectedPrescriptionMedicines = async (options?: { withSchedule?: boolean }) => {
     const selectedDrafts = prescriptionMedicineDrafts.filter((medicine) => medicine.selected && medicine.name.trim());
     if (!selectedDrafts.length) {
@@ -688,11 +706,11 @@ export function PillIdentificationScreen() {
       return;
     }
     const safetyWarnings = uniqueWarnings([
-      ...buildExistingMedicineWarnings(name, draft.ingredient, medicines.filter((medicine) => medicine.status !== "ended")),
+      ...buildExistingMedicineWarnings(name, draft.ingredient, medicines.filter((medicine) => medicine.status !== "ended" && medicine.id !== editingMedicine?.id)),
       ...draft.durWarnings
     ]);
     const baseMedicine: RegisteredMedicine = {
-      id: `local-medicine-${Date.now()}`,
+      id: editingMedicine?.id ?? `local-medicine-${Date.now()}`,
       userId: session?.userId,
       profileId: selectedProfile?.profileId,
       profileName: selectedProfile?.profileName,
@@ -710,15 +728,17 @@ export function PillIdentificationScreen() {
       schedule: withSchedule ? formatScheduleSummary(scheduleDraft) : undefined,
       memo: draft.memo,
       durWarnings: safetyWarnings,
-      status: withSchedule ? "taking" : "scheduled",
-      source: selectedMethod,
-      favorite: false,
+      status: editingMedicine && !withSchedule ? editingMedicine.status : withSchedule ? "taking" : "scheduled",
+      source: editingMedicine?.source ?? selectedMethod,
+      favorite: editingMedicine?.favorite ?? false,
       highRisk: Boolean(safetyWarnings.length),
-      createdAt: new Date().toISOString(),
+      createdAt: editingMedicine?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    const savedMedicine = isMember && session?.userId
+    const savedMedicine = editingMedicine
+      ? (await persistMedicine(baseMedicine), baseMedicine)
+      : isMember && session?.userId
       ? await createRegisteredMedicine(session.userId, baseMedicine).catch(async () => {
           const localList = await saveLocalRegisteredMedicine(baseMedicine);
           return localList[0];
@@ -729,7 +749,7 @@ export function PillIdentificationScreen() {
       await saveScheduleForMedicine(savedMedicine);
     }
     await loadMedicines();
-    setMessage(safetyWarnings.length ? "약을 저장했습니다. DUR 또는 중복 가능성 주의가 있어 복용 전 전문가 확인을 권장합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
+    setMessage(editingMedicine ? "약 정보를 수정했습니다." : safetyWarnings.length ? "약을 저장했습니다. DUR 또는 중복 가능성 주의가 있어 복용 전 전문가 확인을 권장합니다." : "약을 저장했습니다. 오늘 복약 목록 보기 또는 약 추가 등록을 선택할 수 있습니다.");
     setDraft({ name: "", alias: "", manufacturer: "", ingredient: "", dosage: "1정", form: "정제", color: "", purpose: "", memo: "", durWarnings: [] });
     setScheduleDraft(defaultScheduleDraft());
     setSelectedSearchMedicine(null);
@@ -739,6 +759,7 @@ export function PillIdentificationScreen() {
     setMedicineSearchResults([]);
     setMedicineSearchQuery("");
     setActiveStep("input");
+    setEditingMedicine(null);
     setRegistrationModalVisible(false);
   };
 
@@ -934,13 +955,6 @@ export function PillIdentificationScreen() {
         </View>
       </View>
 
-      <View style={styles.notice}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={22} color={noticeText} />
-        <Text style={styles.noticeText}>
-          OCR과 AI 판독 결과는 자동 저장하지 않습니다. 사용자가 후보와 상세 정보를 최종 확인한 뒤 저장하며, DUR 위험 정보는 쉬운 설명으로 표시합니다.
-        </Text>
-      </View>
-
       <View style={styles.segmented}>
         <SegmentButton label="약관리" active={activeTab === "medicine"} onPress={() => setActiveTab("medicine")} />
         <SegmentButton label="처방전 관리" active={activeTab === "prescription"} onPress={() => setActiveTab("prescription")} />
@@ -1025,7 +1039,10 @@ export function PillIdentificationScreen() {
             selectedForCompare={durCompareSelectedIds.includes(medicine.id)}
             onToggleCompare={() => toggleDurCompareMedicine(medicine.id)}
             onToggleFavorite={() => toggleFavorite(medicine.id)}
+            onEdit={() => editMedicine(medicine)}
+            onSchedule={() => editMedicine(medicine, "schedule")}
             onEnd={() => endMedicine(medicine.id)}
+            onDelete={() => deleteMedicine(medicine.id)}
           />
         )) : (
           <View style={styles.emptyBox}>
@@ -1098,6 +1115,13 @@ export function PillIdentificationScreen() {
       />
 
       {message ? <Text style={styles.successNotice}>{message}</Text> : null}
+
+      <View style={styles.notice}>
+        <MaterialCommunityIcons name="alert-circle-outline" size={22} color={noticeText} />
+        <Text style={styles.noticeText}>
+          OCR과 AI 판독 결과는 자동 저장하지 않습니다. 사용자가 후보와 상세 정보를 최종 확인한 뒤 저장하며, DUR 위험 정보는 쉬운 설명으로 표시합니다.
+        </Text>
+      </View>
     </AppScreen>
   );
 }
@@ -1857,14 +1881,20 @@ function MedicineListItem({
   selectedForCompare,
   onToggleCompare,
   onToggleFavorite,
-  onEnd
+  onEdit,
+  onSchedule,
+  onEnd,
+  onDelete
 }: {
   medicine: RegisteredMedicine;
   compareMode?: boolean;
   selectedForCompare?: boolean;
   onToggleCompare?: () => void;
   onToggleFavorite: () => void;
+  onEdit: () => void;
+  onSchedule: () => void;
   onEnd: () => void;
+  onDelete: () => void;
 }) {
   return (
     <View style={[styles.medicineItem, selectedForCompare && styles.compareSelectedItem]}>
@@ -1897,20 +1927,23 @@ function MedicineListItem({
         </View>
       ) : null}
       <View style={styles.resultActions}>
-        <Pressable style={styles.secondaryButton}>
-          <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.primary} />
-          <Text style={styles.secondaryButtonText}>수정</Text>
+        <Pressable style={styles.medicineActionButton} onPress={onEdit}>
+          <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
+          <Text style={styles.medicineActionButtonText}>수정</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton}>
-          <MaterialCommunityIcons name="calendar-plus" size={18} color={colors.primary} />
-          <Text style={styles.secondaryButtonText}>스케줄</Text>
+        <Pressable style={styles.medicineActionButton} onPress={onSchedule}>
+          <MaterialCommunityIcons name="calendar-plus" size={15} color={colors.primary} />
+          <Text style={styles.medicineActionButtonText}>스케줄</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={onEnd}>
-          <MaterialCommunityIcons name="stop-circle-outline" size={18} color={colors.primary} />
-          <Text style={styles.secondaryButtonText}>복용종료</Text>
+        <Pressable style={styles.medicineActionButton} onPress={onEnd}>
+          <MaterialCommunityIcons name="stop-circle-outline" size={15} color={colors.primary} />
+          <Text style={styles.medicineActionButtonText}>복용종료</Text>
+        </Pressable>
+        <Pressable style={[styles.medicineActionButton, styles.deleteActionButton]} onPress={onDelete}>
+          <MaterialCommunityIcons name="delete-outline" size={15} color={colors.danger} />
+          <Text style={[styles.medicineActionButtonText, styles.deleteActionText]}>삭제</Text>
         </Pressable>
       </View>
-      <Text style={styles.meta}>삭제 전 연결된 복약 스케줄과 이력을 안내하고, 삭제 대신 복용종료를 선택할 수 있습니다.</Text>
     </View>
   );
 }
@@ -2120,6 +2153,16 @@ function formatScheduleSummary(schedule: ScheduleDraftState): string {
   return `${repeatLabel} ${timeLabel}${durationLabel}${alertLabel}${reminderLabel}`;
 }
 
+function parseDoseTimes(summary?: string | null) {
+  if (!summary) return null;
+  const times = summary.match(/\b\d{1,2}:\d{2}\b/g);
+  return times?.length ? times : null;
+}
+
+function isServerMedicineId(id: string | number) {
+  return /^\d+$/.test(String(id));
+}
+
 function calculateEndDate(startDate: string, durationDays: number): string | null {
   const start = new Date(`${startDate}T00:00:00`);
   if (Number.isNaN(start.getTime())) return null;
@@ -2134,14 +2177,6 @@ function StatusBadge({ status, highRisk }: { status: RegisteredMedicine["status"
       <Text style={[styles.statusBadgeText, highRisk && styles.highRiskBadgeText]}>{label}</Text>
     </View>
   );
-}
-
-function seedForSelectedProfile(profile?: { profileId?: string | number | null; profileName?: string | null } | null): RegisteredMedicine[] {
-  return registeredMedicinesSeed.map((medicine) => ({
-    ...medicine,
-    profileId: profile?.profileId,
-    profileName: profile?.profileName
-  }));
 }
 
 const noticeText = "#A83B15";
@@ -2814,6 +2849,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
+  },
+  medicineActionButton: {
+    minHeight: 34,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3
+  },
+  medicineActionButtonText: {
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "800",
+    color: colors.primary
+  },
+  deleteActionButton: {
+    borderColor: colors.danger
+  },
+  deleteActionText: {
+    color: colors.danger
   },
   primaryButton: {
     minHeight: 48,

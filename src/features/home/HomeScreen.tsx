@@ -253,17 +253,6 @@ export function HomeScreen() {
         </View>
       </View>
 
-      <View style={styles.quickCard}>
-        <Text style={styles.sectionTitle}>바로 실행</Text>
-        <View style={[styles.quickActions, isEasyMode && styles.easyQuickActions]}>
-          <QuickAction label="약 등록" icon="plus-circle-outline" route="/(tabs)/pills" primary />
-          <QuickAction label="복약" icon="calendar-check" route="/(tabs)/medication" />
-          {!isEasyMode ? <QuickAction label="처방전 OCR" icon="text-recognition" route="/(tabs)/pills" /> : null}
-          <QuickAction label="병원약국" icon="map-marker-radius" route="/(tabs)/map" />
-          <QuickAction label="응급실" icon="hospital-box" route="/(tabs)/emergency" danger />
-        </View>
-      </View>
-
       {!isEasyMode ? (
         <>
           <View style={styles.feedCard}>
@@ -326,7 +315,7 @@ export function HomeScreen() {
       <View style={styles.insightCard}>
         <Text style={styles.insightText}>지금 필요한 건강 정보를 먼저 모아봤어요.</Text>
         <Text style={styles.insightDescription}>
-          복약 시간, DUR 주의, 주변 병원약국, 응급카드를 상황에 맞게 바로 실행할 수 있습니다.
+          복약 시간, DUR 주의, 주변 병원약국, 응급카드를 상황에 맞게 확인할 수 있습니다.
         </Text>
         <Pressable style={styles.insightButton} onPress={() => router.push("/(tabs)/family")}>
           <Text style={styles.insightButtonText}>관리 대상 확인</Text>
@@ -383,30 +372,6 @@ function TaskCard({ task, onPress }: { task: TodayTask; onPress: () => void }) {
         <Text style={styles.taskDescription} numberOfLines={2}>{task.description}</Text>
       </View>
       <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textMuted} />
-    </Pressable>
-  );
-}
-
-function QuickAction({
-  label,
-  icon,
-  route,
-  primary = false,
-  danger = false
-}: {
-  label: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  route: Href;
-  primary?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <Pressable
-      style={[styles.quickButton, primary && styles.quickButtonPrimary, danger && styles.quickButtonDanger]}
-      onPress={() => router.push(route)}
-    >
-      <MaterialCommunityIcons name={icon} size={22} color={primary || danger ? "#FFFFFF" : colors.primary} />
-      <Text style={[styles.quickText, (primary || danger) && styles.quickTextFilled]}>{label}</Text>
     </Pressable>
   );
 }
@@ -682,14 +647,6 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text
   },
-  quickCard: {
-    borderRadius: 4,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: spacing.lg,
-    gap: spacing.md
-  },
   feedCard: {
     borderRadius: 4,
     backgroundColor: "#FFFFFF",
@@ -749,42 +706,6 @@ const styles = StyleSheet.create({
   taskDescription: {
     ...typography.body,
     color: colors.text
-  },
-  quickActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm
-  },
-  easyQuickActions: {
-    gap: spacing.md
-  },
-  quickButton: {
-    flexBasis: "48%",
-    flexGrow: 1,
-    minHeight: 58,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#C7D6EA",
-    backgroundColor: "#F9FAFB",
-    padding: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm
-  },
-  quickButtonPrimary: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary
-  },
-  quickButtonDanger: {
-    backgroundColor: "#D92D20",
-    borderColor: "#D92D20"
-  },
-  quickText: {
-    ...typography.button,
-    color: colors.primary
-  },
-  quickTextFilled: {
-    color: "#FFFFFF"
   },
   savedCard: {
     borderRadius: 4,

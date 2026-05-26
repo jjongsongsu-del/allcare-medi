@@ -5,6 +5,7 @@ import {
   getLocalMedicationEvents,
   getLocalMedicineSchedules,
   getLocalRegisteredMedicines,
+  saveLocalMedicationEvent,
   type FamilyProfile
 } from "@/services/localUserData";
 import { MedicationEvent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
@@ -13,6 +14,9 @@ const notificationIdsKey = "allcaremedi.medicationNotificationIds.v1";
 const notificationSettingsKey = "allcaremedi.medicationNotificationSettings.v1";
 const normalChannelId = "allcaremedi-medication-normal";
 const strongChannelId = "allcaremedi-medication-strong";
+const medicationCategoryId = "allcaremedi-medication-dose-actions";
+const takenActionId = "ALLCAREMEDI_MEDICATION_TAKEN";
+const skippedActionId = "ALLCAREMEDI_MEDICATION_SKIPPED";
 
 export type MedicationNotificationSettings = {
   enabled: boolean;
@@ -33,6 +37,7 @@ const defaultNotificationSettings: MedicationNotificationSettings = {
 };
 
 let configured = false;
+let responseListenerConfigured = false;
 
 export function configureMedicationNotificationHandler() {
   if (configured) return;
@@ -47,6 +52,8 @@ export function configureMedicationNotificationHandler() {
     })
   });
   void configureAndroidChannels();
+  void configureMedicationCategories();
+  configureNotificationResponseListener();
 }
 
 export async function getMedicationNotificationSettings(): Promise<MedicationNotificationSettings> {
@@ -135,7 +142,7 @@ export async function syncMedicationNotifications({
         const identifier = await Notifications.scheduleNotificationAsync({
           content: {
             title: schedule.notificationLevel === "strong" ? "중요 복약 시간입니다" : "복약 시간입니다",
-            body: `${medicine.alias || medicine.name} ${schedule.doseAmount} · ${schedule.doseTiming}`,
+            body: `${doseTime} · ${medicine.alias || medicine.name} · ${schedule.doseAmount} · ${schedule.doseTiming}`,
             data: {
               kind: "medication",
               medicineId: medicine.id,
@@ -143,6 +150,7 @@ export async function syncMedicationNotifications({
               profileId: schedule.profileId ?? medicine.profileId,
               scheduledAt
             },
+            categoryIdentifier: medicationCategoryId,
             sound: true,
             priority: schedule.notificationLevel === "strong" ? "max" : "high",
             color: schedule.notificationLevel === "strong" ? colorsForNotification.strong : colorsForNotification.normal
@@ -160,6 +168,30 @@ export async function syncMedicationNotifications({
 
   await AsyncStorage.setItem(notificationIdsKey, JSON.stringify(identifiers));
   return { enabled: true, permissionStatus, scheduled: identifiers.length };
+}
+
+function configureNotificationResponseListener() {
+  if (responseListenerConfigured) return;
+  responseListenerConfigured = true;
+  Notifications.addNotificationResponseReceivedListener((response) => {
+    const actionIdentifier = response.actionIdentifier;
+    if (actionIdentifier !== takenActionId && actionIdentifier !== skippedActionId) return;
+    const data = response.notification.request.content.data ?? {};
+    const medicineId = data.medicineId;
+    if (medicineId == null) return;
+    const event: MedicationEvent = {
+      id: `local-dose-${Date.now()}`,
+      medicineId: String(medicineId),
+      scheduleId: data.scheduleId == null ? null : String(data.scheduleId),
+      profileId: data.profileId == null ? null : String(data.profileId),
+      scheduledAt: typeof data.scheduledAt === "string" ? data.scheduledAt : new Date().toISOString(),
+      status: actionIdentifier === takenActionId ? "taken" : "skipped",
+      takenAt: actionIdentifier === takenActionId ? new Date().toISOString() : null,
+      sharedWithGuardian: false,
+      memo: actionIdentifier === takenActionId ? "알림에서 복약 완료" : "알림에서 건너뜀"
+    };
+    void saveLocalMedicationEvent(event);
+  });
 }
 
 export async function rescheduleLocalMedicationNotifications(profile?: FamilyProfile | null) {
@@ -212,6 +244,26 @@ async function configureAndroidChannels() {
     lightColor: "#DC2626",
     sound: "default"
   });
+}
+
+async function configureMedicationCategories() {
+  await Notifications.setNotificationCategoryAsync(medicationCategoryId, [
+    {
+      identifier: takenActionId,
+      buttonTitle: "복약완료",
+      options: {
+        opensAppToForeground: false
+      }
+    },
+    {
+      identifier: skippedActionId,
+      buttonTitle: "건너뜀",
+      options: {
+        opensAppToForeground: false,
+        isDestructive: true
+      }
+    }
+  ]).catch(() => undefined);
 }
 
 async function getStoredNotificationIds(): Promise<string[]> {

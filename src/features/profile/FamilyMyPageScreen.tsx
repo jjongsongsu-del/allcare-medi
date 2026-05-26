@@ -249,13 +249,6 @@ export function FamilyMyPageScreen() {
         </View>
       </View>
 
-      <View style={styles.notice}>
-        <MaterialCommunityIcons name="shield-check-outline" size={28} color={noticeText} />
-        <Text style={styles.noticeText}>
-          건강정보와 가족 연결 정보는 민감할 수 있습니다. 가족 연결은 SNS 아이디로 신청하고 상대 승인 후 공유 정보를 가져오는 구조입니다.
-        </Text>
-      </View>
-
       <View style={styles.modeCard}>
         <View style={styles.modeTextGroup}>
           <Text style={styles.sectionTitle}>화면 모드</Text>
@@ -319,6 +312,13 @@ export function FamilyMyPageScreen() {
       )}
 
       {message ? <Text style={styles.successNotice}>{message}</Text> : null}
+
+      <View style={styles.notice}>
+        <MaterialCommunityIcons name="shield-check-outline" size={28} color={noticeText} />
+        <Text style={styles.noticeText}>
+          건강정보와 가족 연결 정보는 민감할 수 있습니다. 가족 연결은 SNS 아이디로 신청하고 상대 승인 후 공유 정보를 가져오는 구조입니다.
+        </Text>
+      </View>
 
       <MyDataModal
         visible={myDataModalVisible}

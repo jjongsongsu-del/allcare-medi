@@ -59,10 +59,10 @@ export function LoginStartScreen() {
       </View>
 
       <View style={styles.buttonGroup}>
-        <LoginButton provider="NAVER" label="네이버" backgroundColor="#03C75A" textColor="#FFFFFF" recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
-        <LoginButton provider="KAKAO" label="카카오" backgroundColor="#FEE500" textColor="#111827" recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
-        <LoginButton provider="GOOGLE" label="구글" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
-        <LoginButton provider="GUEST" label="비회원" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
+        <LoginButton provider="NAVER" label="네이버 로그인" backgroundColor="#03C75A" textColor="#FFFFFF" recent={recentProvider === "NAVER"} onPress={() => handleSocialLogin("NAVER")} />
+        <LoginButton provider="KAKAO" label="카카오톡 로그인" backgroundColor="#FEE500" textColor="#111827" recent={recentProvider === "KAKAO"} onPress={() => handleSocialLogin("KAKAO")} />
+        <LoginButton provider="GOOGLE" label="구글 로그인" backgroundColor="#FFFFFF" textColor={colors.textStrong} bordered recent={recentProvider === "GOOGLE"} onPress={() => handleSocialLogin("GOOGLE")} />
+        <LoginButton provider="GUEST" label="비회원 로그인" backgroundColor="#FFFFFF" textColor={colors.primary} bordered highlight recent={recentProvider === "GUEST"} onPress={handleGuestLogin} />
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -145,7 +145,7 @@ function ProviderLogo({ provider }: { provider: "NAVER" | "KAKAO" | "GOOGLE" | "
   if (provider === "KAKAO") {
     return (
       <View style={[styles.providerLogo, styles.kakaoLogo]}>
-        <MaterialCommunityIcons name="chat" size={23} color="#111827" />
+        <MaterialCommunityIcons name="chat" size={20} color="#111827" />
       </View>
     );
   }
@@ -153,14 +153,14 @@ function ProviderLogo({ provider }: { provider: "NAVER" | "KAKAO" | "GOOGLE" | "
   if (provider === "GOOGLE") {
     return (
       <View style={[styles.providerLogo, styles.googleLogo]}>
-        <MaterialCommunityIcons name="gmail" size={25} color="#EA4335" />
+        <MaterialCommunityIcons name="gmail" size={21} color="#EA4335" />
       </View>
     );
   }
 
   return (
     <View style={[styles.providerLogo, styles.guestLogo]}>
-      <MaterialCommunityIcons name="account-outline" size={24} color={colors.primary} />
+      <MaterialCommunityIcons name="account-outline" size={21} color={colors.primary} />
     </View>
   );
 }
@@ -200,8 +200,6 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   buttonGroup: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: spacing.sm
   },
   modeCard: {
@@ -242,15 +240,15 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong
   },
   loginButton: {
-    width: "48.5%",
-    minHeight: 48,
+    width: "100%",
+    minHeight: 42,
     borderRadius: 4,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
     flexDirection: "row",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
     gap: spacing.xs
   },
   borderedButton: {
@@ -262,14 +260,14 @@ const styles = StyleSheet.create({
     borderWidth: 2
   },
   loginButtonText: {
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "800",
     textAlign: "center"
   },
   providerLogo: {
-    width: 30,
-    height: 30,
+    width: 26,
+    height: 26,
     borderRadius: 4,
     alignItems: "center",
     justifyContent: "center"
@@ -278,8 +276,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF"
   },
   naverLogoText: {
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: "900",
     color: "#03C75A"
   },

@@ -352,6 +352,15 @@ export async function updateRegisteredMedicine(userId: number, medicine: Registe
   return toRegisteredMedicine(await response.json());
 }
 
+export async function deleteRegisteredMedicine(medicineId: string | number): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/medications/${medicineId}`, {
+    method: "DELETE"
+  });
+  if (!response.ok) {
+    throw new Error("등록 약 삭제에 실패했습니다.");
+  }
+}
+
 export async function fetchMedicineSchedules(params: { profileId?: string | number | null; medicineId?: string | number | null }): Promise<MedicineSchedule[]> {
   const url = new URL(`${API_BASE_URL}/medications/schedules`);
   if (params.profileId) url.searchParams.set("profile_id", String(params.profileId));

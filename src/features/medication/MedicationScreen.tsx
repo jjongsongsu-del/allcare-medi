@@ -722,6 +722,9 @@ function NotificationPanel({
           </Pressable>
         ))}
       </View>
+      <View style={styles.notificationPreview}>
+        <Text style={styles.meta}>알림에는 복약 시간, 약 이름, 용량이 표시되고 알림에서 바로 복약완료 또는 건너뜀을 기록할 수 있습니다.</Text>
+      </View>
       <View style={styles.cardActions}>
         {!permissionGranted ? (
           <MedicationButton label="권한 허용" icon="bell-check-outline" variant="filled" onPress={onRequestPermission} />
@@ -1583,6 +1586,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm
+  },
+  notificationPreview: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.sm
   },
   filterRow: {
     flexDirection: "row",
