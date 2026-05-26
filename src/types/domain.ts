@@ -40,6 +40,7 @@ export type HealthContent = {
   lifeStage?: string;
   superclass?: string;
   summary: string;
+  contentText?: string;
   sourceUrl?: string;
   syncStatus?: string;
   lastSyncedAt?: string | null;

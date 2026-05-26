@@ -201,6 +201,14 @@ export async function fetchHealthContents(params: { query?: string; category?: s
   return payload.map(toHealthContent);
 }
 
+export async function fetchHealthContentDetail(contentSerial: string): Promise<HealthContent> {
+  const response = await fetch(`${API_BASE_URL}/health-contents/${encodeURIComponent(contentSerial)}`);
+  if (!response.ok) {
+    throw new Error("건강정보 상세를 불러오지 못했습니다.");
+  }
+  return toHealthContent(await response.json());
+}
+
 export async function fetchAdminHealthContents(params: { query?: string; category?: string; limit?: number } = {}): Promise<HealthContent[]> {
   const url = new URL(`${API_BASE_URL}/admin/health-contents`);
   if (params.query) url.searchParams.set("query", params.query);
@@ -806,7 +814,8 @@ function toHealthContent(item: any): HealthContent {
     category: item.category ?? "건강정보",
     lifeStage: item.category ?? undefined,
     superclass: item.superclass ?? undefined,
-    summary: item.summary ?? "질병관리청 국가건강정보포털 콘텐츠입니다.",
+    summary: item.summary ?? "국가건강정보포털 콘텐츠입니다.",
+    contentText: item.contentText ?? undefined,
     sourceUrl: item.sourceUrl ?? undefined,
     syncStatus: item.syncStatus ?? "metadata",
     lastSyncedAt: item.lastSyncedAt ?? null

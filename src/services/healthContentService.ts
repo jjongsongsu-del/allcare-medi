@@ -1,5 +1,5 @@
 import { healthContents } from "@/services/mockData";
-import { fetchHealthContents } from "@/services/serverApi";
+import { fetchHealthContentDetail, fetchHealthContents } from "@/services/serverApi";
 
 export async function getRecommendedHealthContents() {
   try {
@@ -14,4 +14,9 @@ export async function searchHealthContents(query: string) {
   const normalized = query.trim();
   if (!normalized) return [];
   return fetchHealthContents({ query: normalized, limit: 5 });
+}
+
+export async function getHealthContentDetail(content: { contentSerial?: string; id: string }) {
+  const serial = content.contentSerial ?? content.id;
+  return fetchHealthContentDetail(serial);
 }

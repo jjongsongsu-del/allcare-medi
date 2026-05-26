@@ -1,8 +1,9 @@
 ﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import type { Href } from "expo-router";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "@/components/AppScreen";
 import { MenuHelpButton } from "@/components/MenuHelpButton";
 import { useAuth } from "@/auth/AuthProvider";
@@ -16,7 +17,8 @@ import {
   getLocalRegisteredMedicines,
   StoredPlace
 } from "@/services/localUserData";
-import { getRecommendedHealthContents, searchHealthContents } from "@/services/healthContentService";
+import { getHealthContentDetail, getRecommendedHealthContents, searchHealthContents } from "@/services/healthContentService";
+import { searchEmergencyRoomsFromServer, searchFacilitiesFromServer, searchMedicines } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
 import { designOne } from "@/theme/designOne";
 import { designThree } from "@/theme/designThree";
@@ -24,7 +26,7 @@ import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
-import { HealthContent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
+import { EmergencyRoom, HealthContent, MedicalFacility, MedicineSchedule, MedicineSearchResult, RegisteredMedicine } from "@/types/domain";
 
 type TodayTask = {
   id: string;
@@ -37,8 +39,27 @@ type TodayTask = {
 
 type SummaryTone = "medicine" | "schedule" | "warning";
 
+type UnifiedSearchResults = {
+  health: HealthContent[];
+  medicines: MedicineSearchResult[];
+  hospitals: MedicalFacility[];
+  pharmacies: MedicalFacility[];
+  emergency: EmergencyRoom[];
+};
+
+type SearchIssue = {
+  label: string;
+  message: string;
+};
+
 const situationChips = ["문 연 약국", "야간 약국", "소아과", "응급실", "처방전 OCR", "혈압약"];
-const healthInfoLabels = ["혈액형", "알레르기", "기저질환", "복용약", "응급연락처"];
+const emptySearchResults: UnifiedSearchResults = {
+  health: [],
+  medicines: [],
+  hospitals: [],
+  pharmacies: [],
+  emergency: []
+};
 
 export function HomeScreen() {
   const { session } = useAuth();
@@ -50,9 +71,14 @@ export function HomeScreen() {
   const [favorites, setFavorites] = useState<StoredPlace[]>([]);
   const [recentPlaces, setRecentPlaces] = useState<StoredPlace[]>([]);
   const [healthContents, setHealthContents] = useState<HealthContent[]>([]);
-  const [healthSearchResults, setHealthSearchResults] = useState<HealthContent[]>([]);
   const [searchText, setSearchText] = useState("");
-  const [healthSearchMessage, setHealthSearchMessage] = useState<string | null>(null);
+  const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<UnifiedSearchResults>(emptySearchResults);
+  const [searchIssues, setSearchIssues] = useState<SearchIssue[]>([]);
+  const [selectedHealthContent, setSelectedHealthContent] = useState<HealthContent | null>(null);
+  const [healthDetailLoading, setHealthDetailLoading] = useState(false);
+  const [healthDetailError, setHealthDetailError] = useState<string | null>(null);
 
   const displayName = selectedProfile?.profileName ?? (session?.mode === "guest" ? "비회원" : "나");
   const accountLabel = session?.mode === "member" ? session.nickname ?? "회원" : "비회원";
@@ -148,64 +174,92 @@ export function HomeScreen() {
     return tasks.slice(0, 4);
   }, [durMedicines, nextDose, recentPlaces, selectedProfile]);
 
-  const profileCompleteness = useMemo(() => {
-    const checks = [
-      selectedProfile?.profileName,
-      selectedProfile?.bloodType,
-      selectedProfile?.allergies,
-      selectedProfile?.currentMedications,
-      selectedProfile?.emergencyContact
-    ];
-    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }, [selectedProfile]);
-  const healthInfoCount = useMemo(() => {
-    const checks = [
-      selectedProfile?.bloodType,
-      selectedProfile?.allergies,
-      selectedProfile?.chronicDiseases,
-      selectedProfile?.currentMedications,
-      selectedProfile?.emergencyContact
-    ];
-    return checks.filter(Boolean).length;
-  }, [selectedProfile]);
-
   const submitSearch = async () => {
     const normalized = searchText.trim();
     if (!normalized) return;
-    setHealthSearchMessage(null);
-    try {
-      const results = await searchHealthContents(normalized);
-      if (results.length) {
-        setHealthSearchResults(results);
-        return;
-      }
-      setHealthSearchResults([]);
-      setHealthSearchMessage("건강정보 검색 결과가 없어 관련 메뉴로 이동합니다.");
-    } catch {
-      setHealthSearchMessage("건강정보 API 연결에 문제가 있어 관련 메뉴로 이동합니다.");
-    }
-    if (normalized.includes("약") || normalized.includes("처방") || normalized.includes("DUR")) {
-      router.push("/(tabs)/pills");
-      return;
-    }
-    if (normalized.includes("응급")) {
-      router.push("/(tabs)/emergency");
-      return;
-    }
-    router.push("/(tabs)/map");
+    setSearchModalVisible(true);
+    setSearchLoading(true);
+    setSearchIssues([]);
+    setSearchResults(emptySearchResults);
+
+    const [health, medicines, hospitals, pharmacies, emergency] = await Promise.allSettled([
+      searchHealthContents(normalized),
+      searchMedicines(normalized),
+      searchFacilitiesFromServer({ query: normalized, type: "hospital", stage1: "서울특별시", radiusKm: 5 }),
+      searchFacilitiesFromServer({ query: normalized, type: "pharmacy", stage1: "서울특별시", radiusKm: 5 }),
+      searchEmergencyRoomsFromServer({ query: normalized, stage1: "서울특별시" })
+    ]);
+
+    setSearchResults({
+      health: health.status === "fulfilled" ? health.value : [],
+      medicines: medicines.status === "fulfilled" ? medicines.value.slice(0, 5) : [],
+      hospitals: hospitals.status === "fulfilled" ? hospitals.value.slice(0, 5) : [],
+      pharmacies: pharmacies.status === "fulfilled" ? pharmacies.value.slice(0, 5) : [],
+      emergency: emergency.status === "fulfilled" ? emergency.value.slice(0, 5) : []
+    });
+    setSearchIssues(
+      [
+        health.status === "rejected" ? { label: "건강정보", message: "건강정보 검색 API 연결에 문제가 있습니다." } : null,
+        medicines.status === "rejected" ? { label: "약", message: "의약품 검색 API 연결에 문제가 있습니다." } : null,
+        hospitals.status === "rejected" ? { label: "병원", message: "병원 검색 API 연결에 문제가 있습니다." } : null,
+        pharmacies.status === "rejected" ? { label: "약국", message: "약국 검색 API 연결에 문제가 있습니다." } : null,
+        emergency.status === "rejected" ? { label: "응급", message: "응급실 검색 API 연결에 문제가 있습니다." } : null
+      ].filter(Boolean) as SearchIssue[]
+    );
+    setSearchLoading(false);
   };
 
   const openChip = (chip: string) => {
     setSearchText(chip);
-    if (chip.includes("응급")) {
-      router.push("/(tabs)/emergency");
-      return;
+    void runSearchWithQuery(chip);
+  };
+
+  const runSearchWithQuery = async (query: string) => {
+    setSearchText(query);
+    const normalized = query.trim();
+    if (!normalized) return;
+    setSearchModalVisible(true);
+    setSearchLoading(true);
+    setSearchIssues([]);
+    setSearchResults(emptySearchResults);
+    const [health, medicines, hospitals, pharmacies, emergency] = await Promise.allSettled([
+      searchHealthContents(normalized),
+      searchMedicines(normalized),
+      searchFacilitiesFromServer({ query: normalized, type: "hospital", stage1: "서울특별시", radiusKm: 5 }),
+      searchFacilitiesFromServer({ query: normalized, type: "pharmacy", stage1: "서울특별시", radiusKm: 5 }),
+      searchEmergencyRoomsFromServer({ query: normalized, stage1: "서울특별시" })
+    ]);
+    setSearchResults({
+      health: health.status === "fulfilled" ? health.value : [],
+      medicines: medicines.status === "fulfilled" ? medicines.value.slice(0, 5) : [],
+      hospitals: hospitals.status === "fulfilled" ? hospitals.value.slice(0, 5) : [],
+      pharmacies: pharmacies.status === "fulfilled" ? pharmacies.value.slice(0, 5) : [],
+      emergency: emergency.status === "fulfilled" ? emergency.value.slice(0, 5) : []
+    });
+    setSearchIssues(
+      [
+        health.status === "rejected" ? { label: "건강정보", message: "건강정보 검색 API 연결에 문제가 있습니다." } : null,
+        medicines.status === "rejected" ? { label: "약", message: "의약품 검색 API 연결에 문제가 있습니다." } : null,
+        hospitals.status === "rejected" ? { label: "병원", message: "병원 검색 API 연결에 문제가 있습니다." } : null,
+        pharmacies.status === "rejected" ? { label: "약국", message: "약국 검색 API 연결에 문제가 있습니다." } : null,
+        emergency.status === "rejected" ? { label: "응급", message: "응급실 검색 API 연결에 문제가 있습니다." } : null
+      ].filter(Boolean) as SearchIssue[]
+    );
+    setSearchLoading(false);
+  };
+
+  const openHealthDetail = async (content: HealthContent) => {
+    setSelectedHealthContent(content);
+    setHealthDetailError(null);
+    setHealthDetailLoading(true);
+    try {
+      const detail = await getHealthContentDetail(content);
+      setSelectedHealthContent(detail);
+    } catch {
+      setHealthDetailError("건강정보 상세 API 연결에 문제가 있습니다.");
+    } finally {
+      setHealthDetailLoading(false);
     }
-    if (chip.includes("약") || chip.includes("처방")) {
-      router.push("/(tabs)/pills");
-      return;
-    }
-    router.push("/(tabs)/map");
   };
 
   return (
@@ -261,20 +315,6 @@ export function HomeScreen() {
             </Pressable>
           ))}
         </View>
-        {healthSearchMessage ? <Text style={styles.searchMessage}>{healthSearchMessage}</Text> : null}
-        {healthSearchResults.length ? (
-          <View style={styles.healthSearchList}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.sectionTitle}>건강정보 검색 결과</Text>
-              <Pressable onPress={() => setHealthSearchResults([])}>
-                <Text style={styles.linkText}>닫기</Text>
-              </Pressable>
-            </View>
-            {healthSearchResults.map((content) => (
-              <HealthContentRow key={content.id} content={content} />
-            ))}
-          </View>
-        ) : null}
       </View>
 
       <View style={[styles.summaryCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
@@ -319,37 +359,13 @@ export function HomeScreen() {
             <View style={styles.rowBetween}>
               <View>
                 <Text style={styles.sectionTitle}>질병 건강정보</Text>
-                <Text style={styles.sectionDescription}>질병관리청 국가건강정보포털 콘텐츠입니다.</Text>
+                <Text style={styles.sectionDescription}>국가건강정보포털 콘텐츠입니다.</Text>
               </View>
               <MaterialCommunityIcons name="book-heart-outline" size={24} color={colors.primary} />
             </View>
             {healthContents.slice(0, 3).map((content) => (
-              <HealthContentRow key={content.id} content={content} />
+              <HealthContentRow key={content.id} content={content} onPress={() => openHealthDetail(content)} />
             ))}
-          </View>
-
-          <View style={[styles.healthRecordCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
-            <View style={styles.rowBetween}>
-              <View style={styles.recordTitleRow}>
-                <View style={styles.recordIcon}>
-                  <MaterialCommunityIcons name="heart-pulse" size={20} color="#FFFFFF" />
-                </View>
-                <Text style={styles.sectionTitle}>건강정보</Text>
-              </View>
-              <Pressable style={styles.recordButton} onPress={() => router.push("/(tabs)/family")}>
-                <Text style={styles.recordButtonText}>수정</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.sectionDescription}>응급카드와 맞춤 추천에 쓰이는 기본 건강정보입니다.</Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${profileCompleteness}%` }]} />
-            </View>
-            <View style={styles.healthInfoRow}>
-              {healthInfoLabels.map((label, index) => (
-                <View key={label} style={[styles.healthInfoDot, index < healthInfoCount && styles.healthInfoDotActive]} />
-              ))}
-            </View>
-            <Text style={styles.healthInfoText}>{healthInfoCount}/5개 등록 · 완성 {profileCompleteness}%</Text>
           </View>
         </>
       ) : null}
@@ -357,7 +373,7 @@ export function HomeScreen() {
       <View style={[styles.noticeCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
         <MaterialCommunityIcons name="shield-check-outline" size={24} color={colors.primary} />
         <Text style={styles.noticeText}>
-          복약·DUR·응급 정보는 건강관리 보조 안내입니다. 실제 복용과 방문 판단은 의사 또는 약사 확인을 권장합니다.
+          복약·의약품 주의·응급 정보는 건강관리 보조 안내입니다. 실제 복용과 방문 판단은 의사 또는 약사 확인을 권장합니다.
         </Text>
       </View>
 
@@ -370,6 +386,24 @@ export function HomeScreen() {
           <Text style={styles.insightButtonText}>관리 대상 확인</Text>
         </Pressable>
       </View>
+
+      <UnifiedSearchModal
+        visible={searchModalVisible}
+        query={searchText}
+        loading={searchLoading}
+        results={searchResults}
+        issues={searchIssues}
+        onClose={() => setSearchModalVisible(false)}
+        onOpenHealth={openHealthDetail}
+      />
+
+      <HealthContentDetailModal
+        visible={Boolean(selectedHealthContent)}
+        content={selectedHealthContent}
+        loading={healthDetailLoading}
+        error={healthDetailError}
+        onClose={() => setSelectedHealthContent(null)}
+      />
     </AppScreen>
   );
 }
@@ -447,10 +481,10 @@ function PlaceRow({ title, place, empty }: { title: string; place?: StoredPlace;
   );
 }
 
-function HealthContentRow({ content }: { content: HealthContent }) {
+function HealthContentRow({ content, onPress }: { content: HealthContent; onPress?: () => void }) {
   const { isDesignThree } = useDesignMode();
   return (
-    <View style={[styles.healthContentRow, isDesignThree && styles.designThreeHealthContentRow]}>
+    <Pressable style={[styles.healthContentRow, isDesignThree && styles.designThreeHealthContentRow]} onPress={onPress} disabled={!onPress}>
       <View style={[styles.healthContentIcon, isDesignThree && styles.designThreeHealthContentIcon]}>
         <MaterialCommunityIcons name="file-document-outline" size={18} color={colors.primary} />
       </View>
@@ -459,7 +493,174 @@ function HealthContentRow({ content }: { content: HealthContent }) {
         <Text style={styles.healthContentMeta}>{content.category} · {content.superclass ?? "건강정보"}</Text>
         <Text style={styles.healthContentSummary} numberOfLines={2}>{content.summary}</Text>
       </View>
+      {onPress ? <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} /> : null}
+    </Pressable>
+  );
+}
+
+function UnifiedSearchModal({
+  visible,
+  query,
+  loading,
+  results,
+  issues,
+  onClose,
+  onOpenHealth
+}: {
+  visible: boolean;
+  query: string;
+  loading: boolean;
+  results: UnifiedSearchResults;
+  issues: SearchIssue[];
+  onClose: () => void;
+  onOpenHealth: (content: HealthContent) => void;
+}) {
+  const total =
+    results.health.length + results.medicines.length + results.hospitals.length + results.pharmacies.length + results.emergency.length;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.searchModalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.sectionTitle}>통합검색</Text>
+              <Text style={styles.body}>{query ? `"${query}" 관련 결과` : "검색어를 입력해 주세요."}</Text>
+            </View>
+            <Pressable style={styles.modalCloseButton} onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.textStrong} />
+            </Pressable>
+          </View>
+
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.body}>건강정보, 약, 병원, 약국, 응급 정보를 검색하고 있습니다.</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
+              {total === 0 && !issues.length ? <Text style={styles.emptyText}>검색 결과가 없습니다. 다른 검색어로 다시 시도해 주세요.</Text> : null}
+              {issues.map((issue) => (
+                <View key={issue.label} style={styles.apiIssueBox}>
+                  <Text style={styles.warningText}>{issue.label}</Text>
+                  <Text style={styles.body}>{issue.message}</Text>
+                </View>
+              ))}
+              <SearchSection title="건강정보" count={results.health.length}>
+                {results.health.map((content) => (
+                  <HealthContentRow key={content.id} content={content} onPress={() => onOpenHealth(content)} />
+                ))}
+              </SearchSection>
+              <SearchSection title="약" count={results.medicines.length}>
+                {results.medicines.map((medicine) => (
+                  <SearchResultRow
+                    key={medicine.id}
+                    icon="pill"
+                    title={medicine.name}
+                    description={[medicine.ingredient, medicine.manufacturer, medicine.dosage].filter(Boolean).join(" · ") || "의약품 정보"}
+                  />
+                ))}
+              </SearchSection>
+              <SearchSection title="병원" count={results.hospitals.length}>
+                {results.hospitals.map((place) => (
+                  <SearchResultRow key={place.id} icon="hospital-building" title={place.name} description={`${place.distanceKm.toFixed(1)}km · ${place.address}`} />
+                ))}
+              </SearchSection>
+              <SearchSection title="약국" count={results.pharmacies.length}>
+                {results.pharmacies.map((place) => (
+                  <SearchResultRow key={place.id} icon="pill" title={place.name} description={`${place.distanceKm.toFixed(1)}km · ${place.address}`} />
+                ))}
+              </SearchSection>
+              <SearchSection title="응급" count={results.emergency.length}>
+                {results.emergency.map((room) => (
+                  <SearchResultRow key={room.id} icon="hospital-box" title={room.name} description={`응급실 일반 ${room.emergencyGeneralBeds} · ${room.distanceKm.toFixed(1)}km`} danger />
+                ))}
+              </SearchSection>
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function SearchSection({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+  return (
+    <View style={styles.searchSection}>
+      <View style={styles.rowBetween}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.sectionMeta}>{count}건</Text>
+      </View>
+      {count ? children : <Text style={styles.emptyText}>관련 결과가 없습니다.</Text>}
     </View>
+  );
+}
+
+function SearchResultRow({
+  icon,
+  title,
+  description,
+  danger = false
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  title: string;
+  description: string;
+  danger?: boolean;
+}) {
+  return (
+    <View style={styles.searchResultRow}>
+      <View style={[styles.searchResultIcon, danger && styles.searchResultIconDanger]}>
+        <MaterialCommunityIcons name={icon} size={18} color="#FFFFFF" />
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.healthContentTitle}>{title}</Text>
+        <Text style={styles.healthContentSummary} numberOfLines={2}>{description}</Text>
+      </View>
+    </View>
+  );
+}
+
+function HealthContentDetailModal({
+  visible,
+  content,
+  loading,
+  error,
+  onClose
+}: {
+  visible: boolean;
+  content: HealthContent | null;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.detailModalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.sectionMeta}>국가건강정보포털</Text>
+              <Text style={styles.sectionTitle}>{content?.title ?? "건강정보"}</Text>
+            </View>
+            <Pressable style={styles.modalCloseButton} onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.textStrong} />
+            </Pressable>
+          </View>
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.body}>상세 정보를 불러오고 있습니다.</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
+              {error ? <Text style={styles.warningText}>{error}</Text> : null}
+              <Text style={styles.healthContentMeta}>{content?.category} · {content?.superclass ?? "건강정보"}</Text>
+              <Text style={styles.body}>{content?.contentText || content?.summary || "상세 내용이 없습니다."}</Text>
+              {content?.sourceUrl ? <Text style={styles.metaText}>출처: {content.sourceUrl}</Text> : null}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1007,6 +1208,116 @@ const styles = StyleSheet.create({
   healthContentSummary: {
     ...typography.caption,
     color: colors.text,
+    lineHeight: 18
+  },
+  flex: {
+    flex: 1,
+    minWidth: 0
+  },
+  body: {
+    ...typography.body,
+    color: colors.text,
+    lineHeight: 23
+  },
+  cardTitle: {
+    ...typography.bodyLarge,
+    color: colors.textStrong,
+    fontWeight: "900"
+  },
+  metaText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    lineHeight: 18
+  },
+  warningText: {
+    ...typography.body,
+    color: colors.danger,
+    fontWeight: "900",
+    lineHeight: 22
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "flex-end"
+  },
+  searchModalCard: {
+    maxHeight: "88%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  detailModalCard: {
+    maxHeight: "84%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: "#FFFFFF",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md
+  },
+  modalCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  loadingBox: {
+    minHeight: 160,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.md
+  },
+  modalScroll: {
+    maxHeight: 620
+  },
+  modalScrollContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.xl
+  },
+  apiIssueBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+    backgroundColor: "#FFF7ED",
+    padding: spacing.md,
+    gap: spacing.xs
+  },
+  searchSection: {
+    gap: spacing.sm
+  },
+  searchResultRow: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md
+  },
+  searchResultIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  searchResultIconDanger: {
+    backgroundColor: "#D92D20"
+  },
+  emptyText: {
+    ...typography.caption,
+    color: colors.textMuted,
     lineHeight: 18
   },
   rowBetween: {
