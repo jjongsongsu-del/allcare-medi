@@ -34,10 +34,15 @@ export type MedicalFacility = {
 
 export type HealthContent = {
   id: string;
+  contentSerial?: string;
   title: string;
   category: string;
-  lifeStage: string;
+  lifeStage?: string;
+  superclass?: string;
   summary: string;
+  sourceUrl?: string;
+  syncStatus?: string;
+  lastSyncedAt?: string | null;
 };
 
 export type MedicationSchedule = {

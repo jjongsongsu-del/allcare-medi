@@ -18,6 +18,33 @@ class AppStartupRead(BaseModel):
     message: str
 
 
+class HealthInfoContentRead(BaseModel):
+    id: int
+    contentSerial: str
+    title: str
+    apiEnabled: bool
+    category: str | None
+    categoryCode: str | None
+    superclass: str | None
+    superclassCode: str | None
+    sourceUrl: str
+    summary: str | None
+    contentText: str | None = None
+    syncStatus: str
+    lastSyncedAt: str | None = None
+
+
+class HealthInfoContentUpdate(BaseModel):
+    sourceUrl: str | None = Field(default=None, max_length=1000)
+    apiEnabled: bool | None = None
+
+
+class HealthInfoSyncResult(BaseModel):
+    total: int
+    updated: int
+    failed: int
+
+
 class MedicationCreate(BaseModel):
     user_id: int = Field(..., ge=1)
     profile_id: int | None = None

@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import type { Href } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -16,11 +16,14 @@ import {
   getLocalRegisteredMedicines,
   StoredPlace
 } from "@/services/localUserData";
+import { getRecommendedHealthContents, searchHealthContents } from "@/services/healthContentService";
 import { colors } from "@/theme/colors";
+import { designOne } from "@/theme/designOne";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
-import { MedicineSchedule, RegisteredMedicine } from "@/types/domain";
+import { HealthContent, MedicineSchedule, RegisteredMedicine } from "@/types/domain";
 
 type TodayTask = {
   id: string;
@@ -45,7 +48,10 @@ export function HomeScreen() {
   const [schedules, setSchedules] = useState<MedicineSchedule[]>([]);
   const [favorites, setFavorites] = useState<StoredPlace[]>([]);
   const [recentPlaces, setRecentPlaces] = useState<StoredPlace[]>([]);
+  const [healthContents, setHealthContents] = useState<HealthContent[]>([]);
+  const [healthSearchResults, setHealthSearchResults] = useState<HealthContent[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [healthSearchMessage, setHealthSearchMessage] = useState<string | null>(null);
 
   const displayName = selectedProfile?.profileName ?? (session?.mode === "guest" ? "비회원" : "나");
   const accountLabel = session?.mode === "member" ? session.nickname ?? "회원" : "비회원";
@@ -65,6 +71,7 @@ export function HomeScreen() {
     setSchedules(storedSchedules);
     setFavorites(storedFavorites);
     setRecentPlaces(storedRecentPlaces);
+    getRecommendedHealthContents().then(setHealthContents).catch(() => undefined);
   };
 
   const activeMedicines = useMemo(() => medicines.filter((medicine) => medicine.status !== "ended"), [medicines]);
@@ -161,9 +168,21 @@ export function HomeScreen() {
     return checks.filter(Boolean).length;
   }, [selectedProfile]);
 
-  const submitSearch = () => {
+  const submitSearch = async () => {
     const normalized = searchText.trim();
     if (!normalized) return;
+    setHealthSearchMessage(null);
+    try {
+      const results = await searchHealthContents(normalized);
+      if (results.length) {
+        setHealthSearchResults(results);
+        return;
+      }
+      setHealthSearchResults([]);
+      setHealthSearchMessage("건강정보 검색 결과가 없어 관련 메뉴로 이동합니다.");
+    } catch {
+      setHealthSearchMessage("건강정보 API 연결에 문제가 있어 관련 메뉴로 이동합니다.");
+    }
     if (normalized.includes("약") || normalized.includes("처방") || normalized.includes("DUR")) {
       router.push("/(tabs)/pills");
       return;
@@ -207,19 +226,19 @@ export function HomeScreen() {
         <View style={styles.brandArea}>
           <Image source={require("../../../app_img/allcaremedi.png")} style={styles.mascot} resizeMode="contain" />
           <View style={styles.heroTextGroup}>
-            <Text style={styles.eyebrow}>올케어메디</Text>
-            <Text style={styles.title}>오늘 건강 대시보드</Text>
-            <Text style={styles.heroDescription}>{displayName} 기준으로 복약, DUR, 병원약국, 응급 정보를 한 번에 확인합니다.</Text>
+            <Text style={[styles.eyebrow, isDesignOne && styles.designOneHeroEyebrow]}>올케어메디</Text>
+            <Text style={[styles.title, isDesignOne && styles.designOneHeroTitle]}>오늘 건강 대시보드</Text>
+            <Text style={[styles.heroDescription, isDesignOne && styles.designOneHeroDescription]}>{displayName} 기준으로 복약, DUR, 병원약국, 응급 정보를 한 번에 확인합니다.</Text>
           </View>
         </View>
-        <Pressable style={styles.profileButton} onPress={() => router.push("/(tabs)/family")}>
-          <Text style={styles.profileButtonText}>{displayName}</Text>
-          <Text style={styles.profileButtonMeta}>{accountLabel}</Text>
+        <Pressable style={[styles.profileButton, isDesignOne && styles.designOneProfileButton]} onPress={() => router.push("/(tabs)/family")}>
+          <Text style={[styles.profileButtonText, isDesignOne && styles.designOneProfileButtonText]}>{displayName}</Text>
+          <Text style={[styles.profileButtonMeta, isDesignOne && styles.designOneProfileButtonMeta]}>{accountLabel}</Text>
         </Pressable>
       </View>
 
       <View style={[styles.searchCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
-        <View style={styles.searchBox}>
+        <View style={[styles.searchBox, isDesignOne && styles.designOneSearchBox]}>
           <MaterialCommunityIcons name="magnify" size={22} color={colors.primary} />
           <TextInput
             accessibilityLabel="상황별 통합 검색"
@@ -236,11 +255,25 @@ export function HomeScreen() {
         </View>
         <View style={styles.chipRow}>
           {situationChips.map((chip) => (
-            <Pressable key={chip} style={styles.situationChip} onPress={() => openChip(chip)}>
-              <Text style={styles.situationChipText}>{chip}</Text>
+            <Pressable key={chip} style={[styles.situationChip, isDesignOne && styles.designOneChip]} onPress={() => openChip(chip)}>
+              <Text style={[styles.situationChipText, isDesignOne && styles.designOneChipText]}>{chip}</Text>
             </Pressable>
           ))}
         </View>
+        {healthSearchMessage ? <Text style={styles.searchMessage}>{healthSearchMessage}</Text> : null}
+        {healthSearchResults.length ? (
+          <View style={styles.healthSearchList}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>건강정보 검색 결과</Text>
+              <Pressable onPress={() => setHealthSearchResults([])}>
+                <Text style={styles.linkText}>닫기</Text>
+              </Pressable>
+            </View>
+            {healthSearchResults.map((content) => (
+              <HealthContentRow key={content.id} content={content} />
+            ))}
+          </View>
+        ) : null}
       </View>
 
       <View style={[styles.summaryCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
@@ -279,6 +312,19 @@ export function HomeScreen() {
             </View>
             <PlaceRow title="즐겨찾기" place={favorites[0]} empty="즐겨찾는 병원·약국이 없습니다." />
             <PlaceRow title="최근 본 장소" place={recentPlaces[0]} empty="최근 본 병원·약국이 없습니다." />
+          </View>
+
+          <View style={[styles.kdcaCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
+            <View style={styles.rowBetween}>
+              <View>
+                <Text style={styles.sectionTitle}>질병 건강정보</Text>
+                <Text style={styles.sectionDescription}>질병관리청 국가건강정보포털 콘텐츠입니다.</Text>
+              </View>
+              <MaterialCommunityIcons name="book-heart-outline" size={24} color={colors.primary} />
+            </View>
+            {healthContents.slice(0, 3).map((content) => (
+              <HealthContentRow key={content.id} content={content} />
+            ))}
           </View>
 
           <View style={[styles.healthRecordCard, isDesignOne && styles.designOneCard, isDesignTwo && styles.designTwoCard, isDesignThree && styles.designThreeCard]}>
@@ -392,6 +438,21 @@ function PlaceRow({ title, place, empty }: { title: string; place?: StoredPlace;
   );
 }
 
+function HealthContentRow({ content }: { content: HealthContent }) {
+  return (
+    <View style={styles.healthContentRow}>
+      <View style={styles.healthContentIcon}>
+        <MaterialCommunityIcons name="file-document-outline" size={18} color={colors.primary} />
+      </View>
+      <View style={styles.healthContentText}>
+        <Text style={styles.healthContentTitle}>{content.title}</Text>
+        <Text style={styles.healthContentMeta}>{content.category} · {content.superclass ?? "건강정보"}</Text>
+        <Text style={styles.healthContentSummary} numberOfLines={2}>{content.summary}</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     gap: spacing.md,
@@ -399,14 +460,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF"
   },
   designOneScreen: {
-    backgroundColor: "#F7F3FF",
-    paddingHorizontal: 18,
-    gap: spacing.md
+    backgroundColor: designOne.body,
+    paddingHorizontal: 24,
+    gap: spacing.lg
   },
   designTwoScreen: {
-    backgroundColor: "#F3FBFF",
+    backgroundColor: designTwo.background,
     paddingHorizontal: 18,
-    gap: spacing.md
+    gap: spacing.lg
   },
   designThreeScreen: {
     backgroundColor: "#F8F4FF",
@@ -451,22 +512,20 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   designOneHeroCard: {
-    borderColor: "#E7DDF8",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    shadowColor: "#8B5CF6",
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 3
+    borderWidth: 0,
+    backgroundColor: designOne.primaryDark,
+    borderRadius: designOne.radiusCard,
+    shadowColor: "#2F248F",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5
   },
   designTwoHeroCard: {
-    borderColor: "#D6EEF6",
-    backgroundColor: "#EAF8FF",
-    borderRadius: 8,
-    shadowColor: "#21A9C9",
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 3
+    borderWidth: 0,
+    backgroundColor: designTwo.card,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   designThreeHeroCard: {
     borderColor: "#E4D7F7",
@@ -507,6 +566,15 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20
   },
+  designOneHeroEyebrow: {
+    color: "#DCD7FF"
+  },
+  designOneHeroTitle: {
+    color: "#FFFFFF"
+  },
+  designOneHeroDescription: {
+    color: "#EEEAFB"
+  },
   profileButton: {
     alignSelf: "flex-start",
     minWidth: 92,
@@ -527,6 +595,20 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textMuted
   },
+  designOneProfileButton: {
+    borderWidth: 0,
+    borderRadius: designOne.radiusPill,
+    backgroundColor: "#FFFFFF"
+  },
+  designOneProfileButtonText: {
+    color: designOne.primary
+  },
+  designOneProfileButtonMeta: {
+    color: designOne.muted
+  },
+  designOneHeaderText: {
+    color: "#FFFFFF"
+  },
   searchCard: {
     borderRadius: 4,
     backgroundColor: "#FFFFFF",
@@ -536,14 +618,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   designOneCard: {
-    borderColor: "#E7DDF8",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8
+    borderWidth: 0,
+    backgroundColor: designOne.surface,
+    borderRadius: designOne.radiusCard,
+    ...designOne.shadow
   },
   designTwoCard: {
-    borderColor: "#D6EEF6",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8
+    borderWidth: 0,
+    backgroundColor: designTwo.cardSoft,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   designThreeCard: {
     borderColor: "#E4D7F7",
@@ -580,6 +664,22 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.onPrimary
   },
+  designOneSearchBox: {
+    borderWidth: 0,
+    borderRadius: designOne.radiusButton,
+    backgroundColor: "#FFFFFF"
+  },
+  searchMessage: {
+    ...typography.caption,
+    color: colors.textMuted,
+    lineHeight: 18
+  },
+  healthSearchList: {
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    paddingTop: spacing.sm
+  },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -599,6 +699,10 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "800"
   },
+  designOneChipText: {
+    color: designOne.primary,
+    fontWeight: "900"
+  },
   insightCard: {
     borderRadius: 4,
     backgroundColor: "#FFFFFF",
@@ -607,15 +711,20 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.sm
   },
+  designOneChip: {
+    borderWidth: 0,
+    borderRadius: designOne.radiusPill,
+    backgroundColor: designOne.surfaceAlt
+  },
   designOneInsightCard: {
     borderColor: "#D8F3DC",
     backgroundColor: "#F0FFF4",
     borderRadius: 8
   },
   designTwoInsightCard: {
-    borderColor: "#B9F0EA",
-    backgroundColor: "#E9FFFB",
-    borderRadius: 8
+    borderWidth: 0,
+    backgroundColor: designTwo.primaryLight,
+    borderRadius: designTwo.radiusCard
   },
   designThreeInsightCard: {
     borderColor: "#D8CCF1",
@@ -788,6 +897,52 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: spacing.lg,
     gap: spacing.md
+  },
+  kdcaCard: {
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    padding: spacing.lg,
+    gap: spacing.md
+  },
+  healthContentRow: {
+    borderRadius: 4,
+    backgroundColor: "#F8FBFF",
+    borderWidth: 1,
+    borderColor: "#C7D6EA",
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md
+  },
+  healthContentIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 4,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  healthContentText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2
+  },
+  healthContentTitle: {
+    ...typography.bodyLarge,
+    color: colors.textStrong,
+    fontWeight: "900"
+  },
+  healthContentMeta: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "800"
+  },
+  healthContentSummary: {
+    ...typography.caption,
+    color: colors.text,
+    lineHeight: 18
   },
   rowBetween: {
     flexDirection: "row",

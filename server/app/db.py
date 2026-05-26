@@ -34,6 +34,30 @@ def init_db() -> None:
         _ensure_sqlite_medication_columns()
         _ensure_sqlite_place_columns()
         _ensure_sqlite_emergency_columns()
+        _ensure_sqlite_health_info_columns()
+
+
+def _ensure_sqlite_health_info_columns() -> None:
+    columns = {
+        "api_enabled": "BOOLEAN DEFAULT 1",
+        "category": "VARCHAR(120)",
+        "category_code": "VARCHAR(40)",
+        "superclass": "VARCHAR(120)",
+        "superclass_code": "VARCHAR(40)",
+        "source_url": "TEXT DEFAULT ''",
+        "summary": "TEXT",
+        "content_text": "TEXT",
+        "raw_payload": "TEXT",
+        "sync_status": "VARCHAR(20) DEFAULT 'metadata'",
+        "last_synced_at": "DATETIME",
+        "created_at": "DATETIME",
+        "updated_at": "DATETIME",
+    }
+    with engine.begin() as connection:
+        existing = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(health_info_contents)").fetchall()}
+        for name, ddl_type in columns.items():
+            if name not in existing:
+                connection.exec_driver_sql(f"ALTER TABLE health_info_contents ADD COLUMN {name} {ddl_type}")
 
 
 def _ensure_sqlite_user_columns() -> None:

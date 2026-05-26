@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -26,6 +26,7 @@ import {
   StoredPlace
 } from "@/services/localUserData";
 import { colors } from "@/theme/colors";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -328,7 +329,7 @@ export function MedicalMapScreen() {
   return (
     <>
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
-      <View style={styles.hero}>
+      <View style={[styles.hero, isDesignTwo && styles.designTwoHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
             <MaterialCommunityIcons name="map-outline" size={24} color={colors.primary} />
@@ -341,7 +342,7 @@ export function MedicalMapScreen() {
         </View>
       </View>
 
-      <View style={styles.regionSearchPanel}>
+      <View style={[styles.regionSearchPanel, isDesignTwo && styles.designTwoPanel]}>
         <View style={styles.searchBox}>
           <MaterialCommunityIcons name="magnify" size={20} color={colors.primary} />
           <TextInput
@@ -427,7 +428,7 @@ export function MedicalMapScreen() {
         })}
       </View>
 
-      {!isEasyMode ? <View style={styles.recommendCard}>
+      {!isEasyMode ? <View style={[styles.recommendCard, isDesignTwo && styles.designTwoPanel]}>
         <Text style={styles.recommendTitle}>{recommendation.title}</Text>
         <Text style={styles.body}>{recommendation.description}</Text>
         <View style={styles.recommendChipRow}>
@@ -439,7 +440,7 @@ export function MedicalMapScreen() {
         </View>
       </View> : null}
 
-      <View style={styles.segmentShell}>
+      <View style={[styles.segmentShell, isDesignTwo && styles.designTwoSegmentShell]}>
         <Pressable style={[styles.segment, viewMode === "map" && styles.segmentActive]} onPress={() => setViewMode("map")}>
           <Text style={[styles.segmentText, viewMode === "map" && styles.segmentTextActive]}>지도 보기</Text>
         </Pressable>
@@ -449,7 +450,7 @@ export function MedicalMapScreen() {
       </View>
 
       {viewMode === "map" ? (
-        <View style={styles.mapPreview}>
+        <View style={[styles.mapPreview, isDesignTwo && styles.designTwoMapPreview]}>
           <MapView
             provider={PROVIDER_GOOGLE}
             style={styles.map}
@@ -911,12 +912,12 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   designOneScreen: {
-    backgroundColor: "#F7F3FF",
+    backgroundColor: "#FAFAFD",
     gap: spacing.md
   },
   designTwoScreen: {
-    backgroundColor: "#F3FBFF",
-    gap: spacing.md
+    backgroundColor: designTwo.background,
+    gap: spacing.lg
   },
   designThreeScreen: {
     backgroundColor: "#F8F4FF",
@@ -934,6 +935,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
+  },
+  designTwoHero: {
+    borderWidth: 0,
+    backgroundColor: designTwo.card,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   heroHeading: {
     flexDirection: "row",
@@ -1005,6 +1012,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     padding: spacing.md,
     gap: spacing.sm
+  },
+  designTwoPanel: {
+    borderWidth: 0,
+    backgroundColor: designTwo.cardSoft,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   regionChipRow: {
     flexDirection: "row",
@@ -1192,6 +1205,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     overflow: "hidden"
   },
+  designTwoSegmentShell: {
+    borderWidth: 0,
+    borderRadius: designTwo.radiusPill,
+    backgroundColor: designTwo.primaryLight,
+    padding: 4
+  },
   segment: {
     flex: 1,
     alignItems: "center",
@@ -1214,6 +1233,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#C7D6EA"
+  },
+  designTwoMapPreview: {
+    borderWidth: 0,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   map: {
     ...StyleSheet.absoluteFillObject

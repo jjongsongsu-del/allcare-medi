@@ -158,6 +158,28 @@ class HealthProfile(Base):
     current_medications: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
+class HealthInfoContent(Base):
+    __tablename__ = "health_info_contents"
+    __table_args__ = (UniqueConstraint("content_serial", name="uq_health_info_content_serial"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    content_serial: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    api_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    category: Mapped[Optional[str]] = mapped_column(String(120), nullable=True, index=True)
+    category_code: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    superclass: Mapped[Optional[str]] = mapped_column(String(120), nullable=True, index=True)
+    superclass_code: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    raw_payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sync_status: Mapped[str] = mapped_column(String(20), default="metadata")
+    last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class FamilyPermission(Base):
     __tablename__ = "family_permissions"
 

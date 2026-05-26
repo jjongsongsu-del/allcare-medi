@@ -1,4 +1,4 @@
-import { EmergencyRoom, MedicalFacility, MedicationEvent, MedicineSchedule, MedicineSearchResult, PrescriptionOcrResult, RegisteredMedicine } from "@/types/domain";
+import { EmergencyRoom, HealthContent, MedicalFacility, MedicationEvent, MedicineSchedule, MedicineSearchResult, PrescriptionOcrResult, RegisteredMedicine } from "@/types/domain";
 import { StoredPlace } from "@/services/localUserData";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -169,12 +169,92 @@ export type DurSafetyResult = {
   message?: string | null;
 };
 
+export type HealthContentAdminUpdate = {
+  sourceUrl?: string;
+  apiEnabled?: boolean;
+};
+
+export type HealthContentSyncResult = {
+  total: number;
+  updated: number;
+  failed: number;
+};
+
 export async function fetchManagedApis(): Promise<ManagedApiEndpoint[]> {
   const response = await fetch(`${API_BASE_URL}/admin/apis`);
   if (!response.ok) {
     throw new Error("API 목록을 불러오지 못했습니다.");
   }
   return response.json();
+}
+
+export async function fetchHealthContents(params: { query?: string; category?: string; limit?: number } = {}): Promise<HealthContent[]> {
+  const url = new URL(`${API_BASE_URL}/health-contents`);
+  if (params.query) url.searchParams.set("query", params.query);
+  if (params.category) url.searchParams.set("category", params.category);
+  if (params.limit) url.searchParams.set("limit", String(params.limit));
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error("건강정보를 불러오지 못했습니다.");
+  }
+  const payload = await response.json();
+  return payload.map(toHealthContent);
+}
+
+export async function fetchAdminHealthContents(params: { query?: string; category?: string; limit?: number } = {}): Promise<HealthContent[]> {
+  const url = new URL(`${API_BASE_URL}/admin/health-contents`);
+  if (params.query) url.searchParams.set("query", params.query);
+  if (params.category) url.searchParams.set("category", params.category);
+  if (params.limit) url.searchParams.set("limit", String(params.limit));
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error("관리자 건강정보 목록을 불러오지 못했습니다.");
+  }
+  const payload = await response.json();
+  return payload.map(toHealthContent);
+}
+
+export async function seedAdminHealthContents(): Promise<HealthContentSyncResult> {
+  const response = await fetch(`${API_BASE_URL}/admin/health-contents/seed`, { method: "POST" });
+  if (!response.ok) {
+    throw new Error("건강정보 목록 저장에 실패했습니다.");
+  }
+  return response.json();
+}
+
+export async function syncAdminHealthContents(limit?: number): Promise<HealthContentSyncResult> {
+  const url = new URL(`${API_BASE_URL}/admin/health-contents/sync`);
+  if (limit) url.searchParams.set("limit", String(limit));
+  const response = await fetch(url.toString(), { method: "POST" });
+  if (!response.ok) {
+    throw new Error("건강정보 상세 갱신에 실패했습니다.");
+  }
+  return response.json();
+}
+
+export async function updateAdminHealthContent(contentSerial: string, payload: HealthContentAdminUpdate): Promise<HealthContent> {
+  const response = await fetch(`${API_BASE_URL}/admin/health-contents/${encodeURIComponent(contentSerial)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sourceUrl: payload.sourceUrl,
+      apiEnabled: payload.apiEnabled
+    })
+  });
+  if (!response.ok) {
+    throw new Error("건강정보 URL 수정에 실패했습니다.");
+  }
+  return toHealthContent(await response.json());
+}
+
+export async function syncAdminHealthContent(contentSerial: string): Promise<HealthContent> {
+  const response = await fetch(`${API_BASE_URL}/admin/health-contents/${encodeURIComponent(contentSerial)}/sync`, {
+    method: "POST"
+  });
+  if (!response.ok) {
+    throw new Error("건강정보 상세 갱신에 실패했습니다.");
+  }
+  return toHealthContent(await response.json());
 }
 
 export async function socialLogin(payload: {
@@ -715,6 +795,21 @@ function toFacilityReport(item: any): FacilityReport {
     description: item.description ?? null,
     reporterContact: item.reporter_contact ?? null,
     status: item.status
+  };
+}
+
+function toHealthContent(item: any): HealthContent {
+  return {
+    id: String(item.contentSerial ?? item.id),
+    contentSerial: String(item.contentSerial ?? item.id),
+    title: item.title,
+    category: item.category ?? "건강정보",
+    lifeStage: item.category ?? undefined,
+    superclass: item.superclass ?? undefined,
+    summary: item.summary ?? "질병관리청 국가건강정보포털 콘텐츠입니다.",
+    sourceUrl: item.sourceUrl ?? undefined,
+    syncStatus: item.syncStatus ?? "metadata",
+    lastSyncedAt: item.lastSyncedAt ?? null
   };
 }
 

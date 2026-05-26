@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { File, Paths } from "expo-file-system";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -28,6 +28,7 @@ import {
 } from "@/services/medicationNotificationService";
 import { createMedicationEvent, createMedicineSchedule } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -477,7 +478,7 @@ export function MedicationScreen() {
 
   return (
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
-      <View style={styles.hero}>
+      <View style={[styles.hero, isDesignTwo && styles.designTwoHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
             <MaterialCommunityIcons name="clock-outline" size={24} color={colors.primary} />
@@ -490,7 +491,7 @@ export function MedicationScreen() {
         </View>
       </View>
 
-      {!isEasyMode ? <View style={styles.searchBox}>
+      {!isEasyMode ? <View style={[styles.searchBox, isDesignTwo && styles.designTwoSearchBox]}>
         <MaterialCommunityIcons name="magnify" size={20} color={colors.primary} />
         <TextInput
           value={searchText}
@@ -540,7 +541,7 @@ export function MedicationScreen() {
         onTest={sendTestNotification}
       />
 
-      <View style={styles.segmentShell}>
+      <View style={[styles.segmentShell, isDesignTwo && styles.designTwoSegmentShell]}>
         <Pressable style={activeTab === "schedule" ? styles.segmentActive : styles.segmentInactive} onPress={() => setActiveTab("schedule")}>
           <Text style={activeTab === "schedule" ? styles.segmentActiveText : styles.segmentInactiveText}>복약 일정</Text>
         </Pressable>
@@ -563,7 +564,7 @@ export function MedicationScreen() {
             ))}
           </View>
 
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, isDesignTwo && styles.designTwoCard]}>
             <Text style={styles.sectionTitle}>다음 복약</Text>
             {nextDose ? (
               <View style={styles.nextSchedule}>
@@ -1408,12 +1409,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   designOneScreen: {
-    backgroundColor: "#F7F3FF",
+    backgroundColor: "#FAFAFD",
     gap: spacing.md
   },
   designTwoScreen: {
-    backgroundColor: "#F3FBFF",
-    gap: spacing.md
+    backgroundColor: designTwo.background,
+    gap: spacing.lg
   },
   designThreeScreen: {
     backgroundColor: "#F8F4FF",
@@ -1431,6 +1432,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
+  },
+  designTwoHero: {
+    borderWidth: 0,
+    backgroundColor: designTwo.card,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   heroHeading: {
     flexDirection: "row",
@@ -1475,6 +1482,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm
+  },
+  designTwoSearchBox: {
+    borderWidth: 0,
+    borderRadius: designTwo.radiusButton,
+    backgroundColor: designTwo.cardSoft
   },
   searchInput: {
     ...typography.body,
@@ -1710,6 +1722,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     overflow: "hidden"
   },
+  designTwoSegmentShell: {
+    borderWidth: 0,
+    borderRadius: designTwo.radiusPill,
+    backgroundColor: designTwo.primaryLight,
+    padding: 4
+  },
   segmentActive: {
     flex: 1,
     backgroundColor: colors.primary,
@@ -1739,6 +1757,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: spacing.sm,
     gap: spacing.sm
+  },
+  designTwoCard: {
+    borderWidth: 0,
+    backgroundColor: designTwo.cardSoft,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   reportCard: {
     borderRadius: 4,

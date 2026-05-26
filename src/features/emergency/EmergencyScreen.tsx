@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
@@ -12,6 +12,7 @@ import { menuHelp } from "@/help/menuHelp";
 import { FamilyProfile } from "@/services/localUserData";
 import { getNearbyEmergencyRooms } from "@/services/emergencyService";
 import { colors } from "@/theme/colors";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -203,7 +204,7 @@ export function EmergencyScreen() {
 
   return (
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
-      <View style={styles.hero}>
+      <View style={[styles.hero, isDesignTwo && styles.designTwoHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.alertIconBox}>
             <MaterialCommunityIcons name="alert" size={26} color={emergencyRed} />
@@ -221,7 +222,7 @@ export function EmergencyScreen() {
         <Text style={styles.priorityText}>생명에 위협이 있거나 판단이 어려운 상황은 앱 조회보다 119 신고가 우선입니다.</Text>
       </View>
 
-      <View style={styles.searchPanel}>
+      <View style={[styles.searchPanel, isDesignTwo && styles.designTwoPanel]}>
         <View style={styles.searchBox}>
           <MaterialCommunityIcons name="magnify" size={22} color={mutedRed} />
           <TextInput
@@ -277,7 +278,7 @@ export function EmergencyScreen() {
         {shareMessage ? <Text style={styles.updatedText}>{shareMessage}</Text> : null}
       </View>
 
-      <View style={styles.mapCard}>
+      <View style={[styles.mapCard, isDesignTwo && styles.designTwoMapCard]}>
         <MapView
           provider={PROVIDER_GOOGLE}
           style={styles.map}
@@ -312,7 +313,7 @@ export function EmergencyScreen() {
         </View>
       </View>
 
-      <View style={styles.familyCard}>
+      <View style={[styles.familyCard, isDesignTwo && styles.designTwoPanel]}>
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleArea}>
             <Text style={styles.cardEyebrow}>선택 가족 응급카드</Text>
@@ -684,12 +685,12 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   designOneScreen: {
-    backgroundColor: "#F7F3FF",
+    backgroundColor: "#FAFAFD",
     gap: spacing.md
   },
   designTwoScreen: {
-    backgroundColor: "#F3FBFF",
-    gap: spacing.md
+    backgroundColor: designTwo.background,
+    gap: spacing.lg
   },
   designThreeScreen: {
     backgroundColor: "#F8F4FF",
@@ -707,6 +708,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
+  },
+  designTwoHero: {
+    borderWidth: 0,
+    backgroundColor: "#FFE4E2",
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   heroHeading: {
     flexDirection: "row",
@@ -763,6 +770,12 @@ const styles = StyleSheet.create({
     borderColor: "#FFD0CC",
     padding: spacing.md,
     gap: spacing.sm
+  },
+  designTwoPanel: {
+    borderWidth: 0,
+    backgroundColor: designTwo.cardSoft,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   searchBox: {
     minHeight: 52,
@@ -898,6 +911,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: "#FFD0CC"
+  },
+  designTwoMapCard: {
+    borderWidth: 0,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   map: {
     ...StyleSheet.absoluteFillObject

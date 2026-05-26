@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     emergency_api_key: str = ""
     e_drug_api_key: str = ""
     health_portal_api_key: str = ""
+    kdca_health_info_token: str = "19e3ef9cbff3"
+    kdca_health_info_base_url: str = "http://api.kdca.go.kr/api/provide/healthInfo"
     ai_inference_url: str = "http://localhost:9000"
     prescription_ocr_provider: str = ""
     prescription_ocr_api_url: str = ""
@@ -32,7 +34,7 @@ class Settings(BaseSettings):
     naver_client_id: str = ""
     naver_client_secret: str = ""
 
-    model_config = SettingsConfigDict(env_file=(SERVER_DIR / ".env", ".env"), env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=(SERVER_DIR / ".env", ".env"), env_file_encoding="utf-8", extra="ignore")
 
 
 @lru_cache

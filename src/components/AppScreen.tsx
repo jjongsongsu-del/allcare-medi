@@ -2,6 +2,8 @@ import { PropsWithChildren } from "react";
 import { ScrollView, StyleProp, StyleSheet, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "@/theme/colors";
+import { designOne } from "@/theme/designOne";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 
@@ -26,10 +28,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background
   },
   designOneSafeArea: {
-    backgroundColor: "#F7F3FF"
+    backgroundColor: designOne.background
   },
   designTwoSafeArea: {
-    backgroundColor: "#F3FBFF"
+    backgroundColor: designTwo.background
   },
   designThreeSafeArea: {
     backgroundColor: "#F8F4FF"
@@ -40,11 +42,17 @@ const styles = StyleSheet.create({
     gap: spacing.lg
   },
   designOneContent: {
-    backgroundColor: "#F7F3FF",
+    minHeight: "100%",
+    marginTop: spacing.sm,
+    borderTopLeftRadius: designOne.radiusPanel,
+    borderTopRightRadius: designOne.radiusPanel,
+    backgroundColor: designOne.body,
+    paddingTop: spacing.xl,
     gap: spacing.md
   },
   designTwoContent: {
-    backgroundColor: "#F3FBFF",
+    minHeight: "100%",
+    backgroundColor: designTwo.background,
     gap: spacing.md
   },
   designThreeContent: {

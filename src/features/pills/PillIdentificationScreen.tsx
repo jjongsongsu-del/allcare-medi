@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BarcodeScanningResult, Camera, CameraView } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
@@ -22,6 +22,7 @@ import { recognizePillFromImage } from "@/services/pillRecognitionService";
 import { parsePrescriptionQrPayload } from "@/services/prescriptionQrService";
 import { createMedicineSchedule, createMedicationEvent, createRegisteredMedicine, deleteRegisteredMedicine, fetchRegisteredMedicines, searchDurSafety, searchMedicines, updateRegisteredMedicine, uploadPrescriptionOcr } from "@/services/serverApi";
 import { colors } from "@/theme/colors";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -944,7 +945,7 @@ export function PillIdentificationScreen() {
 
   return (
     <AppScreen contentStyle={[styles.screen, isEasyMode && styles.easyScreen, isDesignOne && styles.designOneScreen, isDesignTwo && styles.designTwoScreen, isDesignThree && styles.designThreeScreen]}>
-      <View style={styles.hero}>
+      <View style={[styles.hero, isDesignTwo && styles.designTwoHero]}>
         <View style={styles.heroHeading}>
           <View style={styles.iconBox}>
             <MaterialCommunityIcons name="archive-outline" size={24} color={colors.primary} />
@@ -957,12 +958,12 @@ export function PillIdentificationScreen() {
         </View>
       </View>
 
-      <View style={styles.segmented}>
+      <View style={[styles.segmented, isDesignTwo && styles.designTwoSegmented]}>
         <SegmentButton label="약관리" active={activeTab === "medicine"} onPress={() => setActiveTab("medicine")} />
         <SegmentButton label="처방전 관리" active={activeTab === "prescription"} onPress={() => setActiveTab("prescription")} />
       </View>
 
-      <View style={styles.actionGrid}>
+      <View style={[styles.actionGrid, isDesignTwo && styles.designTwoActionGrid]}>
         {visibleRegistrationMethods.map((method) => (
           <RegistrationTile
             key={method.key}
@@ -975,7 +976,7 @@ export function PillIdentificationScreen() {
         ))}
       </View>
 
-      <View style={styles.todayCard}>
+      <View style={[styles.todayCard, isDesignTwo && styles.designTwoCard]}>
         <View style={styles.listHeader}>
           <View>
             <Text style={styles.sectionTitle}>오늘 복약 목록</Text>
@@ -989,7 +990,7 @@ export function PillIdentificationScreen() {
         ))}
       </View>
 
-      <View style={styles.listCard}>
+      <View style={[styles.listCard, isDesignTwo && styles.designTwoCard]}>
         <View style={styles.listHeader}>
           <View>
             <Text style={styles.sectionTitle}>등록된 약 목록</Text>
@@ -2189,12 +2190,12 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   designOneScreen: {
-    backgroundColor: "#F7F3FF",
+    backgroundColor: "#FAFAFD",
     gap: spacing.md
   },
   designTwoScreen: {
-    backgroundColor: "#F3FBFF",
-    gap: spacing.md
+    backgroundColor: designTwo.background,
+    gap: spacing.lg
   },
   designThreeScreen: {
     backgroundColor: "#F8F4FF",
@@ -2212,6 +2213,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs
+  },
+  designTwoHero: {
+    borderWidth: 0,
+    backgroundColor: designTwo.card,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   heroHeading: {
     flexDirection: "row",
@@ -2275,6 +2282,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.xs
   },
+  designTwoSegmented: {
+    borderWidth: 0,
+    borderRadius: designTwo.radiusPill,
+    backgroundColor: designTwo.primaryLight
+  },
   segmentButton: {
     flex: 1,
     minHeight: 42,
@@ -2297,6 +2309,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
+  },
+  designTwoActionGrid: {
+    gap: spacing.md
   },
   tile: {
     flexBasis: "48%",
@@ -2343,6 +2358,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: spacing.md,
     gap: spacing.sm
+  },
+  designTwoCard: {
+    borderWidth: 0,
+    backgroundColor: designTwo.cardSoft,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   listHeader: {
     flexDirection: "row",

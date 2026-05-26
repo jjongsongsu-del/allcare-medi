@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -24,6 +24,7 @@ import {
 import { migrateGuestData } from "@/services/serverApi";
 import { useFamilyProfile } from "@/family/FamilyProfileProvider";
 import { colors } from "@/theme/colors";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 import { spacing } from "@/theme/spacing";
 import { typography } from "@/theme/typography";
@@ -1011,12 +1012,12 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   designOneScreen: {
-    backgroundColor: "#F7F3FF",
+    backgroundColor: "#FAFAFD",
     gap: spacing.md
   },
   designTwoScreen: {
-    backgroundColor: "#F3FBFF",
-    gap: spacing.md
+    backgroundColor: designTwo.background,
+    gap: spacing.lg
   },
   designThreeScreen: {
     backgroundColor: "#F8F4FF",
@@ -1045,13 +1046,10 @@ const styles = StyleSheet.create({
     elevation: 2
   },
   designTwoHero: {
-    borderColor: "#D6EEF6",
-    backgroundColor: "#EAF8FF",
-    borderRadius: 8,
-    shadowColor: "#21A9C9",
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 2
+    borderWidth: 0,
+    backgroundColor: designTwo.card,
+    borderRadius: designTwo.radiusCard,
+    ...designTwo.shadow
   },
   designThreeHero: {
     borderColor: "#E4D7F7",
@@ -1128,9 +1126,9 @@ const styles = StyleSheet.create({
     borderRadius: 8
   },
   designTwoModeCard: {
-    borderColor: "#D6EEF6",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8
+    borderWidth: 0,
+    backgroundColor: designTwo.cardSoft,
+    borderRadius: designTwo.radiusCard
   },
   designThreeModeCard: {
     borderColor: "#E4D7F7",
@@ -1253,8 +1251,8 @@ const styles = StyleSheet.create({
     padding: spacing.xs
   },
   designTwoActionGrid: {
-    backgroundColor: "#DFF7FB",
-    borderRadius: 8,
+    backgroundColor: designTwo.primaryLight,
+    borderRadius: designTwo.radiusCard,
     padding: spacing.xs
   },
   designThreeActionGrid: {

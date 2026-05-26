@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "@/auth/AuthProvider";
 import { colors } from "@/theme/colors";
+import { designOne } from "@/theme/designOne";
+import { designTwo } from "@/theme/designTwo";
 import { useDesignMode } from "@/theme/DesignModeProvider";
 
 const tabIconSize = 22;
@@ -35,18 +37,33 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: isDesignOne || isDesignTwo ? "#FFFFFF" : colors.primary,
+        tabBarInactiveTintColor: isDesignOne ? designOne.inactive : isDesignTwo ? "#FFFFFF" : colors.textMuted,
+        tabBarActiveBackgroundColor: isDesignOne ? designOne.primary : undefined,
+        tabBarShowLabel: !isDesignTwo,
         tabBarStyle: {
-          height: isDesignOne || isDesignTwo || isDesignThree ? 68 : 62,
-          paddingBottom: isDesignOne || isDesignTwo || isDesignThree ? 10 : 8,
-          paddingTop: isDesignOne || isDesignTwo || isDesignThree ? 8 : 6,
-          borderTopColor: isDesignOne ? "#E7DDF8" : isDesignTwo ? "#D6EEF6" : isDesignThree ? "#E4D7F7" : colors.border,
-          backgroundColor: isDesignOne || isDesignTwo || isDesignThree ? "#FFFFFF" : colors.surface
+          height: isDesignTwo ? 62 : isDesignOne ? 76 : isDesignThree ? 68 : 62,
+          paddingHorizontal: isDesignTwo ? 10 : isDesignOne ? 12 : 0,
+          paddingBottom: isDesignTwo ? 8 : isDesignOne ? 12 : isDesignThree ? 10 : 8,
+          paddingTop: isDesignTwo ? 8 : isDesignOne ? 10 : isDesignThree ? 8 : 6,
+          marginHorizontal: isDesignTwo ? 30 : isDesignOne ? 24 : 0,
+          marginBottom: isDesignTwo ? 12 : isDesignOne ? 14 : 0,
+          borderRadius: isDesignTwo ? designTwo.radiusPill : isDesignOne ? designOne.radiusPill : 0,
+          borderTopWidth: isDesignOne || isDesignTwo ? 0 : 1,
+          borderTopColor: isDesignOne || isDesignTwo ? "transparent" : isDesignThree ? "#E4D7F7" : colors.border,
+          backgroundColor: isDesignTwo ? designTwo.primary : isDesignOne || isDesignThree ? "#FFFFFF" : colors.surface,
+          ...(isDesignOne ? designOne.shadow : {}),
+          ...(isDesignTwo ? designTwo.shadow : {})
+        },
+        tabBarItemStyle: {
+          borderRadius: isDesignTwo ? 22 : isDesignOne ? 24 : 0,
+          marginHorizontal: isDesignOne || isDesignTwo ? 2 : 0,
+          marginVertical: isDesignOne || isDesignTwo ? 6 : 0,
+          overflow: "hidden"
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: "700"
+          fontWeight: "800"
         }
       }}
     >
@@ -82,8 +99,8 @@ export default function TabLayout() {
         name="emergency"
         options={{
           title: "응급",
-          tabBarActiveTintColor: emergencyRed,
-          tabBarIcon: () => <MaterialCommunityIcons name="hospital-box" size={tabIconSize} color={emergencyRed} />
+          tabBarActiveTintColor: isDesignOne || isDesignTwo ? "#FFFFFF" : emergencyRed,
+          tabBarIcon: ({ focused }) => <MaterialCommunityIcons name="hospital-box" size={tabIconSize} color={(isDesignOne || isDesignTwo) && focused ? "#FFFFFF" : isDesignTwo ? "#FFFFFF" : emergencyRed} />
         }}
       />
       <Tabs.Screen

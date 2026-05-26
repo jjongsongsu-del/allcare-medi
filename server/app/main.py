@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import init_db
-from app.routers import admin_apis, auth, emergency, facilities, facility_reports, family_profiles, health, medications, migration, places, prescription_ocr
+from app.db import SessionLocal, init_db
+from app.kdca_health_info import seed_health_info_metadata
+from app.routers import admin_apis, auth, emergency, facilities, facility_reports, family_profiles, health, health_contents, medications, migration, places, prescription_ocr
 
 app = FastAPI(
     title="AllCareMedi BFF",
@@ -22,9 +23,13 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    with SessionLocal() as db:
+        seed_health_info_metadata(db)
 
 
 app.include_router(health.router)
+app.include_router(health_contents.router)
+app.include_router(health_contents.admin_router)
 app.include_router(auth.router)
 app.include_router(admin_apis.router)
 app.include_router(facilities.router)

@@ -1,0 +1,30 @@
+export const designOne = {
+  primary: "#3C2DBD",
+  primaryDark: "#291D8F",
+  accent: "#FF3F69",
+  orange: "#FFAA1B",
+  teal: "#43CFB5",
+  blue: "#1E8BFF",
+  background: "#3C2DBD",
+  body: "#FAFAFD",
+  surface: "#FFFFFF",
+  surfaceAlt: "#F4F1FF",
+  border: "#EEEAFB",
+  text: "#201C3A",
+  muted: "#8B8798",
+  inactive: "#8E8E93",
+  cardGradientFallback: "#291D8F",
+  iconSoft: "#F7F5FF",
+  radiusPanel: 28,
+  radiusCard: 18,
+  radiusTile: 16,
+  radiusButton: 22,
+  radiusPill: 999,
+  shadow: {
+    shadowColor: "#2F248F",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5
+  }
+};
